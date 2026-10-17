@@ -8,7 +8,8 @@ import type { Network } from "@kakure/domain";
  * data is never shown.
  */
 export const OPERATOR_PUBLIC_KEYS: Readonly<Record<Network, string | null>> = {
-  mainnet: null,
+  /** The mainnet operator's key (base64url sG_wKO_4xxEWnCqkvVhmLuq-rwHxv7RjPlgqhLKFSzs), pinned 2026-10-17. */
+  mainnet: "b06ff028eff8c711169c2aa4bd58662eeabeaf01f1bfb4633e582a84b2854b3b",
   /** The testnet operator's key (base64url AJ556QMDemUB-ZxXMaxeegFccD_0tn8QlMqdjx6rw3s), pinned 2026-10-17. */
   testnet: "009e79e903037a6501f99c5731ac5e7a015c703ff4b67f1094ca9d8f1eabc37b",
 };
