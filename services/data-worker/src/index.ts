@@ -1,5 +1,6 @@
 import {
   BASE_HEADERS,
+  CONTENT_SECURITY_POLICY,
   DATA_PREFIX,
   HTTP_METHOD_NOT_ALLOWED,
   HTTP_NOT_FOUND,
@@ -8,6 +9,7 @@ import {
   KEY_PATTERN,
   LATEST_CACHE,
   LATEST_FILE,
+  PERMISSIONS_POLICY,
 } from "./constants";
 
 interface Env {
@@ -33,7 +35,7 @@ export default {
       return serveData(pathname.slice(DATA_PREFIX.length), request, env);
     }
     if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      return withPageHeaders(await env.ASSETS.fetch(request));
     }
     return notFound();
   },
@@ -63,6 +65,19 @@ async function serveData(key: string, request: Request, env: Env): Promise<Respo
     return new Response(null, { status: HTTP_NOT_MODIFIED, headers });
   }
   return new Response(request.method === "HEAD" ? null : object.body, { headers });
+}
+
+/** Security headers on every static asset; the CSP and Permissions-Policy on HTML pages. */
+function withPageHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(BASE_HEADERS)) {
+    headers.set(name, value);
+  }
+  if ((headers.get("content-type") ?? "").includes("text/html")) {
+    headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
+    headers.set("permissions-policy", PERMISSIONS_POLICY);
+  }
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 function notFound(): Response {

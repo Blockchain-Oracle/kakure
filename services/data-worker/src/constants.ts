@@ -24,3 +24,26 @@ export const BASE_HEADERS: Readonly<Record<string, string>> = {
 export const HTTP_NOT_MODIFIED = 304;
 export const HTTP_NOT_FOUND = 404;
 export const HTTP_METHOD_NOT_ALLOWED = 405;
+
+/**
+ * Content Security Policy for the site's HTML (audit O14). `connect-src` is the privacy control: a page can only talk
+ * to its own origin and the price relay, so nothing (even an injected script) can send data to a third party.
+ * Inline scripts are allowed because Next's static export inlines its bootstrap; wasm-unsafe-eval is for the
+ * payout-address check (@kakure/zaddr-wasm). Add a host here only together with the feature that needs it.
+ */
+export const RELAY_ORIGIN = "kakure-prices.kakure-price-relay.workers.dev";
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  `connect-src 'self' https://${RELAY_ORIGIN} wss://${RELAY_ORIGIN}`,
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+export const PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()";

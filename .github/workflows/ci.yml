@@ -33,6 +33,24 @@ jobs:
       - name: Tests (shared formats)
         run: pnpm test
 
+  privacy:
+    name: Privacy gate (no third-party loads, no push tokens)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up pnpm (version from packageManager)
+        uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build the static exports
+        run: pnpm --filter @kakure/web --filter @kakure/docs build
+      - name: Check the exports and the mobile app
+        run: node scripts/check-privacy.mjs apps/web/out apps/docs/out --mobile apps/mobile/app apps/mobile/src
+
   rust:
     name: Operator (Rust)
     runs-on: ubuntu-24.04
