@@ -29,6 +29,23 @@ pub const MEMO_MAX_BYTES: usize = 511;
 pub const MEMO_FIELDS: [&str; 6] = ["n", "m", "s", "z", "k", "p"];
 pub const NONCE_BYTES: usize = 16;
 pub const TICKET_HASH_PERSONAL: &[u8; 16] = b"Kakure_Ticket_v1";
+/// `rulesHash` = BLAKE2b-256 with this personalisation over the canonical rules JSON (D13).
+pub const RULES_HASH_PERSONAL: &[u8; 16] = b"Kakure_Rules_v01";
+/// `latest.bundleHash`, `bundle.previous` and `addresses-<first 8 hex>.json` use SHA-256 (hex)
+/// over the exact bytes of the published file, which is the canonical JSON of the signed document.
+pub const BUNDLE_HASH_ALGORITHM: &str = "SHA-256";
+pub const SCHEMA_VERSION: u32 = 1;
+pub const MIN_NEW_TICKETS_PER_RELEASE: u32 = 3;
+pub const BATCH_INTERVAL_SECS: u64 = 10 * 60;
+pub const CUTOFF_BEFORE_CLOSE_SECS: i64 = 10 * 60;
+pub const FINALITY_CONFIRMATIONS: u32 = 10;
+pub const CLOSING_WARNING_BLOCKS: i64 = 3;
+pub const ADDRESS_LIST_SIZE: u32 = 4096;
+/// Market address lists start at diversifier index 1: index 0 is the account's default
+/// Orchard + Sapling address (S00 finding).
+pub const ADDRESS_FIRST_INDEX: u32 = 1;
+pub const CLOSE_SIDES: [&str; 2] = ["U", "D"];
+pub const EVENT_SIDES: [&str; 2] = ["Y", "N"];
 const CANONICAL_MULTIPLIERS: [u64; 3] = [5, 2, 1];
 const SIDES: [&str; 4] = ["U", "D", "Y", "N"];
 
@@ -39,13 +56,13 @@ pub enum Network {
 }
 
 impl Network {
-    fn memo_code(self) -> &'static str {
+    pub fn memo_code(self) -> &'static str {
         match self {
             Network::Mainnet => "m",
             Network::Testnet => "t",
         }
     }
-    fn hash_byte(self) -> u8 {
+    pub fn hash_byte(self) -> u8 {
         match self {
             Network::Mainnet => 0x01,
             Network::Testnet => 0x02,
@@ -205,19 +222,21 @@ pub fn canonical_notes(amount_zat: u64) -> Vec<u64> {
     notes
 }
 
+/// `MARKET_ID_PATTERN`: `^[a-z0-9][a-z0-9-]{2,47}$`.
+pub fn is_market_id(id: &str) -> bool {
+    (3..=48).contains(&id.len())
+        && id
+            .bytes()
+            .next()
+            .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
 fn validate(bet: &BetMemo) -> Result<()> {
     let id = &bet.market_id;
-    ensure!(
-        (3..=48).contains(&id.len())
-            && id
-                .bytes()
-                .next()
-                .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
-            && id
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
-        "bad market id {id}"
-    );
+    ensure!(is_market_id(id), "bad market id {id}");
     ensure!(SIDES.contains(&bet.side.as_str()), "bad side {}", bet.side);
     ensure!(
         TICKET_SIZES_ZAT.contains(&bet.size_zat),

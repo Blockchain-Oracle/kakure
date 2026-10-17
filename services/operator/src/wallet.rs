@@ -323,7 +323,7 @@ pub fn outputs(db_dir: &Wallet) -> Result<Vec<Output>> {
 }
 
 /// Plain-text memo content; `None` for the empty memo (0xF6) and non-text memos.
-fn memo_text(bytes: &[u8]) -> Option<String> {
+pub fn memo_text(bytes: &[u8]) -> Option<String> {
     let memo = MemoBytes::from_bytes(bytes).ok()?;
     match Memo::try_from(memo).ok()? {
         Memo::Text(t) => Some(String::from(t)),

@@ -1,16 +1,28 @@
 //! Command-line interface.
 
-use std::path::PathBuf;
+use std::{
+    fs,
+    io::Write as _,
+    os::unix::fs::OpenOptionsExt,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use clap::{Args, Parser, Subcommand};
+use rand::{TryRng as _, rngs::SysRng};
 use zcash_client_backend::data_api::AccountBirthday;
 use zcash_protocol::consensus::BlockHeight;
 
 use crate::{
+    catalog,
+    domain::{self, BATCH_INTERVAL_SECS, BetMemo, NONCE_BYTES},
+    engine::{self, Engine, TICK_OFFSET_SECS},
     remote::{self, Server, Tor},
     scan::{self, SyncOpts},
-    send,
+    send, signing,
+    store::Store,
     wallet::{self, Net, Wallet},
 };
 
@@ -106,6 +118,62 @@ enum Command {
         /// Only this txid (display hex).
         #[arg(long)]
         txid: Option<String>,
+    },
+    /// Create the operator's Ed25519 signing key (signing.key, mode 0600). Never overwrites.
+    Keygen {
+        #[command(flatten)]
+        common: Common,
+    },
+    /// Print the signing public key (hex and base64url) for clients to pin.
+    Pubkey {
+        #[command(flatten)]
+        common: Common,
+    },
+    /// The operator loop: sync → ingest → engine → publish, on a fixed UTC-aligned clock.
+    Run {
+        #[command(flatten)]
+        common: Common,
+        /// Seconds between ticks (ticks align to multiples of this, plus a short offset).
+        #[arg(long, default_value_t = BATCH_INTERVAL_SECS)]
+        interval_secs: u64,
+        /// Run one tick and exit.
+        #[arg(long)]
+        once: bool,
+        /// Skip the chain sync (publish from the wallet as it is).
+        #[arg(long)]
+        no_sync: bool,
+        #[arg(long, default_value_t = 4)]
+        parallel: usize,
+        #[arg(long, default_value_t = 8)]
+        blocks_per_circuit: usize,
+    },
+    /// Markets, receipts and publication state from engine.sqlite.
+    Status {
+        #[command(flatten)]
+        common: Common,
+    },
+    /// Bettor helper: build a bet memo with `encode_bet_memo` and send it from this wallet.
+    /// The nonce is kept in <data-dir>/bets.jsonl (0600) for the receipt.
+    Bet {
+        #[command(flatten)]
+        common: Common,
+        /// Market address; or use --list to pick one at random from a published address list.
+        #[arg(long, conflicts_with = "list", required_unless_present = "list")]
+        to: Option<String>,
+        /// A published addresses-<hash8>.json.
+        #[arg(long)]
+        list: Option<PathBuf>,
+        #[arg(long)]
+        market: String,
+        /// U or D (close markets), Y or N (event markets).
+        #[arg(long)]
+        side: String,
+        /// Ticket size in zatoshi (1000000 = 0.01).
+        #[arg(long)]
+        zat: u64,
+        /// Payout Unified Address (must contain an Orchard receiver).
+        #[arg(long)]
+        payout: String,
     },
     /// Send Orchard-family funds with a memo (OvkPolicy::Discard, ZIP 317 fee) over Tor.
     Send {
@@ -241,6 +309,116 @@ impl Cli {
                     );
                 }
             }
+            Command::Keygen { common } => {
+                let wallet = common.wallet();
+                let key = signing::keygen(&wallet.dir)?;
+                print_pubkey(&key.public());
+                eprintln!(
+                    "signing key stored 0600 in {}",
+                    signing::key_path(&wallet.dir).display()
+                );
+            }
+            Command::Pubkey { common } => {
+                print_pubkey(&signing::load(&common.wallet().dir)?.public());
+            }
+            Command::Run {
+                common,
+                interval_secs,
+                once,
+                no_sync,
+                parallel,
+                blocks_per_circuit,
+            } => {
+                ensure!(interval_secs >= 10, "--interval-secs must be at least 10");
+                let interval = i64::try_from(interval_secs)?;
+                let mut engine = Engine::open(common.wallet(), interval)?;
+                let tor = if no_sync {
+                    None
+                } else {
+                    Some(common.tor(&engine.wallet).await?)
+                };
+                let opts = SyncOpts {
+                    parallel,
+                    blocks_per_circuit,
+                };
+                eprintln!("run: publishing to {}", engine.public_dir().display());
+                loop {
+                    match engine.tick(tor.as_ref(), &opts).await {
+                        Ok(r) => println!(
+                            "{} tick: bundle-{}.json, tip {}, {} markets, {} tickets, {} receipts, {}{}",
+                            catalog::iso(chrono::Utc::now().timestamp()),
+                            r.seq,
+                            r.tip,
+                            r.markets,
+                            r.tickets,
+                            r.receipts,
+                            r.addresses,
+                            r.uploaded
+                                .map_or(String::new(), |n| format!(", {n} file(s) to R2"))
+                        ),
+                        Err(e) => eprintln!("tick failed: {e:#}"),
+                    }
+                    if once {
+                        break;
+                    }
+                    let now = chrono::Utc::now().timestamp();
+                    let offset = TICK_OFFSET_SECS.min(interval / 4);
+                    let mut next = catalog::next_window_start(now, interval) + offset;
+                    if next - interval > now {
+                        next -= interval;
+                    }
+                    tokio::time::sleep(Duration::from_secs(u64::try_from(next - now)?)).await;
+                }
+            }
+            Command::Status { common } => status(&common.wallet())?,
+            Command::Bet {
+                common,
+                to,
+                list,
+                market,
+                side,
+                zat,
+                payout,
+            } => {
+                let wallet = common.wallet();
+                wallet.open()?;
+                let to = match (to, list) {
+                    (Some(to), _) => to,
+                    (None, Some(list)) => random_address(&list)?,
+                    (None, None) => unreachable!("clap requires --to or --list"),
+                };
+                let mut nonce = [0u8; NONCE_BYTES];
+                SysRng
+                    .try_fill_bytes(&mut nonce)
+                    .map_err(|e| anyhow!("system RNG: {e}"))?;
+                let bet = BetMemo {
+                    network: engine::domain_network(common.network),
+                    market_id: market,
+                    side,
+                    size_zat: zat,
+                    nonce,
+                    payout_address: payout,
+                };
+                let memo = domain::encode_bet_memo(&bet)?;
+                let leaf = hex::encode(domain::ticket_hash(&bet));
+                let tor = common.tor(&wallet).await?;
+                // A stale wallet builds a transaction that expires before it reaches the chain.
+                scan::sync(
+                    &wallet,
+                    &tor,
+                    &SyncOpts {
+                        parallel: 4,
+                        blocks_per_circuit: 8,
+                    },
+                )
+                .await?;
+                let txid = send::send(&wallet, &tor, &to, zat, &memo)
+                    .await
+                    .context("send failed")?;
+                record_bet(&wallet.dir, &txid.to_string(), &bet, &leaf, &to)?;
+                println!("txid {txid}");
+                println!("leaf {leaf}");
+            }
             Command::Send {
                 common,
                 to,
@@ -250,6 +428,16 @@ impl Cli {
                 let wallet = common.wallet();
                 wallet.open()?;
                 let tor = common.tor(&wallet).await?;
+                // A stale wallet builds a transaction that expires before it reaches the chain.
+                scan::sync(
+                    &wallet,
+                    &tor,
+                    &SyncOpts {
+                        parallel: 4,
+                        blocks_per_circuit: 8,
+                    },
+                )
+                .await?;
                 let txid = send::send(&wallet, &tor, &to, zat, &memo)
                     .await
                     .context("send failed")?;
@@ -258,4 +446,104 @@ impl Cli {
         }
         Ok(())
     }
+}
+
+fn print_pubkey(public: &[u8; 32]) {
+    println!("hex       {}", hex::encode(public));
+    println!("base64url {}", URL_SAFE_NO_PAD.encode(public));
+}
+
+fn random_address(list: &Path) -> Result<String> {
+    let doc: serde_json::Value = serde_json::from_slice(&fs::read(list)?)?;
+    let addresses = doc["addresses"]
+        .as_array()
+        .filter(|a| !a.is_empty())
+        .ok_or_else(|| anyhow!("{} has no addresses", list.display()))?;
+    let mut bytes = [0u8; 8];
+    SysRng
+        .try_fill_bytes(&mut bytes)
+        .map_err(|e| anyhow!("system RNG: {e}"))?;
+    let pick = usize::try_from(u64::from_le_bytes(bytes) % addresses.len() as u64)?;
+    addresses[pick]
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| anyhow!("address is not a string"))
+}
+
+/// The bettor's local record (the nonce is what proves the ticket later).
+fn record_bet(dir: &Path, txid: &str, bet: &BetMemo, leaf: &str, to: &str) -> Result<()> {
+    let line = serde_json::json!({
+        "txid": txid,
+        "market": bet.market_id,
+        "side": bet.side,
+        "sizeZat": bet.size_zat.to_string(),
+        "nonce": URL_SAFE_NO_PAD.encode(bet.nonce),
+        "payout": bet.payout_address,
+        "to": to,
+        "leaf": leaf,
+    });
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .mode(0o600)
+        .open(dir.join("bets.jsonl"))?;
+    writeln!(file, "{line}")?;
+    Ok(())
+}
+
+fn status(wallet: &Wallet) -> Result<()> {
+    let store = Store::open(&wallet.dir.join("engine.sqlite"))?;
+    let now = chrono::Utc::now().timestamp();
+    if let Ok(key) = signing::load(&wallet.dir) {
+        println!("pubkey    {}", hex::encode(key.public()));
+    }
+    match store.last_bundle()? {
+        Some((seq, file, hash)) => println!("bundle    {file} (seq {seq}, sha256 {hash})"),
+        None => println!("bundle    none yet"),
+    }
+    if let Some((seq, file)) = store.current_address_list()? {
+        println!("addresses {file} (list {seq})");
+    }
+    for m in store.markets()? {
+        if m.closes_at < now - engine::BUNDLE_RETENTION_SECS {
+            continue;
+        }
+        let tickets = store.tickets(&m.id)?;
+        let phase = if m.cancelled {
+            "cancelled"
+        } else if now < m.opens_at {
+            "scheduled"
+        } else if now < m.cutoff_at {
+            if m.kind == "close" && m.opening.is_none() {
+                "awaiting opening"
+            } else {
+                "open"
+            }
+        } else {
+            "closed"
+        };
+        println!(
+            "{:<26} {:<16} tickets {:>3}  opens {}  cutoff {}{}{}",
+            m.id,
+            phase,
+            tickets.len(),
+            catalog::iso(m.opens_at),
+            catalog::iso(m.cutoff_at),
+            m.cutoff_height
+                .map_or(String::new(), |h| format!("  H_c {h}")),
+            m.opening
+                .as_deref()
+                .map_or(String::new(), |o| format!("  opening {o}")),
+        );
+        if let Some(h) = m.target_height {
+            println!("{:<26} target height {h}", "");
+        }
+    }
+    for (status, reason, count) in store.receipt_counts()? {
+        println!(
+            "receipts  {status}{}: {count}",
+            reason.map_or(String::new(), |r| format!(" ({r})"))
+        );
+    }
+    Ok(())
 }

@@ -1,0 +1,209 @@
+{
+  "note": "TEST-ONLY secret; never used outside these fixtures",
+  "secretKeyHex": "030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc",
+  "publicKeyHex": "755c4cb9256ca7cdc4acfdc6cfeeda849017e5b9f9514e99191bd67e0b0d4276",
+  "publicKeyBase64Url": "dVxMuSVsp83ErP3Gz-7ahJAX5bn5UU6ZGRvWfgsNQnY",
+  "documents": [
+    {
+      "name": "key order (UTF-16 code units, not code points)",
+      "document": {
+        "9": 6,
+        "10": 5,
+        "z": 1,
+        "a": 2,
+        "A": 3,
+        "": 4,
+        "é": 7,
+        "�": 8,
+        "😀": 9,
+        "nested": {
+          "b": [
+            3,
+            {
+              "d": null,
+              "c": true
+            }
+          ],
+          "a": false
+        }
+      },
+      "canonical": "{\"\":4,\"10\":5,\"9\":6,\"A\":3,\"a\":2,\"nested\":{\"a\":false,\"b\":[3,{\"c\":true,\"d\":null}]},\"z\":1,\"é\":7,\"😀\":9,\"�\":8}",
+      "sig": "5iSnC8T9SVN-Swb0vGJs6Lq3a3iiWRcyVXRXIE85xaE9tMl83tFv7J-9KI0RuvdMaNE4eXJjuY6Il1evEUl5CQ"
+    },
+    {
+      "name": "string escapes",
+      "document": {
+        "text": "quote\" backslash\\ slash/ newline\n tab\t cr\r bs\b ff\f nul\u0000 unit\u001f del ls  ps ",
+        "unicode": "Kakure 隠れ é 😀"
+      },
+      "canonical": "{\"text\":\"quote\\\" backslash\\\\ slash/ newline\\n tab\\t cr\\r bs\\b ff\\f nul\\u0000 unit\\u001f del ls  ps \",\"unicode\":\"Kakure 隠れ é 😀\"}",
+      "sig": "I89niRxaCoRff4s5WkZENhwBhVgq3SY8J810Ce-sRsfIW11xhoWqpd44JJ3N92TXy8-FCkIyj1zMuqYecLI6AA"
+    },
+    {
+      "name": "safe integers and literals",
+      "document": {
+        "zero": 0,
+        "negative": -1,
+        "max": 9007199254740991,
+        "min": -9007199254740991,
+        "yes": true,
+        "no": false,
+        "none": null,
+        "empty": [],
+        "object": {},
+        "deep": [
+          [
+            []
+          ],
+          [
+            {}
+          ]
+        ]
+      },
+      "canonical": "{\"deep\":[[[]],[{}]],\"empty\":[],\"max\":9007199254740991,\"min\":-9007199254740991,\"negative\":-1,\"no\":false,\"none\":null,\"object\":{},\"yes\":true,\"zero\":0}",
+      "sig": "DHHrvJWD1Sctx9XpdDhj60SViLA1Mgdp3QhlZ7Kwzk0Z5FJnaBM6Au2yineA3MWcE1C6HXa1T0HCufb7NmRFBQ"
+    },
+    {
+      "name": "latest.json",
+      "document": {
+        "v": 1,
+        "network": "testnet",
+        "seq": 42,
+        "bundle": "bundle-42.json",
+        "bundleHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "publishedAt": "2026-10-17T19:00:30Z"
+      },
+      "canonical": "{\"bundle\":\"bundle-42.json\",\"bundleHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"network\":\"testnet\",\"publishedAt\":\"2026-10-17T19:00:30Z\",\"seq\":42,\"v\":1}",
+      "sig": "T3XuvPqWzaeVoPPcl2qOzRSKLH-CSow8nOvMSK-Rs-fNHl91qDrXn1Y_uFc6QMQSiKqhu_nXLA2HYU5gys5hBw"
+    },
+    {
+      "name": "addresses",
+      "document": {
+        "v": 1,
+        "network": "testnet",
+        "seq": 0,
+        "addresses": [
+          "utest15a2u8lfvhtc8zuy9jh8mj7cawp7thxr0gjsyl9r4nqa7lrp7wrlcnaqpnenu0z92kzkf2j4j7e6qx6u507gl5wh9uvj95k45dv55vjgd"
+        ]
+      },
+      "canonical": "{\"addresses\":[\"utest15a2u8lfvhtc8zuy9jh8mj7cawp7thxr0gjsyl9r4nqa7lrp7wrlcnaqpnenu0z92kzkf2j4j7e6qx6u507gl5wh9uvj95k45dv55vjgd\"],\"network\":\"testnet\",\"seq\":0,\"v\":1}",
+      "sig": "YqNs5wSkp55FCH7JlgmykMY5n8EQu_4pZxCS4qsURqtuFOkUjI4mk3-eiGnSG0DAg0LuyTIzJkt-MPddkVGuCA"
+    },
+    {
+      "name": "bundle",
+      "document": {
+        "v": 1,
+        "network": "testnet",
+        "seq": 7,
+        "publishedAt": "2026-10-17T19:10:30Z",
+        "previous": null,
+        "addresses": "addresses-0123abcd.json",
+        "payoutRuns": [],
+        "markets": [
+          {
+            "id": "btc-1h-2610172000",
+            "kind": "close",
+            "subject": "BTC",
+            "window": "1h",
+            "opensAt": "2026-10-17T19:00:00Z",
+            "cutoffAt": "2026-10-17T19:50:00Z",
+            "closesAt": "2026-10-17T20:00:00Z",
+            "rules": {
+              "question": "BTC Up or Down: 2026-10-17 19:00 to 20:00 UTC",
+              "resolution": "2 of 3 venues vote on the 1-hour close against the opening reference.",
+              "sources": [
+                "coinbase:BTC-USD",
+                "kraken:XBTUSD",
+                "bitstamp:btcusd"
+              ],
+              "cancellation": "Refund every ticket if either side has fewer than 3 tickets at the cutoff.",
+              "payoutFormula": "stake + round(stake × losing × 0.98 / winning, 0.001 ZEC)"
+            },
+            "rulesHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "opening": {
+              "coinbase": "81150.47",
+              "kraken": "81160.1",
+              "bitstamp": "81152"
+            },
+            "state": "open",
+            "sealed": false,
+            "ticketCount": 6,
+            "released": {
+              "seq": 7,
+              "sides": {
+                "U": {
+                  "tickets": 3,
+                  "zat": "3000000"
+                },
+                "D": {
+                  "tickets": 3,
+                  "zat": "5000000"
+                }
+              }
+            },
+            "leaves": [
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ]
+          }
+        ]
+      },
+      "canonical": "{\"addresses\":\"addresses-0123abcd.json\",\"markets\":[{\"closesAt\":\"2026-10-17T20:00:00Z\",\"cutoffAt\":\"2026-10-17T19:50:00Z\",\"id\":\"btc-1h-2610172000\",\"kind\":\"close\",\"leaves\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"opening\":{\"bitstamp\":\"81152\",\"coinbase\":\"81150.47\",\"kraken\":\"81160.1\"},\"opensAt\":\"2026-10-17T19:00:00Z\",\"released\":{\"seq\":7,\"sides\":{\"D\":{\"tickets\":3,\"zat\":\"5000000\"},\"U\":{\"tickets\":3,\"zat\":\"3000000\"}}},\"rules\":{\"cancellation\":\"Refund every ticket if either side has fewer than 3 tickets at the cutoff.\",\"payoutFormula\":\"stake + round(stake × losing × 0.98 / winning, 0.001 ZEC)\",\"question\":\"BTC Up or Down: 2026-10-17 19:00 to 20:00 UTC\",\"resolution\":\"2 of 3 venues vote on the 1-hour close against the opening reference.\",\"sources\":[\"coinbase:BTC-USD\",\"kraken:XBTUSD\",\"bitstamp:btcusd\"]},\"rulesHash\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"sealed\":false,\"state\":\"open\",\"subject\":\"BTC\",\"ticketCount\":6,\"window\":\"1h\"}],\"network\":\"testnet\",\"payoutRuns\":[],\"previous\":null,\"publishedAt\":\"2026-10-17T19:10:30Z\",\"seq\":7,\"v\":1}",
+      "sig": "WxnvJcFen1TIzh3vSBoLzwE9_lAYSo0xS97opv-fmDmVnD91k02Ex0o4wcLzk9RiCFiAStwLX0oVU0Eo7EB5Cg"
+    }
+  ],
+  "rulesHashes": [
+    {
+      "rules": {
+        "question": "BTC Up or Down: 2026-10-17 19:00 to 20:00 UTC",
+        "resolution": "2 of 3 venues vote on the 1-hour close against the opening reference.",
+        "sources": [
+          "coinbase:BTC-USD",
+          "kraken:XBTUSD",
+          "bitstamp:btcusd"
+        ],
+        "cancellation": "Refund every ticket if either side has fewer than 3 tickets at the cutoff.",
+        "payoutFormula": "stake + round(stake × losing × 0.98 / winning, 0.001 ZEC)"
+      },
+      "rulesHash": "6c6df6e77781ad2533cb5109855bbb97f99169794216fb4fb0d7ad380ed3aa52"
+    },
+    {
+      "rules": {
+        "question": "BTC Up or Down: 2026-10-17 19:00 to 20:00 UTC",
+        "resolution": "2 of 3 venues vote on the 1-hour close against the opening reference.",
+        "sources": [
+          "chain:testnet"
+        ],
+        "cancellation": "Refund every ticket if either side has fewer than 3 tickets at the cutoff.",
+        "payoutFormula": "stake + round(stake × losing × 0.98 / winning, 0.001 ZEC)"
+      },
+      "rulesHash": "3653be9886b4a5103dbad85acd0d641fcbe7270266ac2ccb869ee10bec9b213d"
+    }
+  ],
+  "fileHashes": [
+    {
+      "text": "{\"\":4,\"10\":5,\"9\":6,\"A\":3,\"a\":2,\"nested\":{\"a\":false,\"b\":[3,{\"c\":true,\"d\":null}]},\"sig\":\"5iSnC8T9SVN-Swb0vGJs6Lq3a3iiWRcyVXRXIE85xaE9tMl83tFv7J-9KI0RuvdMaNE4eXJjuY6Il1evEUl5CQ\",\"z\":1,\"é\":7,\"😀\":9,\"�\":8}",
+      "sha256": "9a8286954b3b81626e7016a330367820e37100ba710d1ccb51ac23762c06cd31"
+    },
+    {
+      "text": "{\"sig\":\"I89niRxaCoRff4s5WkZENhwBhVgq3SY8J810Ce-sRsfIW11xhoWqpd44JJ3N92TXy8-FCkIyj1zMuqYecLI6AA\",\"text\":\"quote\\\" backslash\\\\ slash/ newline\\n tab\\t cr\\r bs\\b ff\\f nul\\u0000 unit\\u001f del ls  ps \",\"unicode\":\"Kakure 隠れ é 😀\"}",
+      "sha256": "72a35693a3d581a1c88d8a115d39a9e52158fa5103d62a20d84d964f56c5dea3"
+    },
+    {
+      "text": "{\"deep\":[[[]],[{}]],\"empty\":[],\"max\":9007199254740991,\"min\":-9007199254740991,\"negative\":-1,\"no\":false,\"none\":null,\"object\":{},\"sig\":\"DHHrvJWD1Sctx9XpdDhj60SViLA1Mgdp3QhlZ7Kwzk0Z5FJnaBM6Au2yineA3MWcE1C6HXa1T0HCufb7NmRFBQ\",\"yes\":true,\"zero\":0}",
+      "sha256": "ee615b0868eebe9af0410620921abb47966bc38607a38599585eb8ad31388c5c"
+    },
+    {
+      "text": "{\"bundle\":\"bundle-42.json\",\"bundleHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"network\":\"testnet\",\"publishedAt\":\"2026-10-17T19:00:30Z\",\"seq\":42,\"sig\":\"T3XuvPqWzaeVoPPcl2qOzRSKLH-CSow8nOvMSK-Rs-fNHl91qDrXn1Y_uFc6QMQSiKqhu_nXLA2HYU5gys5hBw\",\"v\":1}",
+      "sha256": "f42f3720b34d33b5ea5e542bdeada11d4225a6bfd325ee094dbebc98b3b0efe1"
+    },
+    {
+      "text": "{\"addresses\":[\"utest15a2u8lfvhtc8zuy9jh8mj7cawp7thxr0gjsyl9r4nqa7lrp7wrlcnaqpnenu0z92kzkf2j4j7e6qx6u507gl5wh9uvj95k45dv55vjgd\"],\"network\":\"testnet\",\"seq\":0,\"sig\":\"YqNs5wSkp55FCH7JlgmykMY5n8EQu_4pZxCS4qsURqtuFOkUjI4mk3-eiGnSG0DAg0LuyTIzJkt-MPddkVGuCA\",\"v\":1}",
+      "sha256": "49d05e1568d80196be2abf660476eb8d3573dd8585c8d1bd1c20e93827a50712"
+    },
+    {
+      "text": "{\"addresses\":\"addresses-0123abcd.json\",\"markets\":[{\"closesAt\":\"2026-10-17T20:00:00Z\",\"cutoffAt\":\"2026-10-17T19:50:00Z\",\"id\":\"btc-1h-2610172000\",\"kind\":\"close\",\"leaves\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"opening\":{\"bitstamp\":\"81152\",\"coinbase\":\"81150.47\",\"kraken\":\"81160.1\"},\"opensAt\":\"2026-10-17T19:00:00Z\",\"released\":{\"seq\":7,\"sides\":{\"D\":{\"tickets\":3,\"zat\":\"5000000\"},\"U\":{\"tickets\":3,\"zat\":\"3000000\"}}},\"rules\":{\"cancellation\":\"Refund every ticket if either side has fewer than 3 tickets at the cutoff.\",\"payoutFormula\":\"stake + round(stake × losing × 0.98 / winning, 0.001 ZEC)\",\"question\":\"BTC Up or Down: 2026-10-17 19:00 to 20:00 UTC\",\"resolution\":\"2 of 3 venues vote on the 1-hour close against the opening reference.\",\"sources\":[\"coinbase:BTC-USD\",\"kraken:XBTUSD\",\"bitstamp:btcusd\"]},\"rulesHash\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"sealed\":false,\"state\":\"open\",\"subject\":\"BTC\",\"ticketCount\":6,\"window\":\"1h\"}],\"network\":\"testnet\",\"payoutRuns\":[],\"previous\":null,\"publishedAt\":\"2026-10-17T19:10:30Z\",\"seq\":7,\"sig\":\"WxnvJcFen1TIzh3vSBoLzwE9_lAYSo0xS97opv-fmDmVnD91k02Ex0o4wcLzk9RiCFiAStwLX0oVU0Eo7EB5Cg\",\"v\":1}",
+      "sha256": "13f19d1847959d2919deee06bfdfee1f4d21cda50f1729f56d72eb5c1990fc0a"
+    }
+  ]
+}

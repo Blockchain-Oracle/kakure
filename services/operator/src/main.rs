@@ -1,12 +1,21 @@
-//! Kakure operator (S00 smoke): the market wallet on librustzcash, Tor-only networking.
+//! Kakure operator: the market wallet on librustzcash (Tor-only chain access), the catalog,
+//! ingest, engine and the signed bundle publisher.
 
+mod catalog;
 mod cli;
-// Shared formats (S01); used by ingest and payouts from S02.
+// Shared formats (S01). Payout maths is used from S03.
 #[allow(dead_code)]
 mod domain;
+mod engine;
+mod ingest;
+mod publish;
+mod r2;
 mod remote;
 mod scan;
 mod send;
+mod signing;
+mod store;
+mod venues;
 mod wallet;
 
 use clap::Parser;
