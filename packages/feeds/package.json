@@ -1,0 +1,21 @@
+{
+  "name": "@kakure/feeds",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/react.ts",
+    "./client": "./src/client.ts",
+    "./protocol": "./src/protocol.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

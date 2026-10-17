@@ -1,0 +1,13 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "kakure-prices",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Privacy (D10, PD19): no Workers Logs or traces. The relay stores nothing about clients.
+  "observability": { "enabled": false },
+  "durable_objects": {
+    "bindings": [{ "name": "PRICE_HUB", "class_name": "PriceHub" }]
+  },
+  // The Workers Free plan only allows SQLite-backed Durable Objects.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PriceHub"] }]
+}

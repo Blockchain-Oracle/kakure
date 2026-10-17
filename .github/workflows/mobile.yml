@@ -1,0 +1,87 @@
+name: mobile
+
+# Every push to main builds both apps (the user's ask): an Android APK attached to a GitHub Release
+# and an iOS build sent to TestFlight. Builds run on GitHub's runners with `eas build --local`,
+# so they use none of Expo's cloud build quota; EAS only supplies the managed signing credentials.
+on:
+  # Manual until the EAS signing credentials exist (Android keystore, iOS certificate + App Store Connect key);
+  # then this becomes `push: branches: [main]` plus workflow_dispatch.
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  EAS_VERSION: 25.1.1
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Android NDK 27.1 (not preinstalled on ubuntu-24.04)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.1.12297006" > /dev/null
+      - uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # 9.0.0
+        with:
+          eas-version: ${{ env.EAS_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - name: Build the APK
+        run: eas build --platform android --profile preview --local --non-interactive --output "$RUNNER_TEMP/kakure-${{ github.run_number }}.apk"
+      - name: Checksum
+        run: cd "$RUNNER_TEMP" && sha256sum "kakure-${{ github.run_number }}.apk" > "kakure-${{ github.run_number }}.apk.sha256"
+      - name: Publish on a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "android-${{ github.run_number }}" \
+            "$RUNNER_TEMP/kakure-${{ github.run_number }}.apk" \
+            "$RUNNER_TEMP/kakure-${{ github.run_number }}.apk.sha256" \
+            --prerelease --target "${{ github.sha }}" \
+            --title "Kakure for Android, build ${{ github.run_number }}" \
+            --notes "Built from ${{ github.sha }}. Verify the APK with the .sha256 file before installing."
+
+  ios:
+    name: iOS to TestFlight
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # 9.0.0
+        with:
+          eas-version: ${{ env.EAS_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - name: Build the iOS app
+        run: eas build --platform ios --profile production --local --non-interactive --output "$RUNNER_TEMP/kakure.ipa"
+      - name: Submit to TestFlight
+        run: eas submit --platform ios --profile production --path "$RUNNER_TEMP/kakure.ipa" --non-interactive
