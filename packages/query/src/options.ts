@@ -1,17 +1,9 @@
-import {
-  type AddressList,
-  addressListSchema,
-  BATCH_INTERVAL_MS,
-  type Bundle,
-  bundleSchema,
-  type Latest,
-  latestSchema,
-  type Network,
-} from "@kakure/domain";
+import { type AddressList, BATCH_INTERVAL_MS, type Bundle, type Latest, type Network } from "@kakure/domain";
 import { queryOptions, skipToken } from "@tanstack/react-query";
 import { LATEST_FILE, MAX_RETRIES, OVERDUE_POLL_MS, PUBLISH_GRACE_MS } from "./constants";
 import { DataError, isDataError } from "./errors";
 import { type DataSource, fetchSigned } from "./fetch";
+import { addressListSchema, bundleSchema, latestSchema } from "./schemas";
 
 /**
  * Every key starts with the network, so a switch never mixes mainnet and testnet data
@@ -23,6 +15,9 @@ export const queryKeys = {
   bundle: (network: Network, file: string) => [network, "bundle", file] as const,
   addresses: (network: Network, file: string) => [network, "addresses", file] as const,
 };
+
+/** Address lists are content-addressed: `addresses-<first 8 hex of the file's SHA-256>.json`. */
+const ADDRESS_FILE = /^addresses-([0-9a-f]{8})\.json$/;
 
 function retry(failureCount: number, error: unknown): boolean {
   return isDataError(error) && error.retryable && failureCount < MAX_RETRIES;
@@ -84,7 +79,11 @@ export function addressesQuery(source: DataSource, network: Network, bundle: Bun
     queryKey: queryKeys.addresses(network, bundle?.addresses ?? ""),
     queryFn: bundle
       ? async ({ signal }): Promise<AddressList> => {
-          const list = await fetchSigned(source, network, bundle.addresses, addressListSchema, { signal });
+          const prefix = ADDRESS_FILE.exec(bundle.addresses)?.[1];
+          const list = await fetchSigned(source, network, bundle.addresses, addressListSchema, {
+            ...(prefix ? { sha256Prefix: prefix } : {}),
+            signal,
+          });
           if (!list) {
             throw new DataError("missing", bundle.addresses);
           }

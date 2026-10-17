@@ -4,12 +4,13 @@ import type { Network } from "@kakure/domain";
  * The operator's Ed25519 public keys, pinned in the build and never fetched (plan §2, §13.11).
  * Hex, 32 bytes (64 characters), one per network because the operator runs one process per network.
  *
- * LEAD: fill these in when the operator publishes its keys. Until then every published file is
- * rejected with "This build has no operator key pinned", which is the honest state: unverified data is never shown.
+ * Mainnet is unset until its operator key exists, so mainnet shows "This build has no operator key": unverified
+ * data is never shown.
  */
 export const OPERATOR_PUBLIC_KEYS: Readonly<Record<Network, string | null>> = {
   mainnet: null,
-  testnet: null,
+  /** The testnet operator's key (base64url AJ556QMDemUB-ZxXMaxeegFccD_0tn8QlMqdjx6rw3s), pinned 2026-10-17. */
+  testnet: "009e79e903037a6501f99c5731ac5e7a015c703ff4b67f1094ca9d8f1eabc37b",
 };
 
 /** The one mutable file per network; it names the current bundle (PD14). */

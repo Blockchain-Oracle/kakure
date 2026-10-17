@@ -1,4 +1,4 @@
-import { BATCH_INTERVAL_MS, type Bundle, type Latest, type Network } from "@kakure/domain";
+import { type AddressList, BATCH_INTERVAL_MS, type Bundle, type Latest, type Network } from "@kakure/domain";
 import { useQuery } from "@tanstack/react-query";
 import { PUBLISH_GRACE_MS } from "./constants";
 import { DataError, isDataError } from "./errors";
@@ -13,6 +13,8 @@ export type MarketData =
       status: "ready";
       latest: Latest;
       bundle: Bundle;
+      /** The signed market-address list the bundle names (null while it loads or if it failed). */
+      addresses: AddressList | null;
       /** When this device last fetched `latest.json` successfully (ms). */
       checkedAt: number;
       /** A refresh failed while cached data is still shown: mark it stale with its age (R7). */
@@ -32,8 +34,8 @@ function asDataError(error: unknown): DataError {
 export function useMarketData(source: DataSource, network: Network): MarketData {
   const latest = useQuery(latestQuery(source, network));
   const bundle = useQuery(bundleQuery(source, network, latest.data));
-  // Fetched for uniformity and for the bet sheet; not needed to render the markets.
-  useQuery(addressesQuery(source, network, bundle.data));
+  // Fetched for uniformity (every visitor loads it) and for the bet sheet; not needed to render the markets.
+  const addresses = useQuery(addressesQuery(source, network, bundle.data));
 
   const refetch = () => {
     void latest.refetch();
@@ -48,6 +50,7 @@ export function useMarketData(source: DataSource, network: Network): MarketData 
       status: "ready",
       latest: latest.data,
       bundle: bundle.data,
+      addresses: addresses.data ?? null,
       checkedAt: latest.dataUpdatedAt,
       refreshError: refreshError ? asDataError(refreshError) : null,
       isFetching: latest.isFetching || bundle.isFetching,

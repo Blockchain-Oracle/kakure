@@ -27,7 +27,24 @@ export const STORAGE_KEYS = {
   network: "kakure.network.v1",
   theme: "kakure.theme.v1",
   cache: "kakure.cache.v1",
+  prefs: "kakure.prefs.v1",
 } as const;
+
+/** Every device-storage key starts with this (Forget this device clears them all). */
+export const STORAGE_PREFIX = "kakure.";
+
+/** The encrypted ticket database (IndexedDB), one object store and one key per network (plan §13.16–17). */
+export const TICKET_DB = { name: "kakure-tickets", version: 1, keys: "keys", tickets: "tickets" } as const;
+
+/** Export files: PBKDF2-SHA-256 → AES-GCM-256 (plan §2 Device storage). */
+export const EXPORT_KDF_ITERATIONS = 310_000;
+export const EXPORT_FILE_EXTENSION = ".kakure";
+
+/** The public site, for the market-link QR the Kakure app scans (plan §1 Web bet). */
+export const SITE_ORIGIN = "https://getkakure.xyz";
+
+/** Android builds: GitHub Releases of the public repo, tags `android-*` (read at build time). */
+export const RELEASES = { repo: "Blockchain-Oracle/kakure", tagPrefix: "android-" } as const;
 
 /** Persisted public data older than this is dropped (it is re-fetched and re-verified anyway). */
 export const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60_000;

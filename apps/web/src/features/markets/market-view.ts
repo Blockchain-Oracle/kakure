@@ -106,6 +106,24 @@ export function ticketsWord(count: number): string {
   return `${count} ${count === 1 ? "ticket" : "tickets"}`;
 }
 
+const hourFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
+
+/**
+ * A short title for cards: "BTC Up or Down · 19:00–20:00" (local time). The signed question in `rules` stays the
+ * authority and is shown in full on the market page (D13).
+ */
+export function shortTitle(market: Market, symbol: string): string {
+  if (market.kind === "event") return market.rules.question;
+  const opens = new Date(market.opensAt);
+  const closes = new Date(market.closesAt);
+  const span =
+    market.window === "1h"
+      ? `${hourFormat.format(opens)}–${hourFormat.format(closes)}`
+      : dayFormat.format(market.window === "1d" ? opens : closes);
+  return `${symbol} Up or Down · ${span}`;
+}
+
 /** "Sealed · 4 tickets · odds open at 3 a side" (C5, D3). */
 export function sealedLine(market: Market): string {
   return `Sealed · ${ticketsWord(market.ticketCount)} · odds open at ${MIN_TICKETS_PER_SIDE} a side`;

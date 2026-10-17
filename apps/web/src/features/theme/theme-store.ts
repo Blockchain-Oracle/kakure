@@ -47,7 +47,9 @@ export function setThemeMode(mode: ThemeMode) {
     applyMode(mode);
     for (const listener of listeners) listener();
   };
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced =
+    document.documentElement.dataset.motion === "reduce" ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduced || typeof document.startViewTransition !== "function") {
     update();
     return;

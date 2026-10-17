@@ -1,12 +1,15 @@
 "use client";
 
-import { SCHEMA_VERSION } from "@kakure/domain";
 import { configurePrices, pauseWhenHidden } from "@kakure/feeds";
+import { SCHEMA_VERSION } from "@kakure/query";
+import { installAudioUnlock } from "@kakure/sounds";
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
 import { CACHE_MAX_AGE_MS, PRICE_RELAY, STORAGE_KEYS } from "@/constants";
+import { getPrefs } from "@/features/settings/prefs-store";
 import { safeStorage } from "@/lib/storage";
+import { registerServiceWorker } from "./service-worker";
 
 /**
  * One query cache for the app. Only public, signed data is ever queried, and each query is persisted on its own
@@ -41,6 +44,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [client] = useState(makeClient);
 
   useEffect(() => (prices ? pauseWhenHidden(prices) : undefined), []);
+  // Preferences apply sound volume and motion; the first tap unlocks audio; the worker caches for offline.
+  useEffect(() => {
+    getPrefs();
+    registerServiceWorker();
+    return installAudioUnlock();
+  }, []);
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

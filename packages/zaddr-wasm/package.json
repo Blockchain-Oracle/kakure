@@ -1,0 +1,20 @@
+{
+  "name": "@kakure/zaddr-wasm",
+  "private": true,
+  "type": "module",
+  "description": "Payout-address check for the browser: zcash_address (=0.14.0-pre.2) compiled to WebAssembly, mirroring the operator's check_payout_address (PD18). The built module in generated/ is committed so the web app builds without Rust.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build:wasm": "wasm-pack build --release --target web --out-dir generated --out-name zaddr --no-pack && rm -f generated/.gitignore",
+    "test": "cargo test --release",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kakure/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

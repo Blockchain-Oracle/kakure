@@ -7,7 +7,7 @@ import Link from "next/link";
 import { NETWORK_COIN } from "@/constants";
 import { formatCountdown, formatShortWhen } from "@/lib/time";
 import { assetFor } from "./assets";
-import { coinAmount, isBettable, releasedOdds, sealedLine, statePill, WINDOW_LABEL } from "./market-view";
+import { coinAmount, isBettable, releasedOdds, sealedLine, shortTitle, statePill, WINDOW_LABEL } from "./market-view";
 
 /**
  * A market card, adapted from 21st.dev isaiahbjork/prediction-market-card (#2537): asset mark, question, a live
@@ -41,7 +41,7 @@ export function MarketCard({ market, network, now }: { market: Market; network: 
         </Pill>
       </div>
 
-      <h3 className="text-row-title text-foreground">{market.rules.question}</h3>
+      <h3 className="text-row-title text-foreground">{shortTitle(market, asset.symbol)}</h3>
 
       <div className="flex items-baseline justify-between gap-3 text-row-detail">
         {open ? (
@@ -51,6 +51,8 @@ export function MarketCard({ market, network, now }: { market: Market; network: 
               {formatCountdown(cutoffIn)}
             </span>
           </span>
+        ) : market.state === "scheduled" ? (
+          <span className="text-muted-foreground">Betting opens {formatShortWhen(market.opensAt, now)}</span>
         ) : (
           <span className="text-muted-foreground">Betting closed {formatShortWhen(market.cutoffAt, now)}</span>
         )}

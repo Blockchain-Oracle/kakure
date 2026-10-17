@@ -3,3 +3,15 @@ export { DataError, type DataErrorKind, isDataError } from "./errors";
 export { type DataSource, fetchSigned, operatorKey } from "./fetch";
 export { BATCH_INTERVAL_MS, bundleLateBy, type MarketData, useMarketData } from "./hooks";
 export { addressesQuery, bundleQuery, latestQuery, nextBatchAt, queryKeys } from "./options";
+export { SCHEMA_VERSION } from "./schemas";
+export {
+  decodeReceipt,
+  encodeReceipt,
+  type Receipt,
+  type Ticket,
+  type TicketStatus,
+  type TicketView,
+  ticketLeaf,
+  viewTicket,
+  winningPayout,
+} from "./tickets";

@@ -2,7 +2,7 @@
 
 import { usePrice } from "@kakure/feeds";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
-import { Pill, Skeleton } from "@kakure/ui-web";
+import { Pill, RollingNumber, Skeleton } from "@kakure/ui-web";
 import { formatAge, formatClock, useNow } from "@/lib/time";
 
 const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 8 });
@@ -40,7 +40,7 @@ export function LivePrice({ stream }: { stream: StreamSymbol }) {
         {price.status === "closed" ? <Pill tone="quiet">Feed closed</Pill> : null}
       </div>
       {price.price ? (
-        <span className="font-display text-display-price text-foreground tabular-nums">{formatUsd(price.price)}</span>
+        <RollingNumber value={formatUsd(price.price)} className="font-display text-display-price text-foreground" />
       ) : (
         <div className="flex flex-col gap-2" aria-busy="true">
           <Skeleton className="h-11 w-56 rounded-md" />

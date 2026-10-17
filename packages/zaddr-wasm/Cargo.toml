@@ -1,0 +1,29 @@
+[package]
+name = "kakure-zaddr"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+description = "Kakure's payout-address check for the browser: zcash_address compiled to WebAssembly (PD18)."
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The same pre-release cohort as services/operator, so browser and operator decode addresses identically.
+zcash_address = "=0.14.0-pre.2"
+zcash_protocol = "=0.11.0-pre.1"
+wasm-bindgen = "=0.2.129"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Rust 1.9x targets wasm with bulk memory, sign-ext and non-trapping float conversions on by default
+# (supported by every current browser); wasm-opt has to be told.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz", "--enable-bulk-memory", "--enable-sign-ext", "--enable-nontrapping-float-to-int", "--enable-mutable-globals"]

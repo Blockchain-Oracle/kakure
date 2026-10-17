@@ -18,5 +18,6 @@
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "tsx": "catalog:"
-  }
+  },
+  "sideEffects": false
 }

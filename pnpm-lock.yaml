@@ -278,12 +278,24 @@ importers:
       '@kakure/query':
         specifier: workspace:*
         version: link:../../packages/query
+      '@kakure/signing':
+        specifier: workspace:*
+        version: link:../../packages/signing
+      '@kakure/sounds':
+        specifier: workspace:*
+        version: link:../../packages/sounds
       '@kakure/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
       '@kakure/ui-web':
         specifier: workspace:*
         version: link:../../packages/ui-web
+      '@kakure/zaddr-wasm':
+        specifier: workspace:*
+        version: link:../../packages/zaddr-wasm
+      '@noble/hashes':
+        specifier: 'catalog:'
+        version: 2.4.0
       '@tanstack/query-persist-client-core':
         specifier: 5.104.3
         version: 5.104.3
@@ -302,6 +314,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      uqr:
+        specifier: 0.1.3
+        version: 0.1.3
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 'catalog:'
@@ -373,6 +388,9 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.104.3(react@19.3.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@types/react':
         specifier: 'catalog:'
@@ -380,6 +398,9 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -406,6 +427,12 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/sounds:
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/tokens:
     devDependencies:
       typescript:
@@ -413,6 +440,10 @@ importers:
         version: 6.0.3
 
   packages/ui-web:
+    dependencies:
+      uqr:
+        specifier: 0.1.3
+        version: 0.1.3
     devDependencies:
       '@types/react':
         specifier: 'catalog:'
@@ -426,6 +457,16 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/zaddr-wasm:
+    dependencies:
+      '@kakure/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -3677,6 +3718,9 @@ packages:
     hasBin: true
     peerDependencies:
       browserslist: '>= 4.21.0'
+
+  uqr@0.1.3:
+    resolution: {integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==}
 
   use-latest-callback@0.2.6:
     resolution: {integrity: sha512-FvRG9i1HSo0wagmX63Vrm8SnlUU3LMM3WyZkQ76RnslpBrX694AdG4A0zQBx2B3ZifFA0yv/BaEHGBnEax5rZg==}
@@ -7211,6 +7255,8 @@ snapshots:
       browserslist: 4.29.3
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  uqr@0.1.3: {}
 
   use-latest-callback@0.2.6(react@19.3.1):
     dependencies:

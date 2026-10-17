@@ -1,6 +1,6 @@
 "use client";
 
-import type { Bundle, Market, Network } from "@kakure/domain";
+import type { AddressList, Bundle, Market, Network } from "@kakure/domain";
 import { Button, buttonClass, EmptyState, Mark, Pill, Skeleton, SkeletonLine } from "@kakure/ui-web";
 import { ArrowLeft, Blocks, Hourglass, Link2Off, RefreshCw, Unplug } from "lucide-react";
 import Link from "next/link";
@@ -15,6 +15,7 @@ import { MainnetSheet } from "@/features/network/mainnet-sheet";
 import { switchNetwork } from "@/features/network/network-store";
 import { useNow } from "@/lib/time";
 import { BatchHistory } from "./batch-history";
+import { BetArea } from "./bet-area";
 import { parseMarketFragment, useFragment } from "./fragment";
 import { LivePrice } from "./live-price";
 import { MarketFacts } from "./market-facts";
@@ -76,6 +77,7 @@ export function MarketScreen() {
         <Detail
           market={market}
           bundle={data.bundle}
+          addresses={data.addresses}
           network={data.network}
           now={now}
           freshness={
@@ -95,12 +97,14 @@ export function MarketScreen() {
 function Detail({
   market,
   bundle,
+  addresses,
   network,
   now,
   freshness,
 }: {
   market: Market;
   bundle: Bundle;
+  addresses: AddressList | null;
   network: Network;
   now: number;
   freshness: ReactNode;
@@ -139,6 +143,7 @@ function Detail({
               </div>
             )}
           </section>
+          <BetArea market={market} bundle={bundle} addresses={addresses} network={network} now={now} />
           <OddsPanel market={market} bundle={bundle} network={network} now={now} />
           <RulesPanel market={market} />
         </div>

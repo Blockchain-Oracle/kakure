@@ -1,6 +1,7 @@
 "use client";
 
 import type { Network } from "@kakure/domain";
+import { fire } from "@kakure/sounds";
 import { useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { STORAGE_KEYS } from "@/constants";
@@ -51,8 +52,10 @@ function cssMs(name: string): number {
  */
 export function switchNetwork(next: Network, origin?: { x: number; y: number }) {
   if (next === readNetwork()) return;
+  // The one interface cue: Senryo's toggle sound with the `snap` haptic (senryo.md §5.4).
+  fire("toggle");
   const root = document.documentElement;
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduced || typeof document.startViewTransition !== "function") {
     commit(next);
     return;

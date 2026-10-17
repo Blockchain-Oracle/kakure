@@ -50,7 +50,8 @@ function isOffline(): boolean {
  * Fetches one public file the same way for every visitor (no ids, no cookies, no referrer; PD14),
  * verifies the operator's signature over the raw JSON, then validates the frozen schema.
  * The signature is checked before parsing so unknown fields can't slip past it.
- * When `sha256` is given (from `latest.bundleHash`), the exact file bytes must hash to it (BUNDLE_HASH_ALGORITHM).
+ * When `sha256` is given (from `latest.bundleHash`), the exact file bytes must hash to it (BUNDLE_HASH_ALGORITHM);
+ * `sha256Prefix` checks a content-addressed name such as `addresses-<first 8 hex>.json`.
  * Returns `null` for a 404 only when `allowMissing` is set (nothing published yet).
  */
 export async function fetchSigned<T extends { network: Network }>(
@@ -61,8 +62,9 @@ export async function fetchSigned<T extends { network: Network }>(
   {
     allowMissing = false,
     sha256: expectedHash,
+    sha256Prefix,
     signal,
-  }: { allowMissing?: boolean; sha256?: string; signal?: AbortSignal } = {},
+  }: { allowMissing?: boolean; sha256?: string; sha256Prefix?: string; signal?: AbortSignal } = {},
 ): Promise<T | null> {
   const doFetch = source.fetch ?? fetch;
   const url = `${source.base.replace(/\/$/, "")}/${network}/${file}`;
@@ -90,8 +92,14 @@ export async function fetchSigned<T extends { network: Network }>(
   }
 
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (expectedHash !== undefined && toHex(sha256(bytes)) !== expectedHash.toLowerCase()) {
-    throw new DataError("mismatch", file, "SHA-256 differs from latest.bundleHash");
+  if (expectedHash !== undefined || sha256Prefix !== undefined) {
+    const digest = toHex(sha256(bytes));
+    if (expectedHash !== undefined && digest !== expectedHash.toLowerCase()) {
+      throw new DataError("mismatch", file, "SHA-256 differs from latest.bundleHash");
+    }
+    if (sha256Prefix !== undefined && !digest.startsWith(sha256Prefix)) {
+      throw new DataError("mismatch", file, "SHA-256 differs from the hash in the file name");
+    }
   }
   let raw: unknown;
   try {

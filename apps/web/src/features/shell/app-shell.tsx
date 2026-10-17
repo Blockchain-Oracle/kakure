@@ -1,15 +1,15 @@
 "use client";
 
 import { Dock, Rail } from "@kakure/ui-web";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { FAUCETS } from "@/constants";
 import { useCategory } from "@/features/markets/category-store";
 import { NetworkCapsule } from "@/features/network/network-capsule";
 import { ThemeControl } from "@/features/theme/theme-control";
 import { Brand } from "./brand";
-import { AppLink, NAV_ITEMS } from "./nav-items";
-
-const SECTIONS = [{ key: "markets", label: "Markets", items: NAV_ITEMS }];
+import { AppLink, activeKeys, DOCK_ITEMS, RAIL_SECTIONS } from "./nav-items";
+import { QuickToggles } from "./quick-toggles";
 
 /**
  * Kawase's frame (kawase.md §5): from 768 px the window ground is the quiet plate, padded 16, with the floating rail
@@ -19,6 +19,7 @@ const SECTIONS = [{ key: "markets", label: "Markets", items: NAV_ITEMS }];
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const category = useCategory();
+  const active = activeKeys(usePathname(), category);
 
   const header = (
     <div className="flex flex-col items-center gap-4 wide:items-stretch">
@@ -42,20 +43,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   const footer = (
-    <div className="flex justify-center wide:justify-start wide:px-1.5">
+    <div className="flex flex-col items-center gap-2 wide:flex-row wide:justify-between wide:px-1.5">
       <span className="wide:hidden">
         <ThemeControl compact />
       </span>
       <span className="hidden wide:inline">
         <ThemeControl />
       </span>
+      <QuickToggles />
     </div>
   );
 
   return (
     <div className="kk-frame min-h-dvh rail:flex rail:h-dvh rail:gap-4 rail:p-(--layout-window-inset)">
       <div className="hidden rail:block rail:h-full">
-        <Rail sections={SECTIONS} activeKey={category} Link={AppLink} header={header} footer={footer} />
+        <Rail sections={RAIL_SECTIONS} activeKey={active.rail} Link={AppLink} header={header} footer={footer} />
       </div>
       <div className="kk-stage flex min-h-dvh min-w-0 flex-1 flex-col rail:min-h-0 rail:overflow-hidden rail:rounded-stage">
         <header className="flex items-center justify-between gap-3 px-5 pt-4 pb-2 rail:hidden">
@@ -70,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <Dock items={NAV_ITEMS} activeKey={category} Link={AppLink} className="z-40 rail:hidden" />
+      <Dock items={DOCK_ITEMS} activeKey={active.dock} Link={AppLink} className="z-40 rail:hidden" />
     </div>
   );
 }

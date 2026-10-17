@@ -8,8 +8,10 @@ const WORKSPACE_PACKAGES = [
   "@kakure/feeds",
   "@kakure/query",
   "@kakure/signing",
+  "@kakure/sounds",
   "@kakure/tokens",
   "@kakure/ui-web",
+  "@kakure/zaddr-wasm",
 ];
 
 /**

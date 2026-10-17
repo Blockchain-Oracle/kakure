@@ -3,12 +3,17 @@
   "private": true,
   "type": "module",
   "description": "Kakure's DOM kit: 21st.dev components reskinned to Kawase tokens (fills instead of borders, CSS springs, no gradients or glow except the network toggle). Sources and licences: THIRD_PARTY_NOTICES.md at the repo root.",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./kit.css": "./src/kit.css"
+    "./kit.css": "./src/kit.css",
+    "./qr": "./src/dotted-qr.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "uqr": "0.1.3"
   },
   "peerDependencies": {
     "react": "catalog:",

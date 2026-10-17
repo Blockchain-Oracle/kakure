@@ -55,7 +55,7 @@ const STOCK_NAMES: Readonly<Record<string, string>> = {
 /** Chain events (event markets) are Zcash-native; their subject is an event key such as `nu7`. */
 const EVENT_NAMES: Readonly<Record<string, string>> = {
   nu7: "NU7 activation",
-  tnh: "Testnet height",
+  tnheight: "Testnet block height",
 };
 
 const MARKS = new Set(["BTC", "ETH", "SOL", "ZEC", "XRP", "DOGE", "AAPL", "TSLA", "NVDA"]);
