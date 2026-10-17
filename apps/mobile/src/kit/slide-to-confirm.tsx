@@ -18,6 +18,11 @@ const THUMB = 48;
 const RAIL_PADDING = 4;
 /** The label has faded out by the time the thumb is this far along. */
 const LABEL_FADE_AT = 0.6;
+/**
+ * Resolved once on the JS thread: the gesture callbacks are worklets on the UI runtime, which can read this plain
+ * object but cannot call a JS function like spring().
+ */
+const RELEASE = spring("sheetRelease");
 
 function styles(theme: Theme) {
   return StyleSheet.create({
@@ -77,17 +82,21 @@ export function SlideToConfirm({
     })
     .onEnd(() => {
       if (x.value >= max * SLIDE_COMMIT_FRACTION) {
-        x.value = withSpring(max, spring("sheetRelease"));
+        x.value = withSpring(max, RELEASE);
         runOnJS(commit)();
       } else {
-        x.value = withSpring(0, spring("sheetRelease"));
+        x.value = withSpring(0, RELEASE);
       }
     });
 
   const thumbStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  const labelStyle = useAnimatedStyle(() => ({
-    opacity: max > 0 ? interpolate(x.value, [0, max * LABEL_FADE_AT], [1, 0]) : 1,
-  }));
+  // While the work runs the thumb sits at the end, so the label comes back to say "Working…".
+  const labelStyle = useAnimatedStyle(
+    () => ({
+      opacity: busy || max <= 0 ? 1 : interpolate(x.value, [0, max * LABEL_FADE_AT], [1, 0]),
+    }),
+    [busy, max],
+  );
 
   return (
     <View

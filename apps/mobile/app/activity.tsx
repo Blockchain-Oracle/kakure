@@ -1,7 +1,7 @@
-import { zatToZec } from "@kakure/domain";
+import { decodeBetMemo, zatToZec } from "@kakure/domain";
 import type { ValueTransfer } from "@zingo";
 import { ArrowDownLeft, ArrowUpRight, History, Repeat } from "lucide-react-native";
-import { FlatList, View } from "react-native";
+import { FlatList, Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MS_PER_SECOND, NETWORK_COIN } from "@/constants";
 import { Pill } from "@/kit/controls";
@@ -22,11 +22,21 @@ const STATUS: Record<ValueTransfer["status"], { label: string; tone: "neutral" |
   failed: { label: "Failed · nothing moved", tone: "down" },
 };
 
+/** A memo the operator would count as a ticket (the shared decoder), not merely one that starts with the prefix. */
+function isBetMemo(memo: string): boolean {
+  try {
+    decodeBetMemo(memo);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function title(transfer: ValueTransfer, coin: string, hidden: boolean): string {
   const amount = hidden ? "Hidden" : `${zatToZec(BigInt(Math.max(0, transfer.value)))} ${coin}`;
   if (transfer.kind === "received") return `Received ${amount}`;
   if (transfer.kind === "migration") return `Moved ${amount} to Ironwood`;
-  if (transfer.memos?.some((memo) => memo.startsWith("kakure:v1"))) return `Bet ${amount}`;
+  if (transfer.memos?.some(isBetMemo)) return `Bet ${amount}`;
   return `Sent ${amount}`;
 }
 
@@ -40,10 +50,13 @@ export default function Activity() {
   return (
     <FlatList
       style={{ backgroundColor: theme.color.background }}
+      // The native header is translucent glass on iOS 26: UIKit insets the list under it and above the home bar.
+      // Android ignores this prop and draws edge to edge, so it keeps the safe-area padding itself.
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{
         padding: theme.space.inset,
         gap: theme.space.sm,
-        paddingBottom: insets.bottom + theme.space.xl,
+        paddingBottom: theme.space.xl + (Platform.OS === "android" ? insets.bottom : 0),
       }}
       data={rows}
       keyExtractor={(item, index) => `${item.txid}-${index}`}

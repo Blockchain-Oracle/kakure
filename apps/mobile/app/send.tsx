@@ -13,6 +13,7 @@ import { SlideToConfirm } from "@/kit/slide-to-confirm";
 import { EmptyState, Strip } from "@/kit/states";
 import { Fact, Plate } from "@/kit/surface";
 import { Txt } from "@/kit/text";
+import { devLog } from "@/lib/dev-log";
 import { coinAmount } from "@/markets/market-view";
 import { useNetwork } from "@/network/network-store";
 import type { Theme } from "@/theme/theme";
@@ -91,11 +92,15 @@ export default function Send() {
     setState({ phase: "sending" });
     try {
       const result = await Zingo.send(to.trim(), zat, memo, { requestId: `send:${Date.now()}` });
+      devLog(
+        `send sent txid ${result.txids[0] ?? "?"} fee ${result.fee} from [${result.sourcePools.join(",")}] timings ${JSON.stringify(result.timings)}`,
+      );
       fire("send", { identity: `send:${result.txids[0] ?? Date.now()}` });
       setState({ phase: "sent", detail: result.txids[0] ? `Transaction ${result.txids[0].slice(0, 10)}…` : "" });
       void refreshWallet();
     } catch (error) {
-      const { message } = errorOf(error);
+      const { code, message } = errorOf(error);
+      devLog(`send failed: ${code}: ${message}`);
       fire("error");
       setState({ phase: "failed", detail: message });
     }
