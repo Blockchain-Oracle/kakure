@@ -1,0 +1,67 @@
+---
+title: Your first bet in 30 seconds
+description: From a market to a counted ticket, with Zingo or Zodl.
+---
+
+{/* Sources: apps/web/src/features/bet/*, packages/domain/src/memo.ts, packages/domain/src/zip321.ts, plan §1 Betting. */}
+
+You need a Zcash wallet with shielded funds: **Zingo** on testnet; **Zodl** or **Zingo** on mainnet. On testnet,
+get free TAZ first (see [Networks](/networks)).
+
+<Steps>
+<Step>
+
+### Pick a market and a side
+
+Open a market in the app and choose **Bet Up** or **Bet Down** (or Yes/No on an event). Betting closes 10
+minutes before the market's close.
+
+</Step>
+<Step>
+
+### Choose one fixed ticket
+
+Tickets come in fixed sizes only: 0.01, 0.02, 0.05, 0.1, 0.2, 0.5 or 1 ZEC (TAZ on testnet). There's no amount
+field on purpose: every ticket of a size looks like every other on the chain and in the pools.
+
+</Step>
+<Step>
+
+### Paste a fresh payout address
+
+In your wallet, open **Receive** and copy a fresh shielded (Unified) address. Paste it into the bet sheet. Your
+browser checks it on the spot: it must be for the right network, have an Orchard receiver, and have no transparent
+receiver. Winnings or refunds go to this address; Kakure never asks for anything else.
+
+</Step>
+<Step>
+
+### Scan the QR with your wallet
+
+Tap **Make QR**. Your ticket is saved in this browser first, then the code appears. Scan it with your wallet, or
+tap **Open in Zingo** on the same device. Pay exactly the amount shown and don't edit the memo: it carries your
+market, side, ticket size, a random nonce and your payout address.
+
+</Step>
+<Step>
+
+### Watch it get counted
+
+After your payment is mined, the next signed batch (one goes out every 10 minutes) lists your ticket's hash. Your
+portfolio then shows it as **Counted**. Don't pay twice: if you're unsure whether it went through, check your
+wallet first.
+
+</Step>
+</Steps>
+
+## What the QR holds
+
+The QR is a standard ZIP 321 payment request built on your device: one of the market's published addresses, the
+ticket amount, and the memo `kakure:v1;n=…;m=…;s=…;z=…;k=…;p=…`. It's never sent to a server, which is also why it
+works like a bearer secret: anyone who sees it learns your side and payout address. The app hides it whenever its
+window isn't in front.
+
+## In the Kakure app
+
+The phone app has its own shielded wallet, so a bet is one tap there. Next to every web QR there's a second, smaller
+code that only names the market: scan it with the Kakure app to bet on the same market from your phone.

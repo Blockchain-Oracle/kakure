@@ -3,7 +3,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Roboto_Condensed } from "next/font/google";
 import type { ReactNode } from "react";
 import { DataProvider } from "@/features/data/data-provider";
-import { AppShell } from "@/features/shell/app-shell";
 import { INIT_SCRIPT } from "@/features/shell/init-script";
 import "./globals.css";
 
@@ -50,9 +49,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: INIT_SCRIPT }} />
       </head>
       <body>
-        <DataProvider>
-          <AppShell>{children}</AppShell>
-        </DataProvider>
+        <DataProvider>{children}</DataProvider>
       </body>
     </html>
   );

@@ -1,0 +1,31 @@
+---
+title: Your wallet and Ironwood
+description: Pay from the Ironwood pool, and give a payout address with an Orchard receiver.
+---
+
+{/* Sources: context/01-zcash-fundamentals/README.md (NU6.3, pools), context/06-wallets-and-sdks/zodl.md (3.9.0 migration),
+   privacy-design.md D6, plan §3 Payout address, services/operator/src/domain.rs check_payout_address. */}
+
+## Pay from Ironwood
+
+Since the NU6.3 upgrade (mainnet block 3,428,143), new shielded value on Zcash lives in the **Ironwood** pool; the
+older Orchard pool can only be spent from. A payment that moves money from one pool to another shows its amount on
+chain. So pay your ticket from funds that are already in Ironwood: then the bet is a same-pool shielded payment that
+hides sender, recipient and amount.
+
+**Zodl users:** Zodl 3.9.0 added migration into Ironwood. Migrate first, then bet. The bet sheet reminds you.
+
+## Your payout address
+
+Kakure pays winnings and refunds to the address in your bet's memo. It must:
+
+- be a **Unified Address** (`u1…` on mainnet, `utest1…` on testnet) for the network you're betting on;
+- contain an **Orchard receiver**, so the payout lands in the shielded pool;
+- contain **no transparent receiver**, which would make the payout public.
+
+The app checks all three in your browser before it builds the QR, with the same rules the operator applies when it
+reads your memo. A payout address without an Orchard receiver leaves no usable return address, so the bet builder
+won't let you make one.
+
+Use a **fresh** address for each bet (your wallet's Receive screen gives you a new one). It keeps your bets from
+being linked to each other by anyone who learns one of them.

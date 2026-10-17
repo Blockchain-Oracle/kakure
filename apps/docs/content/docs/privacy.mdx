@@ -1,0 +1,64 @@
+---
+title: The privacy model
+description: The promise, who sees what, and what Kakure can't hide.
+---
+
+{/* Sources: context/11-chosen-direction/privacy-design.md (promise, "Who learns what", D1–D14, residual risks), plan §2 and §6. */}
+
+## The promise
+
+> The public sees nothing beyond what any shielded Zcash transaction shows. The operator sees what was bet, never
+> who bet it.
+
+Two layers make that true:
+
+- **The protocol.** A fully shielded, same-pool payment hides its sender, recipient and amount. Your bet is one.
+- **Kakure's design.** A shielded payment carries no sender address, and the memo carries no identity: only the
+  market, side, ticket size, a random nonce and your payout address.
+
+Kakure does **not** claim anonymity of positions from the operator, cryptographically verifiable odds, or trustless
+custody.
+
+## Who sees what
+
+| Who | Learns | Never learns |
+| --- | --- | --- |
+| Anyone watching the chain | That shielded transactions happened, with their timing, fee and shape | Who paid whom, how much, the memo, or that a transaction is a bet |
+| The operator | Each bet's amount, side, arrival time and payout address | Who you are or which wallet paid. Clients never contact the operator; it only publishes signed files |
+| This website's host | Your IP address, when you visited and which pages you opened | Your bets, sides or payout address. The QR is built in your browser and market ids stay in the `#fragment` |
+| Your wallet's server | Your IP and when you broadcast, unless your wallet uses Tor | The memo or the amount |
+| Other bettors and the public | Odds in scheduled batches, once each side has 3 tickets, and the result | Any single bet: odds move only after 3 new tickets |
+| An exchange where you cash out | The amount you deposit | Which bet it came from: every same-size winning ticket pays the same |
+
+## How the design gets there
+
+- **No accounts, no bet API.** The site is static. The app and site never call the operator; the operator pushes
+  signed files to storage, and every visitor downloads the same ones.
+- **The same requests for everyone.** Every visit loads the same `latest.json`, bundle and address list; market ids
+  live in the URL fragment, which browsers never send. The app's service worker fetches both networks' files, so
+  even your network choice isn't visible to the host.
+- **A fresh market address per bet**, picked in your browser from the signed list, so bets don't share an address.
+- **Fixed ticket sizes**, so amounts don't fingerprint a bet, and every same-size winner gets the same payout.
+- **Sealed, batched odds.** Hidden until each side has 3 tickets; then they move only after 3 new ones, and a
+  signed batch goes out every 10 minutes whether or not anything changed.
+- **Payouts on a timer, never right after a bet.** Each payout is split into canonical 1, 2 or 5 × 10^k notes, each
+  sent as its own transaction at a random time 2 to 6 hours after resolution, with the outgoing viewing key
+  discarded. Payout transaction ids are never published.
+- **Prices through Kakure's relay.** Your browser never connects to an exchange, so no exchange sees your IP next
+  to Kakure.
+
+## What Kakure can't hide
+
+1. The operator sees every bet's amount, side and payout address, though not who placed it.
+2. Odds are reports signed by the operator, not cryptographic proofs.
+3. Custody and resolution are trusted: there are no smart contracts on Zcash.
+4. The final totals become public after the cutoff, and a determined observer can try the n−1 attack on a market
+   with few bets.
+5. Miners set block timestamps within consensus limits, so the cutoff block has some latitude.
+6. Your own funding history and your wallet's server are outside Kakure's control.
+7. While few people use Kakure, the set of bettors you hide among is small.
+8. The published market addresses could be decrypted by a future break of today's cryptography (harvest now,
+   decrypt later).
+9. Stock markets will settle on two keyed sources (Pyth and Alpaca) that you can't re-fetch yourself.
+
+To hide your IP from the website's host, open Kakure in Tor Browser.

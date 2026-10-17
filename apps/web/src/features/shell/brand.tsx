@@ -20,7 +20,9 @@ export function Brand({ wordmark = true }: { wordmark?: boolean }) {
     <span className="flex items-center gap-2.5">
       <BrandMark />
       {wordmark ? (
-        <span className="font-display text-title font-black tracking-[-0.02em] text-foreground">Kakure</span>
+        <span className="whitespace-nowrap font-display text-title font-black tracking-[-0.02em] text-foreground">
+          Kakure
+        </span>
       ) : null}
     </span>
   );

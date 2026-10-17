@@ -1,0 +1,39 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "@kakure/tokens/tokens.css";
+
+/*
+ * Kakure's tokens on Fumadocs (Kawase's docs mapped every --color-fd-* to its tokens, kawase.md §4.1).
+ * Links and the active page use the `link` token, not the accent: the accent is never text on white.
+ */
+:root,
+:root.dark {
+  --color-fd-background: var(--background);
+  --color-fd-foreground: var(--foreground);
+  --color-fd-card: var(--card);
+  --color-fd-card-foreground: var(--card-foreground);
+  --color-fd-popover: var(--card);
+  --color-fd-popover-foreground: var(--card-foreground);
+  --color-fd-muted: var(--secondary);
+  --color-fd-muted-foreground: var(--muted-foreground);
+  --color-fd-secondary: var(--secondary);
+  --color-fd-secondary-foreground: var(--secondary-foreground);
+  --color-fd-accent: var(--row-pressed);
+  --color-fd-accent-foreground: var(--foreground);
+  --color-fd-border: var(--border);
+  --color-fd-primary: var(--link);
+  --color-fd-primary-foreground: var(--primary-foreground);
+  --color-fd-ring: var(--ring);
+}
+
+body {
+  font-family: var(--kakure-font-sans), ui-sans-serif, system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+article h1 {
+  font-family: var(--kakure-font-display), "Arial Narrow", sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}

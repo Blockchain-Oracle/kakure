@@ -1,0 +1,78 @@
+---
+title: System maps
+description: The bet flow, the operator pipeline, the data flow, and who sees what.
+---
+
+{/* Sources: plan §2 (architecture diagram), §3, §13.9; services/data-worker/src/index.ts; packages/feeds/src/protocol.ts;
+   apps/web/public/sw.js; packages/query/src/fetch.ts. */}
+
+## A bet, end to end
+
+```mermaid
+sequenceDiagram
+  participant You as Your browser
+  participant Wallet as Your wallet
+  participant Chain as Zcash chain
+  participant Op as Operator
+  participant Host as Data host
+  You->>Host: GET the signed files<br/>(same for everyone)
+  Host-->>You: latest.json, bundle,<br/>address list
+  Note over You: Check signatures, pick an address,<br/>build the QR, save the ticket
+  You->>Wallet: Scan the QR<br/>(ZIP 321, with memo)
+  Wallet->>Chain: Shielded payment,<br/>memo encrypted
+  Op->>Chain: Scan each block,<br/>decrypt its own notes
+  Op->>Host: Next signed batch<br/>lists the ticket hash
+  You->>Host: GET latest.json<br/>(on the clock)
+  Host-->>You: Ticket hash in the list:<br/>counted
+  Op->>Chain: After resolution, a payout<br/>at a random time (2 to 6 h)
+  Chain-->>Wallet: Payout arrives
+```
+
+## The operator pipeline
+
+```mermaid
+flowchart LR
+  scan[Scan every block] --> ingest[Ingest: memo, amount, cutoff block, Orchard receiver, nonce]
+  ingest --> engine[Engine: pools, sealed and released odds]
+  catalog[Catalog: schedules markets and opening references] --> engine
+  engine --> publish[Publisher: signed bundle every 10 min]
+  publish --> r2[(Public storage)]
+  resolver[Resolver: venue votes or chain read] --> engine
+  engine --> payouts[Payout scheduler: canonical notes, random times]
+  payouts --> tor[Broadcast over Tor]
+```
+
+## Data flow
+
+```mermaid
+flowchart TB
+  subgraph device[Your device]
+    app[Web app or phone app]
+    sw[Service worker cache]
+    db[(Encrypted ticket store)]
+  end
+  host[Data host: static files only, logs off]
+  relay[Price relay: every symbol to everyone]
+  op[Operator]
+  venues[Coinbase, Kraken, Bitstamp, Gemini]
+  op -- pushes signed files --> host
+  app -- same requests for every visitor --> host
+  app -- one price stream per tab --> relay
+  relay --> venues
+  app --- sw
+  app --- db
+```
+
+The app never calls the operator. The only things it fetches are the signed public files and the price stream.
+
+## Who sees what
+
+```mermaid
+flowchart LR
+  bet((Your bet))
+  bet -->|"amount, side, payout address"| op[Operator]
+  bet -->|"a shielded transaction, nothing else"| chain[Chain observers]
+  bet -->|"your IP, unless you use Tor"| wallet[Your wallet's server]
+  visit((Your visit)) -->|"IP, time, pages"| host[Website host]
+  op -->|"batched odds, the result"| public[Everyone]
+```

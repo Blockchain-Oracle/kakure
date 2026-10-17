@@ -43,6 +43,12 @@ export const EXPORT_FILE_EXTENSION = ".kakure";
 /** The public site, for the market-link QR the Kakure app scans (plan §1 Web bet). */
 export const SITE_ORIGIN = "https://getkakure.xyz";
 
+/** The docs site (apps/docs), served at the root of its own host (plan §13.11). */
+export const DOCS_ORIGIN = process.env.NEXT_PUBLIC_DOCS_ORIGIN ?? "https://docs.getkakure.xyz";
+
+/** The public source repository. */
+export const REPO_URL = "https://github.com/Blockchain-Oracle/kakure";
+
 /** Android builds: GitHub Releases of the public repo, tags `android-*` (read at build time). */
 export const RELEASES = { repo: "Blockchain-Oracle/kakure", tagPrefix: "android-" } as const;
 

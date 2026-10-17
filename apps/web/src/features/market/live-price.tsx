@@ -10,7 +10,7 @@ const USD_DIGITS_LARGE = 2;
 const USD_DIGITS_SMALL = 6;
 const SMALL_PRICE = 1;
 
-function formatUsd(price: string): string {
+export function formatUsd(price: string): string {
   const value = Number(price);
   const digits = value >= SMALL_PRICE ? USD_DIGITS_LARGE : USD_DIGITS_SMALL;
   return USD.format(Number(value.toFixed(digits)));

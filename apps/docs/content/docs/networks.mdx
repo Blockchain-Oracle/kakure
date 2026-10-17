@@ -1,0 +1,31 @@
+---
+title: Networks
+description: Testnet with free TAZ, and mainnet with real ZEC.
+---
+
+{/* Sources: apps/web/src/constants.ts (FAUCETS), context/05-node-and-infra/testnet-regtest-faucets.md, plan §1 Network toggle. */}
+
+Kakure runs the same markets on two Zcash networks, and keeps them apart on your device: each network has its own
+markets, operator key, cached files and tickets.
+
+| | Testnet | Mainnet |
+| --- | --- | --- |
+| Coin | TAZ, which has no value | ZEC |
+| Status | Live | Opens once its operator key is published |
+| Switching to it | One tap | A deliberate "Slide to use real money" |
+
+Switch with the network capsule at the top of the app; the whole app re-tints so you always know which one you're on.
+
+## Getting TAZ
+
+Testnet coins are free from a faucet:
+
+- [Fauzec](https://fauzec.com/) sends to Unified and Sapling addresses.
+- [Valar](https://faucet.testnet.valargroup.dev) sends a small amount once a day.
+
+Send them to your wallet's shielded address, then bet with TAZ exactly as you would with ZEC.
+
+## Links to the other network
+
+A market link carries its network (`/m#testnet/…`). If you open a mainnet link while you're on testnet, the app
+says so and asks you to switch; it never opens a market on the wrong network silently.

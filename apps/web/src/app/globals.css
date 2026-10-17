@@ -7,6 +7,23 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Reduced motion follows the system or the in-app setting (<html data-motion="reduce">). */
+@custom-variant motion-reduce {
+  @media (prefers-reduced-motion: reduce) {
+    @slot;
+  }
+  &:where([data-motion="reduce"], [data-motion="reduce"] *) {
+    @slot;
+  }
+}
+@custom-variant motion-safe {
+  @media (prefers-reduced-motion: no-preference) {
+    &:not(:where([data-motion="reduce"], [data-motion="reduce"] *)) {
+      @slot;
+    }
+  }
+}
+
 /*
  * App-level CSS: the frame, the network flood and the capsule's glow. Values are tokens (packages/tokens).
  */
@@ -21,6 +38,8 @@ html,
 body {
   background: var(--kk-stage);
   color: var(--foreground);
+  /* Signed rules carry long tokens (ISO times, source URLs); they wrap instead of widening the page. */
+  overflow-wrap: anywhere;
   font-family: var(--font-sans);
   font-variant-numeric: lining-nums;
 }
@@ -130,7 +149,36 @@ body {
     0 0 32px 8px var(--glow);
 }
 
+/* ── The landing tape: two copies sliding, paused on hover or focus, a plain scroll row when motion is reduced. */
+@keyframes kk-tape {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.kk-tape-track {
+  animation: kk-tape 60s linear infinite;
+}
+.kk-tape:hover .kk-tape-track,
+.kk-tape:focus-within .kk-tape-track {
+  animation-play-state: paused;
+}
+:root[data-motion="reduce"] .kk-tape-track {
+  animation: none;
+}
+:root[data-motion="reduce"] .kk-tape {
+  overflow-x: auto;
+}
+:root[data-motion="reduce"] .kk-network-capsule {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .kk-tape-track {
+    animation: none;
+  }
   .kk-network-capsule,
   :root[data-flood] .kk-network-capsule {
     animation: none;

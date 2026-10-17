@@ -43,7 +43,9 @@ export function latestQuery(source: DataSource, network: Network) {
     queryKey: queryKeys.latest(network),
     queryFn: ({ signal }): Promise<Latest | null> =>
       fetchSigned(source, network, LATEST_FILE, latestSchema, { allowMissing: true, signal }),
-    staleTime: BATCH_INTERVAL_MS,
+    // Fresh for at most one batch interval, and never past the moment the next batch should be visible,
+    // so a focus or a remount just after a publish fetches it instead of waiting out the interval.
+    staleTime: (query) => Math.min(BATCH_INTERVAL_MS, latestRefetchInterval(query.state.data)),
     refetchInterval: (query) => latestRefetchInterval(query.state.data),
     retry,
   });

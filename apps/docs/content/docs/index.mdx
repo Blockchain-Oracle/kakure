@@ -1,0 +1,31 @@
+---
+title: Kakure
+description: A private prediction market on Zcash. The odds are public; who placed each bet isn't.
+---
+
+{/* Sources: context/15-plan/kakure-plan.md §1 (promise), context/11-chosen-direction/privacy-design.md (D1). */}
+
+Kakure lets you call the close on crypto and on Zcash itself with shielded ZEC. You pay from your own Zcash
+wallet by scanning a QR code. There is no account to make, nothing to sign in to, and no claim step: winnings and
+refunds come back on their own to an address you choose.
+
+The odds are public. Who placed each bet isn't. The precise boundary: **the public sees nothing beyond what any
+shielded Zcash transaction shows, and the operator sees what was bet, never who bet it.**
+
+## Start here
+
+<Cards>
+  <Card title="Your first bet in 30 seconds" href="/first-bet" description="Scan, pay, done: the web QR with Zingo or Zodl." />
+  <Card title="Your wallet and Ironwood" href="/wallet-and-ironwood" description="What your wallet needs before you bet." />
+  <Card title="The privacy model" href="/privacy" description="Who sees what, and what Kakure can't hide." />
+  <Card title="Rules and formulas" href="/rules" description="Payouts, the fee, the cutoff block and refunds." />
+</Cards>
+
+## What's live
+
+- **Testnet** markets run now, with test coins (TAZ) that have no value. Hourly and daily Up/Down markets on BTC,
+  ETH, SOL and ZEC, daily ones on DOGE and XRP, and a testnet chain-height event.
+- **Mainnet** opens once its operator key is published; until then the app says so instead of showing markets.
+- **US stocks** open once their price feed is connected.
+- The **web app** is live. The Android and iPhone apps are listed on the app's download page as each build is
+  published.

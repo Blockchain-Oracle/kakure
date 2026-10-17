@@ -1,6 +1,6 @@
 /**
- * JS budget check for the static export (plan §2 Budgets): our own JS on /markets ≤ 35 KB gzipped,
- * plus the framework (React + Next runtime, ceiling 130 KB).
+ * JS budget check for the static export (plan §2 Budgets): our own JS on the landing (/) and on /markets
+ * ≤ 35 KB gzipped each, plus the framework (React + Next runtime, ceiling 130 KB).
  *
  * Usage: `pnpm --filter @kakure/web size` (builds with source maps, measures, removes the maps).
  *        `node scripts/size.mjs --no-build` measures an existing `out/`.
@@ -21,7 +21,9 @@ import { gzipSync } from "node:zlib";
 
 const APP = fileURLToPath(new URL("..", import.meta.url));
 const OUT = join(APP, "out");
-const ROUTES = ["markets", "m"];
+/** `index` is the landing page; /m is measured for reference (it adds the bet sheet). */
+const ROUTES = ["index", "markets", "m"];
+const BUDGETED = new Set(["index", "markets"]);
 const BUDGET_OURS_KB = 35;
 const BUDGET_FRAMEWORK_KB = 130;
 const KB = 1024;
@@ -142,18 +144,19 @@ let failed = false;
 for (const route of ROUTES) {
   const { scripts, buckets, packages, mapped } = measureRoute(route);
   const total = buckets.framework + buckets.libraries + buckets.ours;
-  console.log(`\n/${route}: ${scripts} scripts, ${kb(total)} gzipped`);
+  const path = route === "index" ? "/" : `/${route}`;
+  console.log(`\n${path}: ${scripts} scripts, ${kb(total)} gzipped`);
   console.log(`  framework  ${kb(buckets.framework).padStart(9)}  (ceiling ${BUDGET_FRAMEWORK_KB} KB)`);
   console.log(`  libraries  ${kb(buckets.libraries).padStart(9)}`);
   console.log(`  ours       ${kb(buckets.ours).padStart(9)}  (budget ${BUDGET_OURS_KB} KB)`);
   const top = [...packages].sort((a, b) => b[1] - a[1]);
   console.log(`  by package: ${top.map(([name, bytes]) => `${name} ${kb(bytes)}`).join(", ")}`);
   if (!mapped) console.log("  (some chunks had no source map; their bytes are counted as framework)");
-  if (route === "markets" && buckets.ours > BUDGET_OURS_KB * KB) {
-    console.error(`  ✗ our JS on /markets is over the ${BUDGET_OURS_KB} KB budget`);
+  if (BUDGETED.has(route) && buckets.ours > BUDGET_OURS_KB * KB) {
+    console.error(`  ✗ our JS on ${path} is over the ${BUDGET_OURS_KB} KB budget`);
     failed = true;
   }
-  if (route === "markets" && buckets.framework > BUDGET_FRAMEWORK_KB * KB) {
+  if (BUDGETED.has(route) && buckets.framework > BUDGET_FRAMEWORK_KB * KB) {
     console.warn(`  ! the framework is over its ${BUDGET_FRAMEWORK_KB} KB ceiling`);
   }
 }

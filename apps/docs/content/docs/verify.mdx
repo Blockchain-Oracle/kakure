@@ -1,0 +1,60 @@
+---
+title: Verify it yourself
+description: Find your ticket, check signatures and rules hashes, and what re-verify will add.
+---
+
+{/* Sources: apps/web/src/features/verify/*, apps/web/src/features/proof/*, packages/query/src/fetch.ts,
+   packages/signing/src/index.ts, packages/domain/scripts/validate.ts. */}
+
+## Find your ticket
+
+Open your ticket in the portfolio and tap **Find my ticket**. Nothing is sent anywhere: the app searches the signed
+list it already downloaded for your ticket's hash. You can also paste a ticket hash (64 hex characters) on
+the app's **Verify** page.
+
+## What the app checks on every load
+
+Before a single number is shown, the app:
+
+1. checks `latest.json`'s Ed25519 signature against the operator key built into the app;
+2. checks that the bundle's bytes hash (SHA-256) to the `bundleHash` that `latest.json` names, and that its batch
+   number matches;
+3. checks the bundle's own signature, and the address list's signature and content-addressed name;
+4. validates every file against the published format.
+
+If any check fails, it shows nothing rather than unverified odds, and says which check failed.
+
+## Check a receipt
+
+A receipt link looks like `https://getkakure.xyz/verify#…`; the receipt sits in the fragment, so it never reaches
+the host. A **provable** receipt includes your ticket's nonce: the Verify page recomputes the ticket hash and looks
+for it in the signed list, then shows the result and the payout for that ticket size. An **outcome slip** has no
+nonce, so it shows the result but can't be matched to the list.
+
+## Check the rules didn't change
+
+Each market's `rulesHash` is BLAKE2b-256, personalisation `Kakure_Rules_v01`, over the canonical JSON of its rules.
+The app's **Proof** page recomputes it for every market and shows whether it matches. To do it yourself:
+
+```ts
+import { blake2b } from "@noble/hashes/blake2.js";
+import { canonicalJson } from "@kakure/signing"; // keys sorted, no whitespace
+
+const digest = blake2b(new TextEncoder().encode(canonicalJson(market.rules)), {
+  dkLen: 32,
+  personalization: new TextEncoder().encode("Kakure_Rules_v01"),
+});
+```
+
+## Check signatures yourself
+
+Every published file is the canonical JSON of its document: object keys sorted by UTF-16 code units, no whitespace,
+integers only (amounts are decimal strings of zatoshi). The signature `sig` is Ed25519 over that canonical JSON with
+the `sig` field removed, encoded as unpadded base64url. The repository's `packages/domain/scripts/validate.ts` checks
+a whole folder of published files: signatures, hashes, the chain of `previous` hashes, rules hashes and ticket lists.
+
+## Re-verify a resolution
+
+Re-verifying a result from the venues' own candles (or the chain, for events) arrives with the operator's
+resolution records. Until a market has resolved and its evidence is published, the app says so instead of
+pretending to check.

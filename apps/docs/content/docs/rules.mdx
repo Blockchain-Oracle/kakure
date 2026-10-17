@@ -1,0 +1,75 @@
+---
+title: Rules and formulas
+description: Tickets, the cutoff block, the direction vote, payouts, the fee and refunds.
+---
+
+{/* Sources: plan §3 (mechanism spec), §13.1–13.4; packages/domain/src/constants.ts, payout.ts, ticket.ts;
+   the signed rules text in each market's bundle entry (services/operator). */}
+
+Every market's exact wording, sources, cutoff, refund cases and payout formula are fixed and signed **before**
+betting opens, and its rules hash is published so anyone can check they never changed (see [Verify](/verify)).
+
+## Tickets
+
+- Sizes: 0.01, 0.02, 0.05, 0.1, 0.2, 0.5 or 1 ZEC. These are ZIP 318's canonical values (1, 2 or 5 × 10^k).
+- One payment is one ticket. The memo names the market, side (`U`/`D`, or `Y`/`N` for events), size, a 16-byte
+  random nonce and your payout address.
+- A ticket's hash is BLAKE2b-256 with personalisation `Kakure_Ticket_v1` over: the network byte (mainnet `0x01`,
+  testnet `0x02`), the market id's length and bytes, the side, the size in zatoshi (8 bytes, little-endian) and the
+  nonce. Side and size sit inside the hash, so the published list of hashes reveals neither.
+
+## When betting closes: the cutoff block
+
+Betting closes 10 minutes before the market closes. The **cutoff block H_c** is the first block whose timestamp is
+at or after the cutoff time, taken once it has 10 confirmations. Bets mined from the first block at or after
+betting opened, up to but not including H_c, count. H_c is published in the bundle once final. Miners set block
+timestamps within consensus limits; that latitude is disclosed, not hidden.
+
+## How a close market resolves: the direction vote
+
+Three venues vote. For BTC, ETH, SOL, DOGE and XRP they are Coinbase Exchange, Kraken and Bitstamp; for ZEC,
+Coinbase Exchange, Kraken and Gemini. Each venue votes **Up**, **Down** or **Flat** by comparing the close of its
+committed 1-hour candle ending at the window's end with its **opening reference**: the close of its 1-hour candle
+ending at the window's start, recorded and signed before betting opens. Up or Down wins with at least 2 of the 3
+votes. A missing or zero-volume candle is no vote.
+
+Event markets resolve from chain data instead; their rules say exactly how (for example, a block height's
+median-time-past, read from public light-wallet servers, with 10 confirmations).
+
+## Odds
+
+Odds stay **sealed** until each side has at least 3 tickets; only the ticket count moves. After that, the published
+totals change only once at least 3 new tickets have arrived since the last release. A signed batch goes out every
+10 minutes regardless.
+
+## Payouts
+
+A winning ticket of size *s* receives
+
+```
+s + round( s × L × (10000 − 200) / (W × 10000) )
+```
+
+zatoshi, where *W* and *L* are the winning and losing pools at the cutoff, rounded to the nearest 100,000 zatoshi
+(0.001 ZEC, half up). The **2 % fee comes from the losing side only**, and the house absorbs the rounding in either
+direction. Every same-size winning ticket is paid the same amount.
+
+Each payout is split into **canonical notes** (1, 2 or 5 × 10^k zatoshi, largest first), and each note is sent as
+its own transaction at a random time **2 to 6 hours after resolution**. Kakure publishes coarse status only
+("markets resolved before T: all sent by T′"), never payout transaction ids.
+
+## Refunds
+
+Every ticket in a market is refunded to its payout address if, at the cutoff:
+
+- either side has fewer than 3 tickets;
+- no direction gets 2 of the 3 venue votes (close markets), or the light-wallet servers disagree on the best chain
+  (event markets);
+- fewer than 2 venues gave an opening reference (close markets).
+
+Single tickets are refunded when they were mined at or after H_c, mined before betting opened, paid with a wrong
+amount of 0.001 ZEC or more (smaller amounts are kept as dust), named a side the market doesn't have, or repeated a
+nonce (the first, by block height and transaction index, counts).
+
+A missing or malformed memo, a memo for the other network, or a payout address without an Orchard receiver leaves
+**no usable return address**: those funds can't be returned. The bet builder makes all three impossible.

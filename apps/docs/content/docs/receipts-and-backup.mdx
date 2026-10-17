@@ -1,0 +1,40 @@
+---
+title: Receipts and backup
+description: Ticket receipts, exporting and importing tickets, and Forget this device.
+---
+
+{/* Sources: apps/web/src/features/receipts/*, apps/web/src/features/tickets/{ticket-db,export}.ts,
+   apps/web/src/features/settings/forget.ts, packages/query/src/tickets.ts, plan §3 Receipts, §13.17. */}
+
+## Where your tickets live
+
+Only on your device. The web app keeps them in your browser's IndexedDB, encrypted with AES-GCM under a key the
+browser won't let any code read out, with a separate key and store per network. There's no account and no server
+copy: if you clear this browser's data without an export, the tickets are gone (payouts still go to the addresses
+in your bets).
+
+## Receipts
+
+Open a ticket in the portfolio to see it as a perforated slip. Receipts are made on your device from your ticket and
+the signed bundle, and they're **redacted by default**: no payout address, no transaction id, no bet time.
+
+- **Outcome slip:** the market, side, size and result. It can't be checked against the signed list, and it can't
+  be traced to your payment.
+- **Provable:** adds your ticket's nonce, so anyone with the link can recompute the ticket hash and find it in the
+  signed list. Share it only with someone you want to prove the bet to.
+
+Each receipt can be saved as a PNG, emailed (your mail app opens with a short summary; attach the PNG), or shared
+as a `/verify#…` link.
+
+## Export and import
+
+**Settings → Backup.** Enter a passphrase of at least 8 characters, then **Export**: you get a `.kakure` file with
+this network's tickets, encrypted with AES-GCM-256 under a key derived from your passphrase (PBKDF2-SHA-256,
+310,000 iterations). It includes payout addresses and nonces, so keep it like a wallet backup. **Import** takes the
+same file and passphrase on another device. A file from the other network is refused: switch networks first.
+
+## Forget this device
+
+**Settings → Forget this device** erases everything Kakure stored in this browser: the ticket store and its keys,
+settings, the cached public files and the service worker. It asks you to slide to confirm. Export first if you want
+to keep your tickets.

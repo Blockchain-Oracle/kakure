@@ -1,0 +1,108 @@
+---
+title: Published file formats
+description: latest.json, bundles, address lists, resolution evidence and price history, version 1, with the operator keys.
+---
+
+{/* Sources: packages/domain/src/bundle.ts (v1 schemas, incl. resolutionSchema and historySchema), packages/domain/src/constants.ts,
+   services/data-worker/src/constants.ts (LATEST_CACHE, IMMUTABLE_CACHE), services/operator/src/{publish,resolve,history}.rs. */}
+
+The operator publishes a few public files per network under `/data/<network>/`. They're the only data the app
+reads. Every file is the canonical JSON of a document signed with the operator's Ed25519 key (see
+[Verify](/verify)). Amounts are decimal strings of zatoshi (1 ZEC = 100,000,000 zatoshi); times are UTC ISO-8601
+without an offset.
+
+## Operator keys
+
+<OperatorKeys />
+
+Keys are built into the app, never fetched. A file signed by any other key is refused.
+
+## `latest.json`
+
+The only file that changes. It names the current bundle.
+
+| Field | Meaning |
+| --- | --- |
+| `v` | Format version, `1` |
+| `network` | `mainnet` or `testnet` |
+| `seq` | Batch number |
+| `bundle` | File name of the current bundle, e.g. `bundle-12.json` |
+| `bundleHash` | SHA-256 (hex) of that bundle file's exact bytes |
+| `publishedAt` | When the batch was published |
+| `sig` | Ed25519 signature, base64url |
+
+It's served with a short cache (20 seconds, plus 40 seconds stale-while-revalidate); every other file is immutable.
+
+## `bundle-<seq>.json`
+
+One signed batch: every market on the network, its state and its ticket list.
+
+| Field | Meaning |
+| --- | --- |
+| `v`, `network`, `seq`, `publishedAt`, `sig` | As above |
+| `previous` | SHA-256 of the previous bundle, or `null` for the first |
+| `addresses` | File name of the market-address list |
+| `markets` | The markets (below) |
+| `payoutRuns` | Coarse payout status: `{ resolvedBefore, allSentBy }`, never transaction ids |
+| `history` | The last days' price-history files, oldest first (absent from earlier bundles) |
+
+Each market:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Market id, e.g. `btc-1h-2610171900` (it also goes in the memo) |
+| `kind` | `close` (Up/Down) or `event` (Yes/No) |
+| `subject` | Ticker (`BTC`) or event key |
+| `window` | `1h`, `1d`, `session` or `event` |
+| `opensAt`, `cutoffAt`, `closesAt` | When betting opens, when it closes, when the market closes |
+| `rules` | `question`, `resolution`, `sources`, `cancellation`, `payoutFormula`, fixed before betting opens |
+| `rulesHash` | BLAKE2b-256 (`Kakure_Rules_v01`) of the canonical rules JSON |
+| `opening` | Per-venue opening references (close markets), once recorded |
+| `state` | `scheduled`, `open`, `closing`, `closed`, `resolving`, `resolved`, `refunding` or `paid` |
+| `sealed` | `true` while each side has fewer than 3 tickets |
+| `ticketCount` | Tickets counted so far |
+| `released` | Totals at the last release: `{ seq, sides: { U: { tickets, zat }, D: … } }`, only once unsealed |
+| `cutoffHeight` | The cutoff block H_c, once final |
+| `outcome` | `U`, `D`, `Y`, `N` or `refund`, once resolved |
+| `resolution` | File name of the archived resolution evidence, once resolved |
+| `leaves` | Ticket hashes, sorted and merged across sides |
+
+## `addresses-<hash>.json`
+
+The market addresses a bet may pay: Orchard-only Unified Addresses, one picked at random in your browser for each
+bet. The name carries the first 8 hex characters of the file's SHA-256.
+
+| Field | Meaning |
+| --- | --- |
+| `v`, `network`, `seq`, `sig` | As above |
+| `addresses` | The list (1,024 addresses per network) |
+
+## `resolution-<market>.json`
+
+The signed evidence of one resolution, named in the market's `resolution` field. Anyone can re-derive the outcome
+from it.
+
+| Field | Meaning |
+| --- | --- |
+| `v`, `network`, `sig` | As above |
+| `market`, `kind`, `rulesHash` | The market and the rules it resolved under |
+| `resolvedAt` | When it resolved |
+| `cutoffHeight` | The cutoff block H_c; `totals` are the final counts below it |
+| `totals` | Per side: `{ tickets, zat }` |
+| `direction` | What the sources say: a side, `none` (split, flat or missing votes) or `disagree` (chain servers differ) |
+| `outcome` | What happens to the money: the winning side, or `refund` |
+| `reason` | `majority`, `chain`, `thin-pool`, `no-majority`, `cancelled` or `servers-disagree` |
+| `votes` | Close markets: per venue, `venue`, `pair`, `opening`, `close` (as printed) and `vote` (`U`, `D`, `flat`, `none`) |
+| `chain` | Event markets: the server, target height, deadline, block height, hash, time, median time past, tip and confirmations |
+| `responses` | The raw responses (`source`, `url`, `fetchedAt`, `status`, `body` byte for byte), so the votes can be checked |
+
+## `history-<yyyymmdd>.json`
+
+One UTC day's price paths from each close market's first venue (Coinbase), written once after the day's markets
+resolve, for replays. Apps always download whole days, never one market's path, so a download shows no interest.
+
+| Field | Meaning |
+| --- | --- |
+| `v`, `network`, `sig` | As above |
+| `day` | The UTC date, `YYYY-MM-DD` |
+| `markets` | Per market: `id`, `subject`, `window` (`1h` or `1d`), `venue`, `pair`, `interval` in seconds (60 for hourly, 300 for daily) and `closes` as `[unix seconds, price]` pairs |

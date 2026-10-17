@@ -81,6 +81,7 @@ export const bundleSchema = z.object({
   addresses: text,
   markets: z.array(market),
   payoutRuns: z.array(payoutRun),
+  history: z.optional(z.array(text)),
   sig: signature,
 });
 
