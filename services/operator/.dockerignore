@@ -1,0 +1,7 @@
+# Never ship wallet state, seeds or keys in an image: operator-data/ holds mnemonics and signing keys.
+operator-data/
+target/
+*.sqlite
+*.key
+mnemonic
+.env*
