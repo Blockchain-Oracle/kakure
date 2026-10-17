@@ -1,0 +1,49 @@
+# Agent research, notes and prompts stay out of git
+context/
+.firecrawl/
+codex-*.md
+.claude/
+
+# OS / editors
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Node / builds
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Expo / React Native
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+*.apk
+*.aab
+*.ipa
+build-*.tar.gz
+
+# Rust
+target/
+
+# Cloudflare
+.wrangler/
+
+# Secrets and local state (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.p12
+*.jks
+*.keystore
+operator-data/
+*.sqlite
+*.sqlite-journal

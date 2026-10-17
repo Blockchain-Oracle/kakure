@@ -1,0 +1,38 @@
+packages:
+  - apps/*
+  - packages/*
+  - services/*
+  # services/operator is a Rust crate (Cargo), outside the JS workspace.
+  - "!services/operator"
+
+# Native/binary builds are opt-in; anything not listed is denied.
+allowBuilds:
+  esbuild: true
+
+# One version per shared dependency across apps, packages and services.
+# React 19.3.1 satisfies both Next 16.4 and React Native 0.88 (peer ^19.3.0), so web and mobile share it.
+catalog:
+  typescript: ~6.0.3
+  "@types/node": ^24
+  react: 19.3.1
+  react-dom: 19.3.1
+  "@types/react": ^19.1.1
+  "@types/react-dom": ^19.1.1
+  next: 16.4.2
+  "@tanstack/react-query": 5.104.3
+  "@noble/ed25519": 3.2.0
+  "@noble/hashes": 2.4.0
+  zod: 4.6.7
+  tailwindcss: 4.3.3
+  "@tailwindcss/postcss": 4.3.3
+  motion: 14.3.0
+  tsx: ^4.20.0
+
+minimumReleaseAgeExclude:
+  - "@turbo/darwin-64@2.11.9"
+  - "@turbo/darwin-arm64@2.11.9"
+  - "@turbo/linux-64@2.11.9"
+  - "@turbo/linux-arm64@2.11.9"
+  - "@turbo/windows-64@2.11.9"
+  - "@turbo/windows-arm64@2.11.9"
+  - turbo@2.11.9

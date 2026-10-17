@@ -1,0 +1,23 @@
+{
+  "name": "kakure",
+  "private": true,
+  "description": "Kakure 隠れ — call the close on crypto, US stocks and Zcash itself with shielded ZEC. Odds public, bettors private.",
+  "license": "MIT",
+  "packageManager": "pnpm@12.14.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "turbo": "2.11.9",
+    "typescript": "catalog:"
+  }
+}
