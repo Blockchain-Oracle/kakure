@@ -25,6 +25,9 @@ use crate::wallet::Net;
 
 pub type Lwd = CompactTxStreamerClient<Channel>;
 
+/// Fresh isolated circuits tried before a connection is reported as failed.
+const CIRCUIT_ATTEMPTS: u32 = 3;
+
 /// A lightwalletd-protocol server (gRPC over TLS).
 #[derive(Clone, Debug)]
 pub struct Server {
@@ -107,13 +110,31 @@ impl Tor {
     }
 
     /// Opens a gRPC channel to the server over a fresh, isolated Tor circuit.
+    ///
+    /// A failed attempt (for example an exit that cannot resolve the host) is retried on
+    /// another fresh isolated circuit, up to `CIRCUIT_ATTEMPTS` times.
     pub async fn circuit(&self) -> Result<Lwd> {
         let t0 = Instant::now();
-        let isolated = self.client.isolated_client();
-        let lwd = isolated
-            .connect_to_lightwalletd(self.server.uri()?, false)
-            .await
-            .with_context(|| format!("connecting to {} over Tor", self.server))?;
+        let mut attempt = 1;
+        let lwd = loop {
+            let isolated = self.client.isolated_client();
+            match isolated
+                .connect_to_lightwalletd(self.server.uri()?, false)
+                .await
+            {
+                Ok(lwd) => break lwd,
+                Err(e) if attempt < CIRCUIT_ATTEMPTS => {
+                    eprintln!("tor: circuit attempt {attempt} failed ({e}); retrying");
+                    attempt += 1;
+                }
+                Err(e) => {
+                    return Err(anyhow::Error::new(e).context(format!(
+                        "connecting to {} over Tor ({attempt} attempts)",
+                        self.server
+                    )));
+                }
+            }
+        };
         let took = t0.elapsed();
         let mut s = self.stats.lock().expect("stats lock");
         s.count += 1;
