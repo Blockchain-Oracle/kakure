@@ -87,6 +87,73 @@ CREATE TABLE IF NOT EXISTS bundles (
     published_at INTEGER NOT NULL
 );
 
+-- Payouts and refunds: one row per canonical note, each its own transaction (plan §3, §13.1).
+-- Txids stay here, never in a published file (PD16).
+CREATE TABLE IF NOT EXISTS payouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    market_id TEXT,
+    receipt_txid TEXT NOT NULL,
+    receipt_pool INTEGER NOT NULL,
+    receipt_index INTEGER NOT NULL,
+    note_index INTEGER NOT NULL,
+    -- win | refund
+    kind TEXT NOT NULL,
+    reason TEXT,
+    recipient TEXT NOT NULL,
+    amount_zat INTEGER NOT NULL,
+    resolved_at INTEGER NOT NULL,
+    window_end INTEGER NOT NULL,
+    due_at INTEGER NOT NULL,
+    -- scheduled | broadcast | mined
+    status TEXT NOT NULL,
+    owner BLOB NOT NULL,
+    txid TEXT,
+    expiry_height INTEGER,
+    inputs TEXT,
+    fee_zat INTEGER,
+    built_at INTEGER,
+    mined_height INTEGER,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    UNIQUE (receipt_txid, receipt_pool, receipt_index, note_index)
+);
+CREATE INDEX IF NOT EXISTS payouts_due ON payouts (status, due_at);
+
+-- Fee and expiry shapes of recently fetched shielded transactions (plan §3).
+CREATE TABLE IF NOT EXISTS tx_samples (
+    height INTEGER NOT NULL,
+    expiry_delta INTEGER NOT NULL,
+    fee INTEGER,
+    actions INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS tx_samples_height ON tx_samples (height);
+
+CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+
+-- Primary-venue price path of each close market, for the daily history files (C9).
+CREATE TABLE IF NOT EXISTS price_paths (
+    market_id TEXT PRIMARY KEY,
+    day TEXT NOT NULL,
+    interval INTEGER NOT NULL,
+    series TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS history_files (
+    day TEXT PRIMARY KEY,
+    file TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+-- Note merges (fixed timer, never triggered by a receipt).
+CREATE TABLE IF NOT EXISTS merges (
+    slot INTEGER PRIMARY KEY,
+    txid TEXT,
+    notes INTEGER,
+    expiry_height INTEGER,
+    created_at INTEGER NOT NULL
+);
+
 -- Files pushed to R2 (only when R2 is configured).
 CREATE TABLE IF NOT EXISTS uploads (
     file TEXT PRIMARY KEY,
@@ -117,10 +184,20 @@ pub struct MarketRow {
     pub released_seq: Option<u64>,
     pub released_count: Option<u32>,
     pub released_sides: Option<String>,
+    pub cutoff_hash: Option<String>,
+    pub bet_height_cap: Option<u32>,
+    pub final_count: Option<u32>,
+    pub final_sides: Option<String>,
+    pub outcome: Option<String>,
+    pub outcome_reason: Option<String>,
+    pub resolution_file: Option<String>,
+    pub resolved_at: Option<i64>,
 }
 
 const MARKET_COLUMNS: &str = "id, kind, subject, window, opens_at, cutoff_at, closes_at, rules, rules_hash,
-     target_height, opening, cancelled, cutoff_height, released_seq, released_count, released_sides";
+     target_height, opening, cancelled, cutoff_height, released_seq, released_count, released_sides,
+     cutoff_hash, bet_height_cap, final_count, final_sides, outcome, outcome_reason, resolution_file,
+     resolved_at";
 
 fn market_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MarketRow> {
     Ok(MarketRow {
@@ -140,6 +217,14 @@ fn market_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MarketRow> {
         released_seq: r.get(13)?,
         released_count: r.get(14)?,
         released_sides: r.get(15)?,
+        cutoff_hash: r.get(16)?,
+        bet_height_cap: r.get(17)?,
+        final_count: r.get(18)?,
+        final_sides: r.get(19)?,
+        outcome: r.get(20)?,
+        outcome_reason: r.get(21)?,
+        resolution_file: r.get(22)?,
+        resolved_at: r.get(23)?,
     })
 }
 
@@ -172,6 +257,26 @@ impl Store {
         }
         conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")?;
         conn.execute_batch(SCHEMA)?;
+        // S03 columns on markets created by S02 builds.
+        for (column, ty) in [
+            ("cutoff_hash", "TEXT"),
+            ("bet_height_cap", "INTEGER"),
+            ("final_count", "INTEGER"),
+            ("final_sides", "TEXT"),
+            ("outcome", "TEXT"),
+            ("outcome_reason", "TEXT"),
+            ("resolution_file", "TEXT"),
+            ("resolved_at", "INTEGER"),
+        ] {
+            let exists: bool = conn.query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('markets') WHERE name = ?1",
+                [column],
+                |r| r.get(0),
+            )?;
+            if !exists {
+                conn.execute_batch(&format!("ALTER TABLE markets ADD COLUMN {column} {ty}"))?;
+            }
+        }
         Ok(Self { conn })
     }
 
@@ -325,8 +430,8 @@ pub fn insert_market(
 ) -> Result<bool> {
     let inserted = tx.execute(
         "INSERT OR IGNORE INTO markets (id, kind, subject, window, opens_at, cutoff_at, closes_at, rules,
-             rules_hash, target_height, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             rules_hash, target_height, created_at, bet_height_cap)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             m.id,
             m.kind.as_str(),
@@ -338,7 +443,8 @@ pub fn insert_market(
             m.rules,
             m.rules_hash,
             m.target_height,
-            now
+            now,
+            m.bet_height_cap
         ],
     )?;
     Ok(inserted == 1)
@@ -389,4 +495,61 @@ pub fn replace_receipts(tx: &Transaction<'_>, receipts: &[Receipt], now: i64) ->
         [],
     )?;
     Ok(())
+}
+
+impl Store {
+    /// Every receipt of a market: (txid, pool, index, status, reason, side, size, value, payout).
+    pub fn market_receipts(&self, market_id: &str) -> Result<Vec<ReceiptRow>> {
+        self.receipts_where("market_id = ?1", [market_id])
+    }
+
+    /// Refund receipts without any payout row yet.
+    pub fn unscheduled_refunds(&self) -> Result<Vec<ReceiptRow>> {
+        self.receipts_where(
+            "status = 'refund' AND NOT EXISTS (SELECT 1 FROM payouts p WHERE p.receipt_txid = receipts.txid
+                 AND p.receipt_pool = receipts.pool AND p.receipt_index = receipts.output_index)",
+            [],
+        )
+    }
+
+    fn receipts_where<P: rusqlite::Params>(
+        &self,
+        filter: &str,
+        args: P,
+    ) -> Result<Vec<ReceiptRow>> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT txid, pool, output_index, status, reason, market_id, side, size_zat, value_zat, payout_address
+             FROM receipts WHERE {filter} ORDER BY height, tx_index, pool, output_index"
+        ))?;
+        let rows = stmt.query_map(args, |r| {
+            Ok(ReceiptRow {
+                txid: r.get(0)?,
+                pool: r.get(1)?,
+                output_index: r.get(2)?,
+                status: r.get(3)?,
+                reason: r.get(4)?,
+                market_id: r.get(5)?,
+                side: r.get(6)?,
+                size_zat: r.get(7)?,
+                value_zat: r.get(8)?,
+                payout_address: r.get(9)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+}
+
+/// A stored receipt, as settlement reads it.
+#[derive(Clone, Debug)]
+pub struct ReceiptRow {
+    pub txid: String,
+    pub pool: u8,
+    pub output_index: u32,
+    pub status: String,
+    pub reason: Option<String>,
+    pub market_id: Option<String>,
+    pub side: Option<String>,
+    pub size_zat: Option<u64>,
+    pub value_zat: u64,
+    pub payout_address: Option<String>,
 }

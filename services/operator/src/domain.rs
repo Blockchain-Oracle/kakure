@@ -44,6 +44,12 @@ pub const ADDRESS_LIST_SIZE: u32 = 1024;
 /// Market address lists start at diversifier index 1: index 0 is the account's default
 /// Orchard + Sapling address (S00 finding).
 pub const ADDRESS_FIRST_INDEX: u32 = 1;
+/// Payouts and refunds go out at a uniformly random time this long after resolution (PD16).
+pub const PAYOUT_WINDOW_MIN_SECS: i64 = 2 * 60 * 60;
+pub const PAYOUT_WINDOW_MAX_SECS: i64 = 6 * 60 * 60;
+/// Payouts pause this many blocks before a NU7 height the build does not know (plan §3); it
+/// exceeds the post-NU7 expiry delta, so no pre-NU7 transaction can straddle activation.
+pub const NU7_PAUSE_MARGIN_BLOCKS: u32 = 150;
 pub const CLOSE_SIDES: [&str; 2] = ["U", "D"];
 pub const EVENT_SIDES: [&str; 2] = ["Y", "N"];
 const CANONICAL_MULTIPLIERS: [u64; 3] = [5, 2, 1];

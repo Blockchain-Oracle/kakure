@@ -7,10 +7,15 @@ mod cli;
 #[allow(dead_code)]
 mod domain;
 mod engine;
+mod history;
 mod ingest;
+mod lifecycle;
+mod params;
+mod payouts;
 mod publish;
 mod r2;
 mod remote;
+mod resolve;
 mod scan;
 mod send;
 mod signing;

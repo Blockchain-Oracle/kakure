@@ -90,6 +90,15 @@ pub fn client() -> Result<reqwest::Client> {
         .build()?)
 }
 
+/// One raw venue response, archived as resolution evidence (plan §13.5).
+#[derive(Clone, Debug)]
+pub struct Fetched {
+    pub url: String,
+    pub fetched_at: i64,
+    pub status: u16,
+    pub body: String,
+}
+
 /// The 1-hour candle starting at `start` on `pair`, read at wall time `now`.
 pub async fn candle(
     http: &reqwest::Client,
@@ -97,26 +106,44 @@ pub async fn candle(
     start: i64,
     now: i64,
 ) -> Result<Candle> {
+    candle_raw(http, pair, start, now).await.map(|(c, _)| c)
+}
+
+/// As `candle`, also returning the raw response (`None` when nothing was fetched yet).
+pub async fn candle_raw(
+    http: &reqwest::Client,
+    pair: &VenuePair,
+    start: i64,
+    now: i64,
+) -> Result<(Candle, Option<Fetched>)> {
     if now < start + HOUR_SECS {
-        return Ok(Candle::NotYet);
+        return Ok((Candle::NotYet, None));
     }
     let p = pair.pair;
-    match pair.venue {
-        Venue::Coinbase => {
-            let url = format!(
-                "https://api.exchange.coinbase.com/products/{p}/candles?granularity=3600&start={start}&end={}",
-                start + HOUR_SECS
-            );
-            // [time, low, high, open, close, volume], newest first.
-            let rows = get_json(http, &url).await?;
-            pick(rows_of(&rows)?, start, 0, 4, 5)
-        }
+    let url = match pair.venue {
+        Venue::Coinbase => format!(
+            "https://api.exchange.coinbase.com/products/{p}/candles?granularity=3600&start={start}&end={}",
+            start + HOUR_SECS
+        ),
+        Venue::Kraken => format!(
+            "https://api.kraken.com/0/public/OHLC?pair={p}&interval=60&since={}",
+            start - HOUR_SECS
+        ),
+        Venue::Bitstamp => format!(
+            "https://www.bitstamp.net/api/v2/ohlc/{p}/?step=3600&limit=2&start={start}&exclude_current_candle=true"
+        ),
+        Venue::Gemini => format!("https://api.gemini.com/v2/candles/{p}/1hr"),
+    };
+    let (body, fetched) = get_json(http, &url).await?;
+    let candle = parse_candle(pair.venue, &body, start)?;
+    Ok((candle, Some(fetched)))
+}
+
+fn parse_candle(venue: Venue, body: &Value, start: i64) -> Result<Candle> {
+    match venue {
+        // [time, low, high, open, close, volume], newest first.
+        Venue::Coinbase => pick(rows_of(body)?, start, 0, 4, 5),
         Venue::Kraken => {
-            let url = format!(
-                "https://api.kraken.com/0/public/OHLC?pair={p}&interval=60&since={}",
-                start - HOUR_SECS
-            );
-            let body = get_json(http, &url).await?;
             if let Some(errors) = body["error"].as_array().filter(|e| !e.is_empty()) {
                 bail!("kraken: {errors:?}");
             }
@@ -140,10 +167,6 @@ pub async fn candle(
             pick(rows_of(rows)?, start, 0, 4, 6)
         }
         Venue::Bitstamp => {
-            let url = format!(
-                "https://www.bitstamp.net/api/v2/ohlc/{p}/?step=3600&limit=2&start={start}&exclude_current_candle=true"
-            );
-            let body = get_json(http, &url).await?;
             let rows = body["data"]["ohlc"]
                 .as_array()
                 .ok_or_else(|| anyhow!("bitstamp: no ohlc"))?;
@@ -155,11 +178,8 @@ pub async fn candle(
             Ok(Candle::NotYet)
         }
         Venue::Gemini => {
-            let url = format!("https://api.gemini.com/v2/candles/{p}/1hr");
             // [time_ms, open, high, low, close, volume], newest first; completed candles only.
-            let rows = get_json(http, &url).await?;
-            let rows = rows_of(&rows)?;
-            for row in rows {
+            for row in rows_of(body)? {
                 if number(&row[0])? == (start * 1_000) as f64 {
                     return candle_from(&row[4], &row[5]);
                 }
@@ -169,18 +189,57 @@ pub async fn candle(
     }
 }
 
-async fn get_json(http: &reqwest::Client, url: &str) -> Result<Value> {
+/// Coinbase closes on `[start, end)` at `granularity` seconds (60 or 300; at most 300 rows),
+/// oldest first, as `(candle start, close)`. Minutes without trades have no candle.
+pub async fn coinbase_path(
+    http: &reqwest::Client,
+    product: &str,
+    start: i64,
+    end: i64,
+    granularity: i64,
+) -> Result<Vec<(i64, String)>> {
+    let url = format!(
+        "https://api.exchange.coinbase.com/products/{product}/candles?granularity={granularity}&start={start}&end={}",
+        end - granularity
+    );
+    let (body, _) = get_json(http, &url).await?;
+    let mut path = vec![];
+    for row in rows_of(&body)? {
+        let time = number(&row[0])? as i64;
+        if (start..end).contains(&time) {
+            let close = match &row[4] {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                other => bail!("bad close {other}"),
+            };
+            path.push((time, close));
+        }
+    }
+    path.sort_by_key(|(t, _)| *t);
+    Ok(path)
+}
+
+async fn get_json(http: &reqwest::Client, url: &str) -> Result<(Value, Fetched)> {
     let response = http
         .get(url)
         .send()
         .await
         .with_context(|| format!("GET {url}"))?;
     let status = response.status();
-    let body = response.bytes().await?;
+    let fetched_at = chrono::Utc::now().timestamp();
+    let body = response.text().await?;
     ensure!(status.is_success(), "GET {url}: HTTP {status}");
-    serde_json::from_slice(&body).with_context(|| format!("GET {url}: not JSON"))
+    let value = serde_json::from_str(&body).with_context(|| format!("GET {url}: not JSON"))?;
+    Ok((
+        value,
+        Fetched {
+            url: url.to_string(),
+            fetched_at,
+            status: status.as_u16(),
+            body,
+        },
+    ))
 }
-
 fn rows_of(value: &Value) -> Result<&Vec<Value>> {
     value
         .as_array()

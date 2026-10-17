@@ -83,6 +83,8 @@ export const bundleSchema = z.object({
   addresses: z.string().min(1),
   markets: z.array(marketSchema),
   payoutRuns: z.array(payoutRunSchema),
+  /** The last days' `history-<yyyymmdd>.json` files, oldest first (added in S03; absent from earlier bundles). */
+  history: z.array(z.string().min(1)).optional(),
   sig: z.string().regex(SIGNATURE),
 });
 
@@ -105,6 +107,86 @@ export const addressListSchema = z.object({
   sig: z.string().regex(SIGNATURE),
 });
 
+const venueVoteSchema = z.object({
+  venue: z.string().min(1),
+  pair: z.string().min(1),
+  /** The venue's opening reference and window-end close, exactly as printed (absent = no candle). */
+  opening: z.string().optional(),
+  close: z.string().optional(),
+  vote: z.enum(["U", "D", "flat", "none"]),
+});
+
+const sourceResponseSchema = z.object({
+  source: z.string().min(1),
+  url: z.string().min(1),
+  fetchedAt: isoTime,
+  status: z.number().int(),
+  /** The raw response body, byte for byte as received, so anyone can re-derive the vote. */
+  body: z.string(),
+});
+
+const chainEvidenceSchema = z.object({
+  server: z.string().min(1),
+  targetHeight: z.number().int().positive().optional(),
+  deadline: isoTime,
+  blockHeight: z.number().int().positive(),
+  blockHash: z.string().regex(HEX_HASH),
+  blockTime: z.number().int(),
+  medianTimePast: z.number().int(),
+  tip: z.number().int().positive(),
+  confirmations: z.number().int().positive(),
+  branchId: z.string().optional(),
+});
+
+/**
+ * `resolution-<marketId>.json`: the signed evidence of one resolution (plan §13.5). Close markets carry each
+ * venue's vote and the raw venue responses with their fetch times; event markets carry the chain read.
+ */
+export const resolutionSchema = z.object({
+  v: z.literal(SCHEMA_VERSION),
+  network,
+  market: z.string().regex(MARKET_ID_PATTERN),
+  kind: z.enum(["close", "event"]),
+  rulesHash: z.string().regex(HEX_HASH),
+  resolvedAt: isoTime,
+  /** H_c, frozen at FINALITY_CONFIRMATIONS; the totals are the signed final counts below it. */
+  cutoffHeight: z.number().int().positive(),
+  totals: z.partialRecord(side, poolSideSchema),
+  /** What the sources say, or "none" (split, flat or missing votes) / "disagree" (chain servers differ). */
+  direction: z.union([side, z.literal("none"), z.literal("disagree")]),
+  /** What happens to the money: the winning side, or "refund". */
+  outcome: z.union([side, z.literal("refund")]),
+  reason: z.enum(["majority", "chain", "thin-pool", "no-majority", "cancelled", "servers-disagree"]),
+  votes: z.array(venueVoteSchema).optional(),
+  chain: chainEvidenceSchema.optional(),
+  responses: z.array(sourceResponseSchema),
+  sig: z.string().regex(SIGNATURE),
+});
+
+/**
+ * `history-<yyyymmdd>.json`: one UTC day's price paths from each close market's primary venue (Coinbase),
+ * 1-minute closes for hourly markets and 5-minute closes for daily ones, for the replay and recap films (C9).
+ * Privacy (PD14): clients always download whole days, never one market's path, so a fetch reveals no interest.
+ * Written once, after the day's markets resolve (published files are immutable).
+ */
+export const historySchema = z.object({
+  v: z.literal(SCHEMA_VERSION),
+  network,
+  day: z.iso.date(),
+  markets: z.array(
+    z.object({
+      id: z.string().regex(MARKET_ID_PATTERN),
+      subject: z.string().min(1),
+      window: z.enum(["1h", "1d"]),
+      venue: z.string().min(1),
+      pair: z.string().min(1),
+      interval: z.number().int().positive(),
+      closes: z.array(z.tuple([z.number().int(), z.string().regex(/^\d+(\.\d+)?$/)])),
+    }),
+  ),
+  sig: z.string().regex(SIGNATURE),
+});
+
 export type PoolSideRecord = z.infer<typeof poolSideSchema>;
 export type MarketRules = z.infer<typeof marketRulesSchema>;
 export type MarketState = z.infer<typeof marketStateSchema>;
@@ -113,3 +195,5 @@ export type PayoutRun = z.infer<typeof payoutRunSchema>;
 export type Bundle = z.infer<typeof bundleSchema>;
 export type Latest = z.infer<typeof latestSchema>;
 export type AddressList = z.infer<typeof addressListSchema>;
+export type Resolution = z.infer<typeof resolutionSchema>;
+export type History = z.infer<typeof historySchema>;

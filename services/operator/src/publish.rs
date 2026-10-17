@@ -95,6 +95,8 @@ impl Publisher {
         let mut pending: Vec<String> = vec![];
         for sql in [
             "SELECT file FROM address_lists ORDER BY seq",
+            "SELECT resolution_file FROM markets WHERE resolution_file IS NOT NULL ORDER BY resolved_at",
+            "SELECT file FROM history_files ORDER BY day",
             "SELECT file FROM bundles ORDER BY seq",
         ] {
             let mut stmt = store.conn.prepare(sql)?;

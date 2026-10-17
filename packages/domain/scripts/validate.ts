@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { blake2b } from "@noble/hashes/blake2.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { canonicalJson, verifyDocument } from "../../signing/src/index";
-import { addressListSchema, bundleSchema, latestSchema } from "../src/bundle";
+import { addressListSchema, bundleSchema, historySchema, latestSchema, resolutionSchema } from "../src/bundle";
 import { ADDRESS_LIST_SIZE, RULES_HASH_PERSONAL } from "../src/constants";
 import { toHex, utf8 } from "../src/encoding";
 
@@ -53,6 +53,52 @@ const bundleFiles = files
   .filter((name) => /^bundle-\d+\.json$/.test(name))
   .sort((a, b) => Number(a.slice(7, -5)) - Number(b.slice(7, -5)));
 const addressFiles = files.filter((name) => /^addresses-[0-9a-f]{8}\.json$/.test(name));
+const resolutionFiles = files.filter((name) => /^resolution-[a-z0-9-]+\.json$/.test(name));
+const historyFiles = files.filter((name) => /^history-\d{8}\.json$/.test(name));
+const resolutions = new Map<string, { outcome: string; rulesHash: string }>();
+const listSizes = new Map<string, number>();
+let currentList = "";
+
+for (const file of resolutionFiles) {
+  const loaded = load(file);
+  if (!loaded) continue;
+  const parsed = resolutionSchema.safeParse(loaded.json);
+  if (!parsed.success) {
+    fail(file, `schema: ${parsed.error.message}`);
+    continue;
+  }
+  const doc = parsed.data;
+  if (file !== `resolution-${doc.market}.json`) fail(file, "name does not match its market");
+  if (doc.kind === "close" && (doc.votes?.length ?? 0) !== 3) fail(file, "a close market needs 3 venue votes");
+  if (doc.kind === "event" && !doc.chain) fail(file, "an event market needs its chain read");
+  const ups = doc.votes?.filter((vote) => vote.vote === "U").length ?? 0;
+  const downs = doc.votes?.filter((vote) => vote.vote === "D").length ?? 0;
+  if (doc.kind === "close") {
+    const direction = ups >= 2 ? "U" : downs >= 2 ? "D" : "none";
+    if (direction !== doc.direction) fail(file, `votes say ${direction}, file says ${doc.direction}`);
+  }
+  const thin = Object.values(doc.totals).some((side) => side.tickets < 3);
+  if (thin && doc.outcome !== "refund") fail(file, "a thin pool must refund");
+  resolutions.set(file, { outcome: doc.outcome, rulesHash: doc.rulesHash });
+}
+
+for (const file of historyFiles) {
+  const loaded = load(file);
+  if (!loaded) continue;
+  const parsed = historySchema.safeParse(loaded.json);
+  if (!parsed.success) {
+    fail(file, `schema: ${parsed.error.message}`);
+    continue;
+  }
+  if (file !== `history-${parsed.data.day.replaceAll("-", "")}.json`) fail(file, "name does not match its day");
+  for (const market of parsed.data.markets) {
+    const times = market.closes.map(([time]) => time);
+    if (times.some((time, index) => index > 0 && time <= (times[index - 1] ?? 0))) {
+      fail(file, `${market.id}: closes are not in time order`);
+    }
+  }
+  console.log(`${file}: ${parsed.data.markets.length} markets, ${loaded.bytes.length} bytes`);
+}
 
 const bundleHashes = new Map<string, string>();
 let marketCount = 0;
@@ -70,9 +116,7 @@ for (const file of addressFiles) {
     fail(file, `name does not match SHA-256 ${loaded.hash.slice(0, 8)}`);
   }
   const { addresses, network } = parsed.data;
-  if (addresses.length !== ADDRESS_LIST_SIZE) {
-    fail(file, `${addresses.length} addresses, expected ${ADDRESS_LIST_SIZE}`);
-  }
+  listSizes.set(file, addresses.length);
   if (new Set(addresses).size !== addresses.length) {
     fail(file, "duplicate addresses");
   }
@@ -100,6 +144,7 @@ for (const [position, file] of bundleFiles.entries()) {
     fail(file, "previous does not chain to the prior bundle");
   }
   previousHash = loaded.hash;
+  currentList = bundle.addresses;
   if (!files.includes(bundle.addresses)) {
     fail(file, `address list ${bundle.addresses} is missing`);
   }
@@ -125,7 +170,23 @@ for (const [position, file] of bundleFiles.entries()) {
     if (market.kind === "close" && market.state === "open" && Object.keys(market.opening ?? {}).length < 2) {
       fail(file, `${market.id}: open without an opening reference from 2 venues`);
     }
+    if (market.resolution) {
+      const evidence = resolutions.get(market.resolution);
+      if (!evidence) {
+        fail(file, `${market.id}: ${market.resolution} is missing or invalid`);
+      } else if (evidence.outcome !== market.outcome || evidence.rulesHash !== market.rulesHash) {
+        fail(file, `${market.id}: outcome or rules hash differ from ${market.resolution}`);
+      }
+    }
   }
+  for (const day of bundle.history ?? []) {
+    if (!files.includes(day)) fail(file, `history file ${day} is missing`);
+  }
+}
+
+// Older lists may predate a size change; the one in force must have exactly ADDRESS_LIST_SIZE.
+if (listSizes.has(currentList) && listSizes.get(currentList) !== ADDRESS_LIST_SIZE) {
+  fail(currentList, `${listSizes.get(currentList)} addresses, expected ${ADDRESS_LIST_SIZE}`);
 }
 
 const latest = load("latest.json");
@@ -139,8 +200,8 @@ if (latest) {
 }
 
 console.log(
-  `${bundleFiles.length} bundles, ${addressFiles.length} address lists, latest.json; ` +
-    `${marketCount} market entries, ${leafCount} leaves`,
+  `${bundleFiles.length} bundles, ${addressFiles.length} address lists, ${resolutionFiles.length} resolutions, ` +
+    `${historyFiles.length} history days, latest.json; ${marketCount} market entries, ${leafCount} leaves`,
 );
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAIL ${failure}`);

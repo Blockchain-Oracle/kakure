@@ -55,6 +55,11 @@ export const CLOSING_WARNING_BLOCKS = 3;
 /** Each payout note is sent at a random time inside this window after resolution (PD16). */
 export const PAYOUT_WINDOW_MIN_MS = 2 * 60 * 60_000;
 export const PAYOUT_WINDOW_MAX_MS = 6 * 60 * 60_000;
+/**
+ * Mainnet sends pause this many blocks before a NU7 height the software does not know (plan §3). It exceeds the
+ * post-NU7 expiry delta (120), so no pre-NU7 transaction straddles activation. Operator and app use the same margin.
+ */
+export const NU7_PAUSE_MARGIN_BLOCKS = 150;
 
 /** Size of each published market-address list; used addresses are dropped each batch (plan §13.14). */
 export const ADDRESS_LIST_SIZE = 1024;

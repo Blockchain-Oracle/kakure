@@ -19,6 +19,7 @@ use crate::{
     catalog,
     domain::{self, BATCH_INTERVAL_SECS, BetMemo, NONCE_BYTES},
     engine::{self, Engine, TICK_OFFSET_SECS},
+    payouts,
     remote::{self, Server, Tor},
     scan::{self, SyncOpts},
     send, signing,
@@ -147,6 +148,33 @@ enum Command {
         #[arg(long, default_value_t = 8)]
         blocks_per_circuit: usize,
     },
+    /// Testnet only: create an extra "testnet reaches height H before T" event market now
+    /// (rules fixed at creation; opens at the next tick).
+    Event {
+        #[command(flatten)]
+        common: Common,
+        /// H = the scanned tip + this many blocks.
+        #[arg(long, default_value_t = catalog::TESTNET_EVENT_BLOCKS_AHEAD)]
+        blocks_ahead: u32,
+        /// T = now + this many seconds (rounded up to the tick).
+        #[arg(long, default_value_t = catalog::TESTNET_EVENT_DURATION_SECS)]
+        duration_secs: i64,
+    },
+    /// Re-send a stored, unmined, unexpired transaction of this wallet over Tor.
+    Rebroadcast {
+        #[command(flatten)]
+        common: Common,
+        /// Display txid (hex).
+        #[arg(long)]
+        txid: String,
+    },
+    /// Read the consensus branch ID from a block's coinbase (the NU7 resolver's chain read).
+    BranchId {
+        #[command(flatten)]
+        common: Common,
+        #[arg(long)]
+        height: u32,
+    },
     /// Markets, receipts and publication state from engine.sqlite.
     Status {
         #[command(flatten)]
@@ -190,6 +218,10 @@ enum Command {
 
 impl Cli {
     pub async fn run(self) -> Result<()> {
+        // Fail fast on a bad NU7 configuration (KAKURE_NU7_*), before any wallet work.
+        for net in [Net::Testnet, Net::Mainnet] {
+            crate::params::Params::new(net.base())?;
+        }
         match self.command {
             Command::Init {
                 common,
@@ -342,10 +374,11 @@ impl Cli {
                     blocks_per_circuit,
                 };
                 eprintln!("run: publishing to {}", engine.public_dir().display());
+                let mut last_wake = 0;
                 loop {
                     match engine.tick(tor.as_ref(), &opts).await {
                         Ok(r) => println!(
-                            "{} tick: bundle-{}.json, tip {}, {} markets, {} tickets, {} receipts, {}{}",
+                            "{} tick: bundle-{}.json, tip {}, {} markets, {} tickets, {} receipts, {}{}{}",
                             catalog::iso(chrono::Utc::now().timestamp()),
                             r.seq,
                             r.tip,
@@ -354,7 +387,12 @@ impl Cli {
                             r.receipts,
                             r.addresses,
                             r.uploaded
-                                .map_or(String::new(), |n| format!(", {n} file(s) to R2"))
+                                .map_or(String::new(), |n| format!(", {n} file(s) to R2")),
+                            if r.sent > 0 {
+                                format!(", {} payout tx(s) sent", r.sent)
+                            } else {
+                                String::new()
+                            }
                         ),
                         Err(e) => eprintln!("tick failed: {e:#}"),
                     }
@@ -367,10 +405,95 @@ impl Cli {
                     if next - interval > now {
                         next -= interval;
                     }
-                    tokio::time::sleep(Duration::from_secs(u64::try_from(next - now)?)).await;
+                    // Payouts go out at their own random times, not on the publication clock.
+                    loop {
+                        let now = chrono::Utc::now().timestamp();
+                        let due = payouts::next_due(&engine.store)?.filter(|d| *d < next);
+                        let wake =
+                            due.map_or(next, |d| d.max(now).max(last_wake + payouts::RETRY_SECS));
+                        tokio::time::sleep(Duration::from_secs(u64::try_from(
+                            (wake - now).max(0),
+                        )?))
+                        .await;
+                        if wake >= next {
+                            break;
+                        }
+                        last_wake = chrono::Utc::now().timestamp();
+                        if let Some(tor) = &tor {
+                            match engine.payout_wake(tor, &opts).await {
+                                Ok(n) if n > 0 => eprintln!("payouts: sent {n} transaction(s)"),
+                                Ok(_) => {}
+                                Err(e) => eprintln!("payouts: wake failed: {e:#}"),
+                            }
+                        } else {
+                            break;
+                        }
+                    }
                 }
             }
             Command::Status { common } => status(&common.wallet())?,
+            Command::Event {
+                common,
+                blocks_ahead,
+                duration_secs,
+            } => {
+                ensure!(
+                    common.network == Net::Testnet,
+                    "extra height events are a testnet tool"
+                );
+                let wallet = common.wallet();
+                let tip = crate::ingest::BlockTimes::load(&wallet)?
+                    .tip()
+                    .context("sync first")?;
+                let tick = i64::try_from(BATCH_INTERVAL_SECS)?;
+                let now = chrono::Utc::now().timestamp();
+                let opens_at = catalog::next_window_start(now, tick);
+                let market = catalog::testnet_height_market(
+                    opens_at,
+                    catalog::next_window_start(now + duration_secs, tick),
+                    tip + blocks_ahead,
+                )?;
+                let mut store = Store::open(&wallet.dir.join("engine.sqlite"))?;
+                let tx = store.conn.transaction()?;
+                ensure!(
+                    crate::store::insert_market(&tx, &market, now)?,
+                    "{} already exists",
+                    market.id
+                );
+                tx.commit()?;
+                println!(
+                    "{}: height {} before {} (opens {})",
+                    market.id,
+                    tip + blocks_ahead,
+                    catalog::iso(market.closes_at),
+                    catalog::iso(market.opens_at)
+                );
+            }
+            Command::Rebroadcast { common, txid } => {
+                use zcash_client_backend::data_api::WalletRead as _;
+                let wallet = common.wallet();
+                let db = wallet.open()?;
+                let mut bytes: [u8; 32] = hex::decode(&txid)?
+                    .try_into()
+                    .map_err(|_| anyhow!("txid must be 32 bytes"))?;
+                bytes.reverse();
+                let tx = db
+                    .get_transaction(zcash_protocol::TxId::from_bytes(bytes))?
+                    .ok_or_else(|| anyhow!("{txid} is not in this wallet"))?;
+                let mut raw = vec![];
+                tx.write(&mut raw)?;
+                drop(db);
+                let tor = common.tor(&wallet).await?;
+                send::broadcast(&tor, &raw).await?;
+                println!("rebroadcast {txid} (expiry height {})", tx.expiry_height());
+            }
+            Command::BranchId { common, height } => {
+                let wallet = common.wallet();
+                let tor = common.tor(&wallet).await?;
+                let mut lwd = tor.circuit().await?;
+                let branch = crate::resolve::coinbase_branch(&mut lwd, height).await?;
+                println!("block {height}: coinbase nConsensusBranchId 0x{branch:08X}");
+            }
             Command::Bet {
                 common,
                 to,
@@ -509,8 +632,16 @@ fn status(wallet: &Wallet) -> Result<()> {
             continue;
         }
         let tickets = store.tickets(&m.id)?;
-        let phase = if m.cancelled {
+        let phase = if let Some(outcome) = &m.outcome {
+            if outcome == "refund" {
+                "resolved: refund"
+            } else {
+                "resolved"
+            }
+        } else if m.cancelled {
             "cancelled"
+        } else if m.cutoff_hash.is_some() {
+            "frozen"
         } else if now < m.opens_at {
             "scheduled"
         } else if now < m.cutoff_at {
@@ -538,6 +669,16 @@ fn status(wallet: &Wallet) -> Result<()> {
         if let Some(h) = m.target_height {
             println!("{:<26} target height {h}", "");
         }
+        if let (Some(outcome), Some(reason)) = (&m.outcome, &m.outcome_reason) {
+            println!(
+                "{:<26} resolved {} → {outcome} ({reason})",
+                "",
+                m.resolved_at.map(catalog::iso).unwrap_or_default()
+            );
+        }
+    }
+    for line in payouts::summary(&store, now)? {
+        println!("{line}");
     }
     for (status, reason, count) in store.receipt_counts()? {
         println!(

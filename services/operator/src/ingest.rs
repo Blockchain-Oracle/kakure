@@ -40,30 +40,57 @@ WHERE o.to_account_uuid IS NOT NULL
   AND o.diversifier_index_be IS NOT NULL
 ORDER BY o.tx_mined_height, t.tx_index, o.output_pool, o.output_index";
 
-/// Block timestamps of the scanned chain, with the running maximum per height.
+/// Block timestamps and hashes of the scanned chain, with the running maximum per height.
 pub struct BlockTimes {
     heights: Vec<u32>,
+    times: Vec<i64>,
     running_max: Vec<i64>,
+    hashes: Vec<String>,
 }
+
+/// Blocks in a median-time-past window (consensus: the 11 blocks ending at the block).
+pub const MTP_WINDOW: usize = 11;
 
 impl BlockTimes {
     pub fn load(wallet: &Wallet) -> Result<Self> {
         let conn = read_only(wallet)?;
-        let mut stmt = conn.prepare("SELECT height, time FROM blocks ORDER BY height")?;
-        let rows = stmt.query_map([], |r| Ok((r.get::<_, u32>(0)?, r.get::<_, i64>(1)?)))?;
-        let mut heights = vec![];
-        let mut running_max = vec![];
-        let mut max = i64::MIN;
+        let mut stmt = conn.prepare("SELECT height, time, hash FROM blocks ORDER BY height")?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, u32>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, Vec<u8>>(2)?,
+            ))
+        })?;
+        let mut blocks = vec![];
         for row in rows {
-            let (height, time) = row?;
-            max = max.max(time);
-            heights.push(height);
-            running_max.push(max);
+            let (height, time, mut hash) = row?;
+            hash.reverse();
+            blocks.push((height, time, hex::encode(hash)));
         }
-        Ok(Self {
-            heights,
-            running_max,
-        })
+        Ok(Self::from_blocks(blocks))
+    }
+
+    pub fn from_blocks(blocks: Vec<(u32, i64, String)>) -> Self {
+        let mut out = Self {
+            heights: vec![],
+            times: vec![],
+            running_max: vec![],
+            hashes: vec![],
+        };
+        let mut max = i64::MIN;
+        for (height, time, hash) in blocks {
+            max = max.max(time);
+            out.heights.push(height);
+            out.times.push(time);
+            out.running_max.push(max);
+            out.hashes.push(hash);
+        }
+        out
+    }
+
+    fn index(&self, height: u32) -> Option<usize> {
+        self.heights.binary_search(&height).ok()
     }
 
     /// Highest block timestamp at or below `height`. A block at height `h` comes at or after the
@@ -81,6 +108,35 @@ impl BlockTimes {
 
     pub fn tip(&self) -> Option<u32> {
         self.heights.last().copied()
+    }
+
+    pub fn time_at(&self, height: u32) -> Option<i64> {
+        self.index(height).map(|i| self.times[i])
+    }
+
+    pub fn hash_at(&self, height: u32) -> Option<&str> {
+        self.index(height).map(|i| self.hashes[i].as_str())
+    }
+
+    /// Median-time-past of `height`: the median timestamp of the 11 blocks ending at it.
+    pub fn mtp(&self, height: u32) -> Option<i64> {
+        let end = self.index(height)?;
+        let start = (end + 1).checked_sub(MTP_WINDOW)?;
+        // The window must be contiguous heights.
+        if self.heights[end] - self.heights[start] != (MTP_WINDOW - 1) as u32 {
+            return None;
+        }
+        let mut window = self.times[start..=end].to_vec();
+        window.sort_unstable();
+        Some(window[MTP_WINDOW / 2])
+    }
+
+    /// The first scanned block whose median-time-past is at or after `t`.
+    pub fn first_mtp_at_or_after(&self, t: i64) -> Option<u32> {
+        self.heights
+            .iter()
+            .copied()
+            .find(|h| self.mtp(*h).is_some_and(|m| m >= t))
     }
 }
 
@@ -233,7 +289,7 @@ fn classify(
     if chain_time < market.opens_at {
         return refund(receipt, "not-open");
     }
-    if chain_time >= market.cutoff_at {
+    if chain_time >= market.cutoff_at || market.bet_height_cap.is_some_and(|cap| o.height >= cap) {
         return refund(receipt, "late");
     }
     receipt.status = "ticket";
@@ -258,13 +314,28 @@ mod tests {
 
     #[test]
     fn block_time_queries() {
-        let blocks = BlockTimes {
-            heights: vec![10, 11, 12, 13],
-            running_max: vec![100, 130, 130, 160],
-        };
+        // Timestamps are not monotonic: block 12 is earlier than block 11.
+        let blocks = BlockTimes::from_blocks(
+            [(10, 100), (11, 130), (12, 120), (13, 160)]
+                .into_iter()
+                .map(|(h, t)| (h, t, String::new()))
+                .collect(),
+        );
         assert_eq!(blocks.max_time_upto(9), None);
         assert_eq!(blocks.max_time_upto(12), Some(130));
-        assert_eq!(blocks.first_at_or_after(120), Some(11));
+        // H_c for a cutoff of 125 is block 11 (the first with timestamp ≥ 125) ...
+        assert_eq!(blocks.first_at_or_after(125), Some(11));
+        // ... so a bet in block 12 is late even though block 12's own timestamp is before it.
+        assert!(blocks.max_time_upto(12).expect("time") >= 125);
+        assert!(blocks.max_time_upto(10).expect("time") < 125);
         assert_eq!(blocks.first_at_or_after(161), None);
+        assert_eq!(blocks.mtp(13), None, "fewer than 11 blocks");
+        let long = BlockTimes::from_blocks(
+            (0..20)
+                .map(|h| (h, i64::from(h) * 10, String::new()))
+                .collect(),
+        );
+        assert_eq!(long.mtp(15), Some(100), "median of 50..=150");
+        assert_eq!(long.first_mtp_at_or_after(100), Some(15));
     }
 }

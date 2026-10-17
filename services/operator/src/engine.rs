@@ -15,10 +15,11 @@ use crate::{
     catalog::{self, Kind},
     domain::{
         ADDRESS_FIRST_INDEX, ADDRESS_LIST_SIZE, CLOSE_SIDES, CLOSING_WARNING_BLOCKS, EVENT_SIDES,
-        FINALITY_CONFIRMATIONS, MIN_NEW_TICKETS_PER_RELEASE, MIN_TICKETS_PER_SIDE, Network,
-        SCHEMA_VERSION,
+        MIN_NEW_TICKETS_PER_RELEASE, MIN_TICKETS_PER_SIDE, Network, SCHEMA_VERSION,
     },
+    history,
     ingest::{self, BlockTimes},
+    payouts,
     publish::{LATEST_FILE, Publisher, sign_file},
     r2::R2,
     remote::Tor,
@@ -33,8 +34,9 @@ use crate::{
 pub const TICK_OFFSET_SECS: i64 = 45;
 /// After this long past `opensAt`, venues that still gave no answer count as "no vote".
 pub const OPENING_GRACE_SECS: i64 = 20 * 60;
-/// Markets stay in the bundle this long after they close (S03 extends this to "paid").
-pub const BUNDLE_RETENTION_SECS: i64 = 3 * catalog::DAY_SECS;
+/// Paid (or resolved, nothing owed) markets leave the bundle this long after they close; older
+/// bundles stay published, so receipts keep verifying.
+pub const BUNDLE_RETENTION_SECS: i64 = 12 * catalog::HOUR_SECS;
 /// Block spacing before and after NU7 (ZIP 208 / ZIP 218), for the "closing" warning.
 const PRE_NU7_SPACING_SECS: i64 = 75;
 const POST_NU7_SPACING_SECS: i64 = 25;
@@ -44,9 +46,9 @@ const MIN_OPENING_VENUES: usize = 2;
 pub struct Engine {
     pub wallet: Wallet,
     pub store: Store,
-    key: Keypair,
-    http: reqwest::Client,
-    publisher: Publisher,
+    pub(crate) key: Keypair,
+    pub(crate) http: reqwest::Client,
+    pub(crate) publisher: Publisher,
     tick_secs: i64,
 }
 
@@ -58,6 +60,7 @@ pub struct TickReport {
     pub receipts: usize,
     pub addresses: String,
     pub uploaded: Option<usize>,
+    pub sent: usize,
 }
 
 pub fn domain_network(net: Net) -> Network {
@@ -92,11 +95,14 @@ impl Engine {
     }
 
     pub async fn tick(&mut self, tor: Option<&Tor>, sync: &SyncOpts) -> Result<TickReport> {
-        if let Some(tor) = tor
-            && let Err(e) = scan::sync(&self.wallet, tor, sync).await
-        {
-            // Publish on the clock anyway, from what the wallet already has.
-            eprintln!("tick: sync failed, publishing from the last scanned state: {e:#}");
+        if let Some(tor) = tor {
+            match scan::sync(&self.wallet, tor, sync).await {
+                Ok(report) => self.store_samples(&report.samples)?,
+                // Publish on the clock anyway, from what the wallet already has.
+                Err(e) => {
+                    eprintln!("tick: sync failed, publishing from the last scanned state: {e:#}")
+                }
+            }
         }
         let now = Utc::now().timestamp();
         let blocks = BlockTimes::load(&self.wallet)?;
@@ -122,7 +128,16 @@ impl Engine {
             tx.commit()?;
         }
         self.rotate_addresses(tip, now)?;
-        self.set_cutoff_heights(&blocks)?;
+        self.finalize(&blocks)?;
+        self.resolve_markets(&blocks, tor, now).await?;
+        self.schedule_refunds(now)?;
+        payouts::track(&self.store, &self.wallet, tor, tip, now).await?;
+        if let Some(tor) = tor
+            && let Err(e) = payouts::maybe_merge(&self.store, &self.wallet, tor, tip, now).await
+        {
+            eprintln!("payouts: merge failed, retrying next tick: {e:#}");
+        }
+        self.update_history(now).await?;
         let (seq, markets, tickets) = self.publish_bundle(now, tip)?;
         let uploaded = match self.publisher.r2() {
             None => None,
@@ -133,6 +148,10 @@ impl Engine {
                     Some(0)
                 }
             },
+        };
+        let sent = match tor {
+            Some(tor) => payouts::send_due(&self.store, &self.wallet, tor, tip, now).await?,
+            None => 0,
         };
         Ok(TickReport {
             seq,
@@ -146,7 +165,36 @@ impl Engine {
                 .map(|(_, f)| f)
                 .unwrap_or_default(),
             uploaded,
+            sent,
         })
+    }
+
+    /// Between ticks: sync, then send the payouts that have come due.
+    pub async fn payout_wake(&mut self, tor: &Tor, sync: &SyncOpts) -> Result<usize> {
+        let report = scan::sync(&self.wallet, tor, sync).await?;
+        self.store_samples(&report.samples)?;
+        let tip = BlockTimes::load(&self.wallet)?.tip().unwrap_or(0);
+        let now = Utc::now().timestamp();
+        payouts::track(&self.store, &self.wallet, Some(tor), tip, now).await?;
+        payouts::send_due(&self.store, &self.wallet, tor, tip, now).await
+    }
+
+    fn store_samples(&mut self, samples: &[scan::TxSample]) -> Result<()> {
+        let tx = self.store.conn.transaction()?;
+        for s in samples {
+            tx.execute(
+                "INSERT INTO tx_samples (height, expiry_delta, fee, actions) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![s.height, s.expiry_delta, s.fee, s.actions],
+            )?;
+        }
+        if let Some(max) = samples.iter().map(|s| s.height).max() {
+            tx.execute(
+                "DELETE FROM tx_samples WHERE height < ?1",
+                [max.saturating_sub(5_000)],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     /// Creates the next window's markets (never retroactively: rules are fixed before opening).
@@ -376,25 +424,6 @@ impl Engine {
         Ok(())
     }
 
-    /// `H_c` once it has `FINALITY_CONFIRMATIONS` confirmations (plan §13.4).
-    fn set_cutoff_heights(&mut self, blocks: &BlockTimes) -> Result<()> {
-        let tip = blocks.tip().unwrap_or(0);
-        for m in self.store.markets()? {
-            if m.cutoff_height.is_some() {
-                continue;
-            }
-            if let Some(h) = blocks.first_at_or_after(m.cutoff_at)
-                && tip + 1 >= h + FINALITY_CONFIRMATIONS
-            {
-                self.store.conn.execute(
-                    "UPDATE markets SET cutoff_height = ?2 WHERE id = ?1",
-                    rusqlite::params![m.id, h],
-                )?;
-            }
-        }
-        Ok(())
-    }
-
     fn closing_warning_secs(&self, tip: u32) -> i64 {
         let spacing = if self
             .wallet
@@ -423,11 +452,14 @@ impl Engine {
         let mut markets_json = vec![];
         let mut releases = vec![];
         let mut ticket_total = 0;
+        let progress = payouts::market_progress(&self.store)?;
         for m in self.store.markets()? {
-            if m.closes_at < now - BUNDLE_RETENTION_SECS {
+            let (market, release) = self.market_json(&m, seq, now, closing_warning, &progress)?;
+            let state = market["state"].as_str().unwrap_or_default();
+            let settled = state == "paid" || (state == "resolved" && !progress.contains_key(&m.id));
+            if settled && m.closes_at < now - BUNDLE_RETENTION_SECS {
                 continue;
             }
-            let (market, release) = self.market_json(&m, seq, now, closing_warning)?;
             ticket_total += market["ticketCount"].as_u64().unwrap_or(0) as usize;
             if let Some(r) = release {
                 releases.push((m.id.clone(), r));
@@ -443,7 +475,8 @@ impl Engine {
             "previous": previous,
             "addresses": addresses,
             "markets": markets_json,
-            "payoutRuns": [],
+            "payoutRuns": payouts::runs(&self.store, now)?,
+            "history": history::recent_files(&self.store, now)?,
         });
         let file = sign_file(&self.key, &bundle)?;
         let name = format!("bundle-{seq}.json");
@@ -484,6 +517,7 @@ impl Engine {
         seq: u64,
         now: i64,
         closing_warning: i64,
+        progress: &std::collections::HashMap<String, (u32, u32, i64)>,
     ) -> Result<(Value, Option<(u32, String)>)> {
         let kind = Kind::parse(&m.kind).ok_or_else(|| anyhow!("{}: bad kind", m.id))?;
         let sides: &[&str] = match kind {
@@ -501,6 +535,7 @@ impl Engine {
         let mut leaves: Vec<&str> = tickets.iter().map(|(_, _, leaf)| leaf.as_str()).collect();
         leaves.sort_unstable();
         let count = u32::try_from(tickets.len())?;
+        let frozen = m.cutoff_hash.is_some();
         // Sealed until each side has the minimum (D3); then totals move only on ≥ 3 new tickets,
         // except the final release once the cutoff block is final (plan §3).
         let sealed = totals.values().any(|(n, _)| *n < MIN_TICKETS_PER_SIDE);
@@ -510,8 +545,7 @@ impl Engine {
             let due = match m.released_count {
                 None => true,
                 Some(prev) => {
-                    count >= prev + MIN_NEW_TICKETS_PER_RELEASE
-                        || (m.cutoff_height.is_some() && count != prev)
+                    count >= prev + MIN_NEW_TICKETS_PER_RELEASE || (frozen && count != prev)
                 }
             };
             if due {
@@ -533,9 +567,17 @@ impl Engine {
             }
         }
 
-        let state = if m.cancelled {
+        let state = if let Some(outcome) = &m.outcome {
+            match progress.get(&m.id) {
+                Some((rows, mined, window_end)) if rows == mined && now >= *window_end => "paid",
+                Some(_) if outcome == "refund" => "refunding",
+                _ => "resolved",
+            }
+        } else if m.cancelled {
             "refunding"
-        } else if now >= m.cutoff_at {
+        } else if frozen && (kind == Kind::Event || now >= m.closes_at) {
+            "resolving"
+        } else if frozen || now >= m.cutoff_at {
             "closed"
         } else if now < m.opens_at || (kind == Kind::Close && m.opening.is_none()) {
             "scheduled"
@@ -573,8 +615,13 @@ impl Engine {
         if let Some(h) = m.cutoff_height {
             object.insert("cutoffHeight".into(), json!(h));
         }
-        if m.cancelled {
+        if let Some(outcome) = &m.outcome {
+            object.insert("outcome".into(), json!(outcome));
+        } else if m.cancelled {
             object.insert("outcome".into(), json!("refund"));
+        }
+        if let Some(file) = &m.resolution_file {
+            object.insert("resolution".into(), json!(file));
         }
         Ok((market, release))
     }

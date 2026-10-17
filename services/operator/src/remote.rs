@@ -114,14 +114,22 @@ impl Tor {
     /// A failed attempt (for example an exit that cannot resolve the host) is retried on
     /// another fresh isolated circuit, up to `CIRCUIT_ATTEMPTS` times.
     pub async fn circuit(&self) -> Result<Lwd> {
+        let server = self.server.clone();
+        self.circuit_to(&server).await
+    }
+
+    /// The configured server.
+    pub fn server(&self) -> &Server {
+        &self.server
+    }
+
+    /// As `circuit`, to another server (independent cross-checks).
+    pub async fn circuit_to(&self, server: &Server) -> Result<Lwd> {
         let t0 = Instant::now();
         let mut attempt = 1;
         let lwd = loop {
             let isolated = self.client.isolated_client();
-            match isolated
-                .connect_to_lightwalletd(self.server.uri()?, false)
-                .await
-            {
+            match isolated.connect_to_lightwalletd(server.uri()?, false).await {
                 Ok(lwd) => break lwd,
                 Err(e) if attempt < CIRCUIT_ATTEMPTS => {
                     eprintln!("tor: circuit attempt {attempt} failed ({e}); retrying");
@@ -129,8 +137,7 @@ impl Tor {
                 }
                 Err(e) => {
                     return Err(anyhow::Error::new(e).context(format!(
-                        "connecting to {} over Tor ({attempt} attempts)",
-                        self.server
+                        "connecting to {server} over Tor ({attempt} attempts)"
                     )));
                 }
             }

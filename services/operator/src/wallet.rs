@@ -24,9 +24,11 @@ use zcash_protocol::{
     consensus::Network,
     memo::{Memo, MemoBytes},
 };
+
+use crate::params::Params;
 use zip32::DiversifierIndex;
 
-pub type Db = WalletDb<rusqlite::Connection, Network, SystemClock, UnwrapErr<SysRng>>;
+pub type Db = WalletDb<rusqlite::Connection, Params, SystemClock, UnwrapErr<SysRng>>;
 pub type Account = <Db as WalletRead>::Account;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -36,7 +38,12 @@ pub enum Net {
 }
 
 impl Net {
-    pub fn params(self) -> Network {
+    /// Consensus parameters, including the configured NU7 fallback (checked at startup).
+    pub fn params(self) -> Params {
+        Params::new(self.base()).expect("NU7 configuration is checked at startup")
+    }
+
+    pub fn base(self) -> Network {
         match self {
             Net::Testnet => Network::TestNetwork,
             Net::Mainnet => Network::MainNetwork,

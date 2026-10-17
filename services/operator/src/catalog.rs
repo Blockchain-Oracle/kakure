@@ -147,6 +147,8 @@ pub struct NewMarket {
     pub rules_hash: String,
     /// Event markets resolved by chain height (testnet).
     pub target_height: Option<u32>,
+    /// Bets must also be mined below this height (a height event's outcome is known at H).
+    pub bet_height_cap: Option<u32>,
 }
 
 pub fn iso(ts: i64) -> String {
@@ -225,6 +227,7 @@ fn finish(
         rules: canonical_json(rules)?,
         rules_hash: rules_hash(rules)?,
         target_height,
+        bet_height_cap: target_height,
     })
 }
 
@@ -280,7 +283,8 @@ pub fn testnet_height_market(opens_at: i64, closes_at: i64, height: u32) -> Resu
             "Yes if block {height} of the testnet best chain has a median-time-past (the median timestamp of the 11 \
              blocks ending at it) before {deadline}, with {FINALITY_CONFIRMATIONS} confirmations. No once a block whose \
              median-time-past is at or after {deadline} has {FINALITY_CONFIRMATIONS} confirmations and block {height} \
-             has not met that condition. Read from compact blocks served by public light-wallet servers. {}",
+             has not met that condition. Read from compact blocks served by public light-wallet servers. {} Bets \
+             mined at or above block {height} are refunded as late, since the outcome is known from that block.",
             betting_window(opens_at, cutoff_at),
             deadline = iso(closes_at),
         ),

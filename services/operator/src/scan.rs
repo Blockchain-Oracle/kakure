@@ -31,10 +31,11 @@ use zcash_client_backend::{
 use zcash_primitives::{merkle_tree::HashSer, transaction::Transaction};
 use zcash_protocol::{
     TxId,
-    consensus::{BlockHeight, BranchId, Network},
+    consensus::{BlockHeight, BranchId},
 };
 
 use crate::{
+    params::Params as Network,
     remote::{self, Lwd, Tor},
     wallet::{Db, Wallet},
 };
@@ -49,6 +50,64 @@ pub struct SyncOpts {
     pub parallel: usize,
     /// Blocks whose transactions share one circuit.
     pub blocks_per_circuit: usize,
+}
+
+/// Shape of one fetched transaction, for matching the network's fee and expiry (plan §3).
+#[derive(Clone, Copy, Debug)]
+pub struct TxSample {
+    pub height: u32,
+    /// `expiry_height − mined height` (0 means the transaction had no expiry).
+    pub expiry_delta: i64,
+    /// Fee in zatoshi, when it is computable (no transparent inputs).
+    pub fee: Option<i64>,
+    /// ZIP 317 logical actions.
+    pub actions: u32,
+}
+
+fn sample(tx: &Transaction, height: BlockHeight) -> Option<TxSample> {
+    let transparent = tx.transparent_bundle();
+    if transparent.is_some_and(|t| t.is_coinbase()) {
+        return None;
+    }
+    let (t_in, t_out, t_out_value) = transparent.map_or((0, 0, 0), |t| {
+        (
+            t.vin.len(),
+            t.vout.len(),
+            t.vout
+                .iter()
+                .map(|o| i64::try_from(o.value().into_u64()).unwrap_or(i64::MAX))
+                .sum(),
+        )
+    });
+    let sapling = tx.sapling_bundle();
+    let orchard = tx.orchard_bundle();
+    let ironwood = tx.ironwood_bundle();
+    let actions = t_in.max(t_out)
+        + sapling.map_or(0, |b| {
+            b.shielded_spends().len().max(b.shielded_outputs().len())
+        })
+        + orchard.map_or(0, |b| b.actions().len())
+        + ironwood.map_or(0, |b| b.actions().len());
+    let balance = sapling.map_or(0, |b| i64::from(*b.value_balance()))
+        + orchard.map_or(0, |b| i64::from(*b.value_balance()))
+        + ironwood.map_or(0, |b| i64::from(*b.value_balance()));
+    let expiry = i64::from(u32::from(tx.expiry_height()));
+    Some(TxSample {
+        height: u32::from(height),
+        expiry_delta: if expiry == 0 {
+            0
+        } else {
+            expiry - i64::from(u32::from(height))
+        },
+        fee: (t_in == 0).then_some(balance - t_out_value),
+        actions: u32::try_from(actions).unwrap_or(u32::MAX),
+    })
+}
+
+/// What a sync saw.
+#[derive(Default)]
+pub struct SyncReport {
+    pub samples: Vec<TxSample>,
 }
 
 #[derive(Default)]
@@ -101,7 +160,8 @@ fn shielded_txids(block: &CompactBlock) -> Vec<TxId> {
         .collect()
 }
 
-pub async fn sync(wallet: &Wallet, tor: &Tor, opts: &SyncOpts) -> Result<()> {
+pub async fn sync(wallet: &Wallet, tor: &Tor, opts: &SyncOpts) -> Result<SyncReport> {
+    let mut report = SyncReport::default();
     let params = wallet.net.params();
     let mut db = wallet.open()?;
     let started = Instant::now();
@@ -175,6 +235,7 @@ pub async fn sync(wallet: &Wallet, tor: &Tor, opts: &SyncOpts) -> Result<()> {
         stats.shielded_txs += txs.len() as u64;
         for (tx, height) in &txs {
             decrypt_and_store_transaction(&params, &mut db, tx, Some(*height))?;
+            report.samples.extend(sample(tx, *height));
         }
         stats.blocks += block_count as u64;
         stats.batches += 1;
@@ -195,7 +256,7 @@ pub async fn sync(wallet: &Wallet, tor: &Tor, opts: &SyncOpts) -> Result<()> {
         stats.shielded_txs
     );
     tor.report();
-    Ok(())
+    Ok(report)
 }
 
 async fn put_subtree_roots(lwd: &mut Lwd, db: &mut Db) -> Result<()> {
