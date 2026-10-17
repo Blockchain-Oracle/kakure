@@ -58,7 +58,11 @@ export function stepsFor(ticket: AppTicket, counted: boolean, nextBatch: number 
   ];
 }
 
-export function BetProgress({ hash, market }: { hash: string; market: Market }) {
+/**
+ * `onRetry` returns to the bet form when nothing left the wallet. Trying again makes a new ticket (fresh nonce and
+ * payout address); a failed ticket is never re-sent.
+ */
+export function BetProgress({ hash, market, onRetry }: { hash: string; market: Market; onRetry?: () => void }) {
   const theme = useTheme();
   const data = useMarkets();
   const now = useNow();
@@ -97,10 +101,14 @@ export function BetProgress({ hash, market }: { hash: string; market: Market }) 
         </Plate>
       ) : null}
       <View style={{ gap: theme.space.sm }}>
-        <Button
-          label="See the ticket"
-          onPress={() => router.replace({ pathname: "/ticket/[hash]", params: { hash } })}
-        />
+        {send?.state === "failed" && onRetry ? (
+          <Button label="Try again" onPress={onRetry} />
+        ) : (
+          <Button
+            label="See the ticket"
+            onPress={() => router.replace({ pathname: "/ticket/[hash]", params: { hash } })}
+          />
+        )}
         <Button label="Done" variant="secondary" size="md" onPress={() => router.back()} />
       </View>
       <Txt variant="meta" tone="text3">

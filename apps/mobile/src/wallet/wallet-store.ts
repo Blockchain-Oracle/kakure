@@ -129,10 +129,19 @@ export function syncWallet(): Promise<void> {
   return syncing;
 }
 
-/** Brings the Nym mixnet up ahead of a bet (plan: pre-warm at launch, so a bet pays only prove-and-send). */
+/**
+ * Keeps the Nym route up so a bet pays only prove-and-send (pre-warm at launch, on foreground and on every sync
+ * tick). It asks the transport, not the store: an attached session can die while the app sits idle (its exit stops
+ * answering and zingolib latches Died until the host brings a new proxy), so an earlier "ready" proves nothing.
+ */
 export async function warmMixnet(): Promise<void> {
   const state = walletStore.get();
-  if (state.phase !== "ready" || state.mixnet === "warming" || state.mixnet === "ready") return;
+  if (state.phase !== "ready" || state.mixnet === "warming") return;
+  if (state.mixnet === "ready") {
+    const live = await Zingo.mixnetStatus().catch(() => null);
+    if (live?.mixnet_indicator === "ready") return;
+    devLog(`mixnet went ${live?.mixnet_indicator ?? "unreadable"} while idle; warming again`);
+  }
   patch({ mixnet: "warming" });
   try {
     const warm = await Zingo.warmMixnet();
@@ -213,7 +222,9 @@ export function startWallet(): () => void {
   if (state.phase !== "ready" || state.network !== networkStore.get()) void openWallet();
   const unsubscribeNetwork = networkStore.subscribe(() => void openWallet(networkStore.get()));
   timer = setInterval(() => {
-    if (AppState.currentState === "active") void syncWallet();
+    if (AppState.currentState !== "active") return;
+    void syncWallet();
+    void warmMixnet();
   }, WALLET_SYNC_EVERY_MS);
   const appState = AppState.addEventListener("change", (state) => {
     if (state === "active") {

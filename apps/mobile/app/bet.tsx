@@ -104,7 +104,7 @@ export default function BetSheet() {
       />
     );
   }
-  if (placing) return <BetProgress hash={placing} market={market} />;
+  if (placing) return <BetProgress hash={placing} market={market} onRetry={() => setPlacing(null)} />;
 
   const asset = assetFor(market);
   const open = isBettable(market, now);

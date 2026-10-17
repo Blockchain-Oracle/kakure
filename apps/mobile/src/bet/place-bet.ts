@@ -14,7 +14,7 @@ import { fire } from "@/feedback/fire";
 import { devLog } from "@/lib/dev-log";
 import type { AppTicket } from "@/tickets/ticket-db";
 import { putTicket, updateTicket } from "@/tickets/use-tickets";
-import { errorOf, refreshWallet, walletStore } from "@/wallet/wallet-store";
+import { errorOf, refreshWallet, walletStore, warmMixnet } from "@/wallet/wallet-store";
 
 /**
  * The one-tap bet (C3): a fixed ticket paid by the built-in wallet with the same memo as the web's QR.
@@ -161,6 +161,8 @@ export async function placeBet(
     devLog(`bet ${ticket.hash.slice(0, HASH_SHORT.file)} ${state}: ${code}: ${message}`);
     await putTicket(failed);
     fire("error");
+    // The route itself failed: bring a fresh one up now, so trying again doesn't pay the bootstrap.
+    if (code === "ERR_ZINGO_MIXNET") void warmMixnet();
     throw error;
   } finally {
     phases.remove();
