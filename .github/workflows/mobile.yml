@@ -4,8 +4,8 @@ name: mobile
 # and an iOS build sent to TestFlight. Builds run on GitHub's runners with `eas build --local`,
 # so they use none of Expo's cloud build quota; EAS only supplies the managed signing credentials.
 on:
-  # Manual until the EAS signing credentials exist (Android keystore, iOS certificate + App Store Connect key);
-  # then this becomes `push: branches: [main]` plus workflow_dispatch.
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       platforms:
@@ -68,7 +68,9 @@ jobs:
 
   ios:
     name: iOS to TestFlight
-    if: github.event_name != 'workflow_dispatch' || inputs.platforms != 'android'
+    # On pushes, iOS waits for the repository variable IOS_CREDENTIALS_READY=true (set once the EAS iOS
+    # production credentials and App Store Connect key exist); manual runs can always pick it.
+    if: (github.event_name == 'push' && vars.IOS_CREDENTIALS_READY == 'true') || (github.event_name == 'workflow_dispatch' && inputs.platforms != 'android')
     runs-on: macos-26
     defaults:
       run:
