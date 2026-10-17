@@ -7,6 +7,12 @@ on:
   # Manual until the EAS signing credentials exist (Android keystore, iOS certificate + App Store Connect key);
   # then this becomes `push: branches: [main]` plus workflow_dispatch.
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Which apps to build
+        type: choice
+        options: [both, android, ios]
+        default: both
 
 concurrency:
   group: mobile-${{ github.ref }}
@@ -21,6 +27,7 @@ env:
 jobs:
   android:
     name: Android APK
+    if: github.event_name != 'workflow_dispatch' || inputs.platforms != 'ios'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -61,6 +68,7 @@ jobs:
 
   ios:
     name: iOS to TestFlight
+    if: github.event_name != 'workflow_dispatch' || inputs.platforms != 'android'
     runs-on: macos-26
     defaults:
       run:
