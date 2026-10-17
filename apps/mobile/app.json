@@ -11,9 +11,76 @@
       "supportsTablet": false
     },
     "android": {
-      "package": "xyz.getkakure.app"
+      "package": "xyz.getkakure.app",
+      "allowBackup": false,
+      "permissions": ["android.permission.USE_BIOMETRIC"],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
-    "plugins": ["expo-router", "./modules/zingo/app.plugin.js"],
+    "plugins": [
+      "expo-router",
+      "./modules/zingo/app.plugin.js",
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Kakure uses the camera to scan market links and payment codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Kakure uses Face ID to unlock the app and show your recovery words."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "savePhotosPermission": "Kakure saves a payment code to Photos only when you ask, so another wallet can scan it.",
+          "photosPermission": false,
+          "granularPermissions": ["photo"]
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F5F5F5",
+          "dark": {
+            "backgroundColor": "#111111"
+          }
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },
@@ -27,6 +94,15 @@
         "projectId": "549a737d-244b-400a-bb2d-df947e3fd3bb"
       }
     },
-    "owner": "0xabu"
+    "owner": "0xabu",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/549a737d-244b-400a-bb2d-df947e3fd3bb",
+      "enabled": true,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

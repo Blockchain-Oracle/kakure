@@ -12,7 +12,10 @@ final class MixnetTransport {
   private let lock = NSLock()
 
   private static let pollInterval: TimeInterval = 1
-  private static let readyTimeout: TimeInterval = 180
+  private static let readyTimeout: TimeInterval = 120
+  /// How long a fresh attach may still read "died" (unattached) before it is believed.
+  private static let deathGrace: TimeInterval = 20
+  private static let attempts = 2
 
   /// The wallet's indicator: `bootstrapping`, `ready`, `off` or `died`.
   func indicator() throws -> [String: Any] {
@@ -20,7 +23,12 @@ final class MixnetTransport {
   }
 
   /// Brings the transport to `ready`, starting and attaching the proxy when
-  /// needed. Returns how long each step took, in milliseconds.
+  /// needed (one retry with a fresh proxy). Returns step timings in ms.
+  ///
+  /// The indicator reads "died" for an unattached transport as well as a dead
+  /// one (zingo-ffi `mixnet_indicator_string`), so right after `attach_mixnet`
+  /// a "died" is only believed once bootstrapping was seen or a grace period
+  /// has passed.
   func ensureReady() throws -> [String: Int] {
     lock.lock()
     defer { lock.unlock() }
@@ -30,30 +38,42 @@ final class MixnetTransport {
     }
 
     let started = DispatchTime.now()
-    handle?.stop()
-    handle = nil
-    let proxy = try ffi { try MixnetProxyHandle.start(observer: nil) }
-    handle = proxy
-    let proxyStartMs = milliseconds(since: started)
+    var proxyStartMs = 0
+    var lastFailure = "failed"
+    for _ in 0..<Self.attempts {
+      handle?.stop()
+      handle = nil
+      let proxyStarted = DispatchTime.now()
+      let proxy = try ffi { try MixnetProxyHandle.start(observer: nil) }
+      handle = proxy
+      proxyStartMs = milliseconds(since: proxyStarted)
 
-    let endpoint = proxy.socks5Endpoint()
-    guard let exitNode = proxy.exitNode() else {
-      throw ZingoError.mixnet("the started proxy reported no exit node")
-    }
-    _ = try ffi { try attachMixnet(socks5Addr: "\(endpoint.host):\(endpoint.port)", exitNode: exitNode) }
+      let endpoint = proxy.socks5Endpoint()
+      guard let exitNode = proxy.exitNode() else {
+        throw ZingoError.mixnet("the started proxy reported no exit node")
+      }
+      _ = try ffi { try attachMixnet(socks5Addr: "\(endpoint.host):\(endpoint.port)", exitNode: exitNode) }
 
-    let deadline = Date().addingTimeInterval(Self.readyTimeout)
-    while Date() < deadline {
-      let state = try indicator()["mixnet_indicator"] as? String
-      if state == "ready" {
-        return ["proxyStartMs": proxyStartMs, "readyMs": milliseconds(since: started)]
+      let attached = Date()
+      let deadline = attached.addingTimeInterval(Self.readyTimeout)
+      var bootstrapping = false
+      attempt: while Date() < deadline {
+        let state = try indicator()["mixnet_indicator"] as? String ?? "died"
+        switch state {
+        case "ready":
+          return ["proxyStartMs": proxyStartMs, "readyMs": milliseconds(since: started)]
+        case "bootstrapping":
+          bootstrapping = true
+        default:
+          if bootstrapping || Date().timeIntervalSince(attached) > Self.deathGrace {
+            lastFailure = state
+            break attempt
+          }
+        }
+        Thread.sleep(forTimeInterval: Self.pollInterval)
       }
-      if state == "died" || state == "off" {
-        throw ZingoError.mixnet("the mixnet transport \(state ?? "failed") while bootstrapping")
-      }
-      Thread.sleep(forTimeInterval: Self.pollInterval)
     }
-    throw ZingoError.mixnet("the mixnet was not ready after \(Int(Self.readyTimeout)) s")
+    throw ZingoError.mixnet("the mixnet transport \(lastFailure) while bootstrapping (\(Self.attempts) tries)")
   }
 
   /// Drops the proxy; the wallet re-initializes without a transport.

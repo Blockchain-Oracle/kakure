@@ -14,7 +14,10 @@ version = '0.0.0'
 // UniFFI Kotlin bindings (classes.jar) and jni/{arm64-v8a,armeabi-v7a,x86,x86_64}/
 // {libuniffi_zingo,libzingo_nym_proxy_ffi}.so; its POM pulls JNA 5.18.1 (aar)
 // and kotlin-stdlib 2.1.20 from Maven Central.
-// S00 status: not built yet (no JDK on the S00 Mac); the iOS side is the smoke.
+// S06 status: the Kotlin sources were checked against the bindings generated
+// from this AAR's libraries (uniffi-bindgen 0.32.2), not compiled locally (no
+// JDK on the dev Mac); CI's `eas build --local` is the first compile.
+// Coroutines need no entry here: expo-modules-core exposes them as `api`.
 def bindingLayer = providers.exec {
   workingDir projectDir.parentFile
   commandLine "${projectDir.parentFile.parentFile.parentFile}/node_modules/.bin/fetch-binding-layer", "--platform", "android"
@@ -33,6 +36,8 @@ android {
   defaultConfig {
     versionCode 1
     versionName "0.0.0"
+    // The binding AAR ships no R8 rules; release builds minify (see proguard-rules.pro).
+    consumerProguardFiles("proguard-rules.pro")
   }
   lintOptions {
     abortOnError false

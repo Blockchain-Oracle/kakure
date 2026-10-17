@@ -1,0 +1,136 @@
+import { type Market, MIN_TICKETS_PER_SIDE, payoutZat, type Side, ZATOSHI_PER_ZEC, zatToZec } from "@kakure/domain";
+import { formatWhen } from "@/lib/time";
+
+/** Plain-words views of a market for cards and the detail screen. Nothing here invents a number. */
+
+export const WINDOW_LABEL: Record<Market["window"], string> = {
+  "1h": "Hourly",
+  "1d": "Daily",
+  session: "NYSE session",
+  event: "Event",
+};
+
+const SIDE_WORD: Record<string, string> = { U: "Up", D: "Down", Y: "Yes", N: "No" };
+export const SIDE_SIGN: Record<string, string> = { U: "▲", D: "▼", Y: "✓", N: "✕" };
+
+export const sideWord = (side: string) => SIDE_WORD[side] ?? side;
+
+/** Up and Yes read as "up" (green), Down and No as "down"; the sign and word always go with the colour. */
+export const sideTone = (side: string): "up" | "down" => (side === "U" || side === "Y" ? "up" : "down");
+
+/** Betting is open on the operator's word and before the cutoff on the clock (the bundle can be minutes old). */
+export function isBettable(market: Market, now: number): boolean {
+  return (market.state === "open" || market.state === "closing") && now < Date.parse(market.cutoffAt);
+}
+
+export type PillTone = "neutral" | "quiet" | "warn" | "up" | "down" | "accent";
+
+export function statePill(market: Market, now: number): { label: string; tone: PillTone; pulse?: boolean } {
+  const cutoff = Date.parse(market.cutoffAt);
+  switch (market.state) {
+    case "scheduled":
+      return { label: `Opens ${formatWhen(market.opensAt, now)}`, tone: "neutral" };
+    case "open":
+    case "closing":
+      if (now >= cutoff) return { label: "Betting closed", tone: "quiet" };
+      return market.state === "closing"
+        ? { label: "Closing", tone: "warn", pulse: true }
+        : { label: "Open", tone: "neutral", pulse: true };
+    case "closed":
+      return { label: "Betting closed", tone: "quiet" };
+    case "resolving":
+      return { label: "Resolving", tone: "neutral", pulse: true };
+    case "resolved":
+    case "paid": {
+      const suffix = market.state === "paid" ? " · paid" : "";
+      if (!market.outcome) return { label: `Resolved${suffix}`, tone: "neutral" };
+      if (market.outcome === "refund") return { label: `Refunded${suffix}`, tone: "warn" };
+      return {
+        label: `${SIDE_SIGN[market.outcome] ?? ""} ${sideWord(market.outcome)}${suffix}`,
+        tone: sideTone(market.outcome),
+      };
+    }
+    case "refunding":
+      return { label: "Refunding", tone: "warn" };
+  }
+}
+
+/** The two sides in display order for this market kind. */
+export function sidesOf(market: Pick<Market, "kind">): readonly [Side, Side] {
+  return market.kind === "event" ? ["Y", "N"] : ["U", "D"];
+}
+
+export interface SideOdds {
+  side: Side;
+  word: string;
+  sign: string;
+  tickets: number;
+  zat: bigint;
+  /** Share of the pool, whole percent. */
+  percent: number;
+  /** What a 1 ZEC ticket would pay at these totals, e.g. "1.62×"; null when a side is empty. */
+  multiple: string | null;
+}
+
+const PERCENT = 100n;
+const MULTIPLE_DECIMALS = 2;
+
+/** Odds as of the last release; null while sealed (D3: never a 0 % or a made-up split). */
+export function releasedOdds(market: Market): { seq: number; sides: [SideOdds, SideOdds] } | null {
+  if (market.sealed || !market.released) return null;
+  const [a, b] = sidesOf(market);
+  const pool = (side: Side) => market.released?.sides[side];
+  const za = BigInt(pool(a)?.zat ?? "0");
+  const zb = BigInt(pool(b)?.zat ?? "0");
+  const total = za + zb;
+  const view = (side: Side, mine: bigint, other: bigint): SideOdds => ({
+    side,
+    word: sideWord(side),
+    sign: SIDE_SIGN[side] ?? "",
+    tickets: pool(side)?.tickets ?? 0,
+    zat: mine,
+    percent: total > 0n ? Number((mine * PERCENT + total / 2n) / total) : 0,
+    multiple:
+      mine > 0n && other > 0n
+        ? `${(Number(payoutZat(ZATOSHI_PER_ZEC, mine, other)) / Number(ZATOSHI_PER_ZEC)).toFixed(MULTIPLE_DECIMALS)}×`
+        : null,
+  });
+  return { seq: market.released.seq, sides: [view(a, za, zb), view(b, zb, za)] };
+}
+
+/** "0.35 ZEC" on mainnet, "0.35 TAZ" on testnet. */
+export const coinAmount = (zat: bigint, coin: string) => `${zatToZec(zat)} ${coin}`;
+
+export const ticketsWord = (count: number) => `${count} ${count === 1 ? "ticket" : "tickets"}`;
+
+const hourFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
+
+/**
+ * A short title for cards: "BTC Up or Down · 19:00–20:00" (local time). The signed question in `rules` stays the
+ * authority and is shown in full on the market screen (D13).
+ */
+export function shortTitle(market: Market, symbol: string): string {
+  if (market.kind === "event") return market.rules.question;
+  const opens = new Date(market.opensAt);
+  const closes = new Date(market.closesAt);
+  const span =
+    market.window === "1h"
+      ? `${hourFormat.format(opens)}–${hourFormat.format(closes)}`
+      : dayFormat.format(market.window === "1d" ? opens : closes);
+  return `${symbol} Up or Down · ${span}`;
+}
+
+/** "Sealed · 4 tickets · odds open at 3 a side" (C5, D3). */
+export const sealedLine = (market: Market) =>
+  `Sealed · ${ticketsWord(market.ticketCount)} · odds open at ${MIN_TICKETS_PER_SIDE} a side`;
+
+/** The opening reference as a single figure (the median venue), for the chart's line. */
+export function openingPrice(market: Market): number | null {
+  const values = Object.values(market.opening ?? {})
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right);
+  if (values.length === 0) return null;
+  return values[Math.floor(values.length / 2)] ?? null;
+}

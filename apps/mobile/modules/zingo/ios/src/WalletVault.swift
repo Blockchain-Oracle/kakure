@@ -44,6 +44,30 @@ struct WalletVault {
     try url.setResourceValues(values)
   }
 
+  /// Forget this device: the wallet file and the Keychain item, both or whichever exists.
+  func erase() throws {
+    if let url = try? walletURL, FileManager.default.fileExists(atPath: url.path) {
+      try FileManager.default.removeItem(at: url)
+    }
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.keychainService,
+      kSecAttrAccount as String: keychainAccount,
+    ]
+    let status = SecItemDelete(query as CFDictionary)
+    guard status == errSecSuccess || status == errSecItemNotFound else {
+      throw ZingoError.keychain("could not delete the recovery info (OSStatus \(status))")
+    }
+  }
+
+  /// Marks an app file (the encrypted ticket database) as never backed up to iCloud.
+  static func excludeFromBackup(path: String) throws {
+    var url = URL(fileURLWithPath: path)
+    var values = URLResourceValues()
+    values.isExcludedFromBackup = true
+    try url.setResourceValues(values)
+  }
+
   // MARK: Recovery info (Keychain)
 
   func hasRecoveryInfo() -> Bool {

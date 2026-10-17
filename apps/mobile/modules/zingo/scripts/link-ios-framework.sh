@@ -9,9 +9,13 @@
 # encode". In their own image the two Rust archives still share one std and one
 # panic runtime, as upstream intends, and the app keeps its two.
 #
+# Size: the dylib is stripped of local symbols (`strip -x`; exported FFI symbols
+# stay). CocoaPods embeds vendored frameworks with rsync, so Xcode's copy-phase
+# strip never touches it; without this a device build carries ~159 MB of it.
+#
 # Input: ios/binding-layer/ZingoBindings (placed by fetch-binding-layer).
 # Output: ios/binding-layer/ZingoRust.xcframework, rebuilt only when the bundle
-# digest changes. Prints the output path.
+# digest or this recipe changes. Prints the output path.
 set -eu
 
 module=$(cd "$(dirname "$0")/.." && pwd)
@@ -19,7 +23,9 @@ layer="$module/ios/binding-layer"
 build="$layer/ZingoBindings/build"
 out="$layer/ZingoRust.xcframework"
 stamp="$layer/ZingoRust.digest"
-digest=$(cat "$layer/digest")
+# Bump RECIPE when the link or strip steps change, so existing outputs rebuild.
+RECIPE=strip-x-v1
+digest="$(cat "$layer/digest") $RECIPE"
 
 if [ -d "$out" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$digest" ]; then
   echo "$out"
@@ -41,6 +47,7 @@ link() {
     -install_name @rpath/ZingoRust.framework/ZingoRust \
     -o "$4" 2>&1 | grep -v 'was built for newer' >&2 || true
   [ -f "$4" ]
+  xcrun strip -x "$4"
 }
 
 # framework <dir> <platform> <binary>

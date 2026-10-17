@@ -9,6 +9,7 @@ enum ZingoError: Error {
   case noWallet
   case keychain(String)
   case mixnet(String)
+  case poolRefused(String)
   case binding(ZingolibError)
   case proxy(ProxyFfiError)
   case malformedReply(String)
@@ -20,6 +21,7 @@ enum ZingoError: Error {
     case .noWallet: return Self.make("ERR_ZINGO_NO_WALLET", "open or create a wallet first")
     case .keychain(let m): return Self.make("ERR_ZINGO_KEYCHAIN", m)
     case .mixnet(let m): return Self.make("ERR_ZINGO_MIXNET", m)
+    case .poolRefused(let m): return Self.make("ERR_ZINGO_POOL_REFUSED", m)
     case .binding(let e): return Self.make("ERR_ZINGO_\(Self.variant(e))", "\(e)")
     case .proxy(let e): return Self.make("ERR_ZINGO_PROXY", "\(e)")
     case .malformedReply(let m): return Self.make("ERR_ZINGO_MALFORMED_REPLY", m)
