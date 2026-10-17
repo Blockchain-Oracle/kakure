@@ -46,10 +46,10 @@ function Navigator() {
           name="market/[id]"
           options={{ headerShown: true, title: "", headerTransparent: true, headerBackButtonDisplayMode: "minimal" }}
         />
-        <Stack.Screen
-          name="bet"
-          options={{ ...sheet, sheetAllowedDetents: [SHEET_DETENTS.medium, SHEET_DETENTS.form] }}
-        />
+        {/* Sized to the form, so the bet action is on screen the moment the sheet opens (a numeric first
+            detent cut it off). Where the form is taller than the screen, the sheet stops at full height and
+            SheetBody's scroll view, which react-native-screens sizes to the sheet, scrolls to it. */}
+        <Stack.Screen name="bet" options={{ ...sheet, sheetAllowedDetents: "fitToContents" }} />
         <Stack.Screen name="pay-qr" options={{ ...sheet, sheetAllowedDetents: [SHEET_DETENTS.form] }} />
         <Stack.Screen
           name="network"

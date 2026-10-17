@@ -100,12 +100,7 @@ export default function Markets() {
   );
 
   return (
-    <Screen
-      title="Markets"
-      trailing={scan}
-      refreshing={data.status === "ready" && data.isFetching}
-      onRefresh={data.status === "loading" ? undefined : () => data.refetch()}
-    >
+    <Screen title="Markets" trailing={scan} onRefresh={data.status === "loading" ? undefined : () => data.refetch()}>
       <Segmented label="Market type" value={tab} onChange={setTab} options={TABS} />
 
       {data.status === "loading" ? (

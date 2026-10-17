@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDockClearance } from "@/shell/dock";
@@ -31,21 +31,28 @@ export interface ScreenProps {
   children: ReactNode;
   trailing?: ReactNode;
   showCapsule?: boolean;
-  refreshing?: boolean;
-  onRefresh?: () => void;
+  /**
+   * Pull to refresh. The spinner follows the user's pull only, until the returned promise settles. Background work
+   * (the sync clock, query refetches) shows in the page's own status pills instead: on iOS a programmatic
+   * `refreshing` moves the content offset up by the spinner's height (RN's beginRefreshingProgrammatically), and a
+   * tab that is detached when it ends never gets it back, so each background sync pushed the Wallet page 60 pt down
+   * until it was blank.
+   */
+  onRefresh?: () => unknown;
   dock?: boolean;
 }
 
-export function Screen({
-  title,
-  children,
-  trailing,
-  showCapsule = true,
-  refreshing,
-  onRefresh,
-  dock = true,
-}: ScreenProps) {
+export function Screen({ title, children, trailing, showCapsule = true, onRefresh, dock = true }: ScreenProps) {
   const theme = useTheme();
+  const [pulling, setPulling] = useState(false);
+  const pull = () => {
+    if (!onRefresh) return;
+    setPulling(true);
+    void Promise.resolve()
+      .then(onRefresh)
+      .catch(() => undefined)
+      .finally(() => setPulling(false));
+  };
   const s = useThemed(styles);
   const insets = useSafeAreaInsets();
   const clearance = useDockClearance();
@@ -59,11 +66,7 @@ export function Screen({
       keyboardShouldPersistTaps="handled"
       refreshControl={
         onRefresh ? (
-          <RefreshControl
-            refreshing={refreshing ?? false}
-            onRefresh={onRefresh}
-            tintColor={theme.color.mutedForeground}
-          />
+          <RefreshControl refreshing={pulling} onRefresh={pull} tintColor={theme.color.mutedForeground} />
         ) : undefined
       }
     >

@@ -1,4 +1,4 @@
-import { type Side, TICKET_SIZES_ZAT } from "@kakure/domain";
+import { CLOSE_SIDES, type Side, TICKET_SIZES_ZAT } from "@kakure/domain";
 import { winningPayout } from "@kakure/query";
 import { router, useLocalSearchParams } from "expo-router";
 import { SearchX } from "lucide-react-native";
@@ -44,7 +44,10 @@ export default function BetSheet() {
   const now = useNow();
   const market =
     data.status === "ready" ? (data.bundle.markets.find((candidate) => candidate.id === params.id) ?? null) : null;
-  const [side, setSide] = useState<Side>(params.side ?? "U");
+  // Always one of this market's two sides: a link or QR can carry any `side`, and event markets bet Y/N, not U/D.
+  const [picked, setSide] = useState<Side | null>(params.side ?? null);
+  const sides: readonly Side[] = market ? sidesOf(market) : CLOSE_SIDES;
+  const side: Side = picked !== null && sides.includes(picked) ? picked : (sides[0] ?? "U");
   const [size, setSize] = useState<bigint>(TICKET_SIZES_ZAT[0] ?? 0n);
   const [placing, setPlacing] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);

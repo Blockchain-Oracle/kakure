@@ -81,7 +81,7 @@ export default function WalletTab() {
     wallet.sync.serverHeight > wallet.sync.walletHeight;
 
   return (
-    <Screen title="Wallet" refreshing={syncing} onRefresh={() => void syncWallet()}>
+    <Screen title="Wallet" onRefresh={syncWallet}>
       <Plate>
         <Txt variant="label" tone="muted">
           Ironwood · ready to bet
