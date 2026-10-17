@@ -22,7 +22,9 @@
         "noMagicNumbers": "error",
         "noExcessiveLinesPerFile": {
           "level": "error",
-          "options": { "maxLines": 400 }
+          "options": {
+            "maxLines": 400
+          }
         },
         "noNonNullAssertion": "error",
         "useConst": "error"
@@ -31,7 +33,9 @@
         "noExplicitAny": "error",
         "noConsole": {
           "level": "warn",
-          "options": { "allow": ["error", "warn"] }
+          "options": {
+            "allow": ["error", "warn"]
+          }
         }
       },
       "correctness": {
@@ -43,14 +47,38 @@
   "overrides": [
     {
       "includes": ["**/constants/**", "**/constants.ts", "packages/tokens/**"],
-      "linter": { "rules": { "style": { "noMagicNumbers": "off" } } }
+      "linter": {
+        "rules": {
+          "style": {
+            "noMagicNumbers": "off"
+          }
+        }
+      }
     },
     {
       "includes": ["scripts/**", "**/scripts/**"],
-      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.test.ts", "**/scripts/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noMagicNumbers": "off"
+          }
+        }
+      }
     }
   ],
   "css": {
-    "parser": { "tailwindDirectives": true }
+    "parser": {
+      "tailwindDirectives": true
+    }
   }
 }

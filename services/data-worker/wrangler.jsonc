@@ -1,0 +1,9 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "kakure-web",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Privacy (D10, R5): no Workers Logs, no request tracing. Nothing about visitors is stored.
+  "observability": { "enabled": false },
+  "r2_buckets": [{ "binding": "DATA", "bucket_name": "kakure-data" }]
+}

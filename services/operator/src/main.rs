@@ -1,6 +1,9 @@
 //! Kakure operator (S00 smoke): the market wallet on librustzcash, Tor-only networking.
 
 mod cli;
+// Shared formats (S01); used by ingest and payouts from S02.
+#[allow(dead_code)]
+mod domain;
 mod remote;
 mod scan;
 mod send;

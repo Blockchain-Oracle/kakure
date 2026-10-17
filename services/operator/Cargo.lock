@@ -2527,7 +2527,9 @@ name = "kakure-operator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "bip0039",
+ "blake2b_simd",
  "clap",
  "futures-util",
  "hex",
@@ -2537,6 +2539,7 @@ dependencies = [
  "rustls",
  "sapling-crypto",
  "secrecy",
+ "serde_json",
  "tokio",
  "tonic",
  "tracing",

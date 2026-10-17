@@ -18,17 +18,20 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Set up pnpm (version from packageManager)
+        uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Enable pnpm (version from packageManager)
-        run: corepack enable
+          cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Biome
         run: pnpm lint
       - name: Typecheck
         run: pnpm typecheck
+      - name: Tests (shared formats)
+        run: pnpm test
 
   rust:
     name: Operator (Rust)

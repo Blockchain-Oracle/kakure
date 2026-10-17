@@ -1,0 +1,15 @@
+{
+  "name": "@kakure/data-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261014.1",
+    "typescript": "catalog:",
+    "wrangler": "^4.100.0"
+  }
+}

@@ -1,0 +1,368 @@
+{
+  "memos": [
+    {
+      "memo": "kakure:v1;n=t;m=btc-1h-2610171600;s=U;z=1000000;k=HyYtNDtCSVBXXmVsc3qBiA;p=utest15a2u8lfvhtc8zuy9jh8mj7cawp7thxr0gjsyl9r4nqa7lrp7wrlcnaqpnenu0z92kzkf2j4j7e6qx6u507gl5wh9uvj95k45dv55vjgd",
+      "ticketHash": "c95d7391809852d7364f078fbbfc18ae2aa156cbe3c26bac0988415d21dc5750"
+    },
+    {
+      "memo": "kakure:v1;n=t;m=zec-1d-2610180000;s=D;z=100000000;k=PkVMU1phaG92fYSLkpmgpw;p=utest1mfrx6suz2urywesnq6u5y09n5njsv5yctgk44e5wp0tk8wyk97yr8xf5wt6zjdxelkqu663jeflflyxc2amktcflw03xjpfmjcgmy0w7",
+      "ticketHash": "e805a17b4f29b610ff03a94926fae70c747f6a2a8dd391f2ea7c18392eb11bec"
+    },
+    {
+      "memo": "kakure:v1;n=t;m=evt-tnh-2610200000;s=Y;z=50000000;k=XWRrcnmAh46VnKOqsbi_xg;p=utest15a2u8lfvhtc8zuy9jh8mj7cawp7thxr0gjsyl9r4nqa7lrp7wrlcnaqpnenu0z92kzkf2j4j7e6qx6u507gl5wh9uvj95k45dv55vjgd",
+      "ticketHash": "33dab4c711c0e73c3bad2fecfd0ccf443cb0ea747a96f579aaa27d779ddb2c07"
+    }
+  ],
+  "payouts": [
+    {
+      "sizeZat": "1000000",
+      "winningPoolZat": "3000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "2000000",
+      "notes": [
+        "2000000"
+      ]
+    },
+    {
+      "sizeZat": "1000000",
+      "winningPoolZat": "7000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "1400000",
+      "notes": [
+        "1000000",
+        "200000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "1000000",
+      "winningPoolZat": "300000000",
+      "losingPoolZat": "1250000000",
+      "payoutZat": "5100000",
+      "notes": [
+        "5000000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "1000000",
+      "winningPoolZat": "10000000000000",
+      "losingPoolZat": "10000000000000",
+      "payoutZat": "2000000",
+      "notes": [
+        "2000000"
+      ]
+    },
+    {
+      "sizeZat": "2000000",
+      "winningPoolZat": "3000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "4000000",
+      "notes": [
+        "2000000",
+        "2000000"
+      ]
+    },
+    {
+      "sizeZat": "2000000",
+      "winningPoolZat": "7000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "2800000",
+      "notes": [
+        "2000000",
+        "500000",
+        "200000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "2000000",
+      "winningPoolZat": "300000000",
+      "losingPoolZat": "1250000000",
+      "payoutZat": "10200000",
+      "notes": [
+        "10000000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "2000000",
+      "winningPoolZat": "10000000000000",
+      "losingPoolZat": "10000000000000",
+      "payoutZat": "4000000",
+      "notes": [
+        "2000000",
+        "2000000"
+      ]
+    },
+    {
+      "sizeZat": "5000000",
+      "winningPoolZat": "3000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "9900000",
+      "notes": [
+        "5000000",
+        "2000000",
+        "2000000",
+        "500000",
+        "200000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "5000000",
+      "winningPoolZat": "7000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "7100000",
+      "notes": [
+        "5000000",
+        "2000000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "5000000",
+      "winningPoolZat": "300000000",
+      "losingPoolZat": "1250000000",
+      "payoutZat": "25400000",
+      "notes": [
+        "20000000",
+        "5000000",
+        "200000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "5000000",
+      "winningPoolZat": "10000000000000",
+      "losingPoolZat": "10000000000000",
+      "payoutZat": "9900000",
+      "notes": [
+        "5000000",
+        "2000000",
+        "2000000",
+        "500000",
+        "200000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "10000000",
+      "winningPoolZat": "3000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "19800000",
+      "notes": [
+        "10000000",
+        "5000000",
+        "2000000",
+        "2000000",
+        "500000",
+        "200000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "10000000",
+      "winningPoolZat": "7000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "14200000",
+      "notes": [
+        "10000000",
+        "2000000",
+        "2000000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "10000000",
+      "winningPoolZat": "300000000",
+      "losingPoolZat": "1250000000",
+      "payoutZat": "50800000",
+      "notes": [
+        "50000000",
+        "500000",
+        "200000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "10000000",
+      "winningPoolZat": "10000000000000",
+      "losingPoolZat": "10000000000000",
+      "payoutZat": "19800000",
+      "notes": [
+        "10000000",
+        "5000000",
+        "2000000",
+        "2000000",
+        "500000",
+        "200000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "20000000",
+      "winningPoolZat": "3000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "39600000",
+      "notes": [
+        "20000000",
+        "10000000",
+        "5000000",
+        "2000000",
+        "2000000",
+        "500000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "20000000",
+      "winningPoolZat": "7000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "28400000",
+      "notes": [
+        "20000000",
+        "5000000",
+        "2000000",
+        "1000000",
+        "200000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "20000000",
+      "winningPoolZat": "300000000",
+      "losingPoolZat": "1250000000",
+      "payoutZat": "101700000",
+      "notes": [
+        "100000000",
+        "1000000",
+        "500000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "20000000",
+      "winningPoolZat": "10000000000000",
+      "losingPoolZat": "10000000000000",
+      "payoutZat": "39600000",
+      "notes": [
+        "20000000",
+        "10000000",
+        "5000000",
+        "2000000",
+        "2000000",
+        "500000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "50000000",
+      "winningPoolZat": "3000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "99000000",
+      "notes": [
+        "50000000",
+        "20000000",
+        "20000000",
+        "5000000",
+        "2000000",
+        "2000000"
+      ]
+    },
+    {
+      "sizeZat": "50000000",
+      "winningPoolZat": "7000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "71000000",
+      "notes": [
+        "50000000",
+        "20000000",
+        "1000000"
+      ]
+    },
+    {
+      "sizeZat": "50000000",
+      "winningPoolZat": "300000000",
+      "losingPoolZat": "1250000000",
+      "payoutZat": "254200000",
+      "notes": [
+        "200000000",
+        "50000000",
+        "2000000",
+        "2000000",
+        "200000"
+      ]
+    },
+    {
+      "sizeZat": "50000000",
+      "winningPoolZat": "10000000000000",
+      "losingPoolZat": "10000000000000",
+      "payoutZat": "99000000",
+      "notes": [
+        "50000000",
+        "20000000",
+        "20000000",
+        "5000000",
+        "2000000",
+        "2000000"
+      ]
+    },
+    {
+      "sizeZat": "100000000",
+      "winningPoolZat": "3000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "198000000",
+      "notes": [
+        "100000000",
+        "50000000",
+        "20000000",
+        "20000000",
+        "5000000",
+        "2000000",
+        "1000000"
+      ]
+    },
+    {
+      "sizeZat": "100000000",
+      "winningPoolZat": "7000000",
+      "losingPoolZat": "3000000",
+      "payoutZat": "142000000",
+      "notes": [
+        "100000000",
+        "20000000",
+        "20000000",
+        "2000000"
+      ]
+    },
+    {
+      "sizeZat": "100000000",
+      "winningPoolZat": "300000000",
+      "losingPoolZat": "1250000000",
+      "payoutZat": "508300000",
+      "notes": [
+        "500000000",
+        "5000000",
+        "2000000",
+        "1000000",
+        "200000",
+        "100000"
+      ]
+    },
+    {
+      "sizeZat": "100000000",
+      "winningPoolZat": "10000000000000",
+      "losingPoolZat": "10000000000000",
+      "payoutZat": "198000000",
+      "notes": [
+        "100000000",
+        "50000000",
+        "20000000",
+        "20000000",
+        "5000000",
+        "2000000",
+        "1000000"
+      ]
+    }
+  ]
+}
