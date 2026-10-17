@@ -1,0 +1,152 @@
+/*
+ * Kit CSS that utilities can't express: keyframes, the dialog sheet, reduced-motion guards.
+ * Every value is a token from @kakure/tokens (tokens.css must be imported first).
+ */
+
+/* Skeleton: the `skeleton` fill pulsing 0.65 → 1 over 1200 ms; still under reduced motion (kawase.md §4.6). */
+@keyframes kk-skeleton-pulse {
+  from {
+    opacity: var(--opacity-skeleton-from);
+  }
+  to {
+    opacity: var(--opacity-skeleton-to);
+  }
+}
+
+.kk-skeleton {
+  background: var(--skeleton);
+  animation: kk-skeleton-pulse calc(var(--duration-skeleton-period) / 2) var(--ease-default) infinite alternate;
+}
+
+/* Press: 100 ms in, 160 ms out, to 0.97 (kawase.md §4.6). */
+.kk-press {
+  transition: transform var(--duration-press-out) var(--ease-default);
+}
+.kk-press:active {
+  transform: scale(var(--scale-press));
+  transition-duration: var(--duration-press-in);
+}
+
+/* The active-step pulse for timelines (Kawase TxSteps: "a pulse when active"). */
+@keyframes kk-step-pulse {
+  from {
+    box-shadow: 0 0 0 0 var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+.kk-step-active {
+  animation: kk-step-pulse var(--duration-skeleton-period) var(--ease-default) infinite;
+}
+
+/* Sheet: a native <dialog>; bottom sheet on phones, a 384 px right drawer from the rail breakpoint (kawase.md §5). */
+.kk-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: none;
+  max-height: 88dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--foreground);
+  background: var(--card);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-sheet);
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform var(--duration-sheet-exit) var(--ease-sheet),
+    opacity var(--duration-sheet-exit) var(--ease-sheet),
+    overlay var(--duration-sheet-exit) allow-discrete,
+    display var(--duration-sheet-exit) allow-discrete;
+}
+.kk-sheet:not([open]) {
+  transform: translateY(100%);
+}
+.kk-sheet[open] {
+  transition-duration: var(--duration-sheet-enter);
+}
+@starting-style {
+  .kk-sheet[open] {
+    transform: translateY(100%);
+  }
+}
+.kk-sheet::backdrop {
+  background: var(--scrim);
+  opacity: 1;
+  transition:
+    opacity var(--duration-sheet-exit) var(--ease-sheet),
+    overlay var(--duration-sheet-exit) allow-discrete,
+    display var(--duration-sheet-exit) allow-discrete;
+}
+.kk-sheet:not([open])::backdrop {
+  opacity: 0;
+}
+@starting-style {
+  .kk-sheet[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .kk-sheet {
+    inset: var(--layout-window-inset) var(--layout-window-inset) var(--layout-window-inset) auto;
+    width: var(--layout-drawer);
+    height: auto;
+    max-height: none;
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-dock);
+  }
+  .kk-sheet:not([open]) {
+    transform: translateX(calc(100% + var(--layout-window-inset)));
+  }
+  @starting-style {
+    .kk-sheet[open] {
+      transform: translateX(calc(100% + var(--layout-window-inset)));
+    }
+  }
+}
+
+/* Glass: only the dock and the network capsule (kawase.md §4.3); opaque under Reduce Transparency. */
+.kk-glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-border),
+    var(--shadow-dock);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .kk-glass {
+    background: var(--glass-opaque);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Reduced motion: travel becomes a 100 ms crossfade; springs and pulses stand still (kawase.md §4.6). */
+@media (prefers-reduced-motion: reduce) {
+  .kk-press:active {
+    transform: none;
+  }
+  .kk-step-active,
+  .kk-skeleton {
+    animation: none;
+  }
+  .kk-sheet,
+  .kk-sheet:not([open]) {
+    transform: none;
+    transition-duration: var(--duration-reduced-motion);
+  }
+  .kk-sheet:not([open]) {
+    opacity: 0;
+  }
+  @starting-style {
+    .kk-sheet[open] {
+      transform: none;
+      opacity: 0;
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@kakure/query",
+  "private": true,
+  "type": "module",
+  "description": "TanStack Query options for Kakure's signed public files (latest \u2192 bundle \u2192 addresses), keyed by network, validated and signature-checked against the pinned operator key.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kakure/domain": "workspace:*",
+    "@kakure/signing": "workspace:*",
+    "@noble/hashes": "catalog:",
+    "@tanstack/react-query": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

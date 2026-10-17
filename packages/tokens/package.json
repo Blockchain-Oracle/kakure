@@ -1,0 +1,22 @@
+{
+  "name": "@kakure/tokens",
+  "private": true,
+  "type": "module",
+  "description": "Kakure design tokens: one tokens.json → CSS custom properties, a Tailwind v4 theme, a TS export and a React Native object. Four themes: light/dark × mainnet/testnet.",
+  "exports": {
+    ".": "./generated/tokens.ts",
+    "./native": "./generated/native.ts",
+    "./tokens.css": "./generated/tokens.css",
+    "./theme.css": "./generated/theme.css",
+    "./tokens.json": "./tokens.json"
+  },
+  "scripts": {
+    "build": "node scripts/generate.mjs && node scripts/contrast.mjs",
+    "generate": "node scripts/generate.mjs",
+    "contrast": "node scripts/contrast.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@kakure/ui-web",
+  "private": true,
+  "type": "module",
+  "description": "Kakure's DOM kit: 21st.dev components reskinned to Kawase tokens (fills instead of borders, CSS springs, no gradients or glow except the network toggle). Sources and licences: THIRD_PARTY_NOTICES.md at the repo root.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./kit.css": "./src/kit.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
+  }
+}

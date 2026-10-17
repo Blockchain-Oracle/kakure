@@ -74,6 +74,13 @@ export const NONCE_B64URL_LENGTH = 22;
 /** BLAKE2b-256 with a 16-byte personalisation for ticket hashes (plan §3). */
 export const TICKET_HASH_PERSONAL = "Kakure_Ticket_v1";
 export const TICKET_HASH_BYTES = 32;
+/** `rulesHash` = BLAKE2b-256 with this 16-byte personalisation over the canonical JSON of the rules object (D13). */
+export const RULES_HASH_PERSONAL = "Kakure_Rules_v01";
+/**
+ * `latest.bundleHash`, `bundle.previous` and the `addresses-<first 8 hex>.json` names: SHA-256 (hex) over the exact
+ * bytes of the published file. Every published file is the canonical JSON of its signed document (sig included).
+ */
+export const BUNDLE_HASH_ALGORITHM = "SHA-256";
 /** Market ids are short ASCII so they fit the memo and the one-byte length prefix in the hash. */
 export const MARKET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{2,47}$/;
 

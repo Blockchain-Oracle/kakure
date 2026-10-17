@@ -58,7 +58,7 @@ export const marketSchema = z.object({
   sealed: z.boolean(),
   ticketCount: z.number().int().nonnegative(),
   /** Totals as of the last release (only once unsealed, and only on min-new-ticket releases). */
-  released: z.object({ seq: z.number().int().nonnegative(), sides: z.record(side, poolSideSchema) }).optional(),
+  released: z.object({ seq: z.number().int().nonnegative(), sides: z.partialRecord(side, poolSideSchema) }).optional(),
   /** First block at or after the cutoff time, once it has the finality confirmations (plan §13.4). */
   cutoffHeight: z.number().int().positive().optional(),
   outcome: z.union([side, z.literal("refund")]).optional(),

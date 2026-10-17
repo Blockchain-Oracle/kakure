@@ -1,0 +1,35 @@
+{
+  "name": "@kakure/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "next build",
+    "typecheck": "next typegen && tsc --noEmit",
+    "size": "node scripts/size.mjs",
+    "marks": "node scripts/marks.mjs"
+  },
+  "dependencies": {
+    "@kakure/domain": "workspace:*",
+    "@kakure/feeds": "workspace:*",
+    "@kakure/query": "workspace:*",
+    "@kakure/tokens": "workspace:*",
+    "@kakure/ui-web": "workspace:*",
+    "@tanstack/query-persist-client-core": "5.104.3",
+    "@tanstack/react-query": "catalog:",
+    "lucide-react": "1.57.0",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@web3icons/core": "4.0.58",
+    "simple-icons": "16.35.0",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  }
+}
