@@ -1,0 +1,12 @@
+# Expo
+.expo/
+expo-env.d.ts
+
+# Generated native projects (CNG)
+/ios
+/android
+
+# Binding Layer bundles: fetched by digest from binding-layer.json, never committed
+modules/zingo/ios/binding-layer/
+modules/zingo/ios/build/
+modules/zingo/android/build/

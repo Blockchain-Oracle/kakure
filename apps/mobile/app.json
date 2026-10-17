@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Kakure",
+    "slug": "kakure",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "scheme": "kakure",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "xyz.getkakure.app",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "xyz.getkakure.app"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

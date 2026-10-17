@@ -1,0 +1,40 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'xyz.getkakure.zingo'
+version = '0.0.0'
+
+// The zingolib Binding Layer, pinned in ../binding-layer.json (entry 502a453f).
+// fetch-binding-layer downloads the Android bundle by digest into
+// android/build/binding-layer/<digest>/ and prints two lines: the local Maven
+// repository root and the coordinate, e.g.
+// org.zingolabs:zingo-binding-layer:7.0.0-502a453fe3329ecd. The AAR carries the
+// UniFFI Kotlin bindings (classes.jar) and jni/{arm64-v8a,armeabi-v7a,x86,x86_64}/
+// {libuniffi_zingo,libzingo_nym_proxy_ffi}.so; its POM pulls JNA 5.18.1 (aar)
+// and kotlin-stdlib 2.1.20 from Maven Central.
+// S00 status: not built yet (no JDK on the S00 Mac); the iOS side is the smoke.
+def bindingLayer = providers.exec {
+  workingDir projectDir.parentFile
+  commandLine "${projectDir.parentFile.parentFile.parentFile}/node_modules/.bin/fetch-binding-layer", "--platform", "android"
+}.standardOutput.asText.map { it.trim().split("\n") }
+
+repositories {
+  maven { url = uri(bindingLayer.get()[0]) }
+}
+
+dependencies {
+  implementation(bindingLayer.get()[1])
+}
+
+android {
+  namespace "xyz.getkakure.zingo"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}

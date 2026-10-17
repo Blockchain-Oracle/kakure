@@ -1,0 +1,32 @@
+{
+  "name": "@kakure/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "binding:ios": "fetch-binding-layer --root modules/zingo --platform ios --check-tag && sh modules/zingo/scripts/link-ios-framework.sh",
+    "binding:android": "fetch-binding-layer --root modules/zingo --platform android --check-tag",
+    "ios": "pnpm binding:ios && expo run:ios",
+    "eas-build-post-install": "pnpm binding:$EAS_BUILD_PLATFORM",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "~58.0.14",
+    "expo-constants": "~58.0.12",
+    "expo-dev-client": "~58.0.14",
+    "expo-linking": "~58.0.13",
+    "expo-router": "~58.0.23",
+    "expo-status-bar": "~58.0.3",
+    "react": "catalog:",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "babel-preset-expo": "~58.0.17",
+    "typescript": "catalog:",
+    "zingolib-bundle-pin": "0.2.1"
+  }
+}
