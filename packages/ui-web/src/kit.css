@@ -150,3 +150,26 @@
     }
   }
 }
+
+/* The in-app Motion setting (Settings → Reduced) sets <html data-motion="reduce">: the same rules as the system's. */
+:root[data-motion="reduce"] .kk-press:active {
+  transform: none;
+}
+:root[data-motion="reduce"] .kk-step-active,
+:root[data-motion="reduce"] .kk-skeleton {
+  animation: none;
+}
+:root[data-motion="reduce"] .kk-sheet,
+:root[data-motion="reduce"] .kk-sheet:not([open]) {
+  transform: none;
+  transition-duration: var(--duration-reduced-motion);
+}
+:root[data-motion="reduce"] .kk-sheet:not([open]) {
+  opacity: 0;
+}
+@starting-style {
+  :root[data-motion="reduce"] .kk-sheet[open] {
+    transform: none;
+    opacity: 0;
+  }
+}

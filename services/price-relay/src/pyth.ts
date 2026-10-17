@@ -6,6 +6,7 @@ export const HERMES = "https://hermes.pyth.network";
 const SSE_DATA_PREFIX = "data:";
 const MS_PER_SECOND = 1000;
 const DAYS_PER_WEEK = 7;
+const HHMM_DIGITS = 4;
 
 interface HermesParsedPrice {
   id: string;
@@ -145,6 +146,6 @@ function zonedParts(at: number, timeZone: string): { month: string; day: string;
     month: get("month"),
     day: get("day"),
     weekday: weekdays.indexOf(get("weekday")),
-    hhmm: `${get("hour")}${get("minute")}`.padStart(4, "0"),
+    hhmm: `${get("hour")}${get("minute")}`.padStart(HHMM_DIGITS, "0"),
   };
 }
