@@ -257,7 +257,7 @@ impl Engine {
         Ok(())
     }
 
-    /// The first list: 4096 Orchard-only addresses from diversifier index 1.
+    /// The first list: ADDRESS_LIST_SIZE Orchard-only addresses from diversifier index 1.
     fn ensure_address_list(&mut self, tip: u32, now: i64) -> Result<()> {
         if self.store.current_address_list()?.is_some() {
             return Ok(());
@@ -286,8 +286,17 @@ impl Engine {
             .into_iter()
             .filter(|i| live.contains(i))
             .collect();
-        let missing = ADDRESS_LIST_SIZE as usize - (live.len() - used.len());
-        if missing == 0 {
+        // Retire used addresses; if the list is larger than ADDRESS_LIST_SIZE (the size was lowered),
+        // also retire the newest surplus. The account's one IVK still covers retired addresses.
+        let target = ADDRESS_LIST_SIZE as usize;
+        let mut active: Vec<u32> = live.iter().copied().filter(|i| !used.contains(i)).collect();
+        active.sort_unstable();
+        let mut retire = used.clone();
+        if active.len() > target {
+            retire.extend(active.split_off(target));
+        }
+        let missing = target - active.len();
+        if missing == 0 && retire.is_empty() {
             return Ok(());
         }
         let (seq, _) = self
@@ -298,12 +307,17 @@ impl Engine {
             .store
             .next_address_index()?
             .unwrap_or(ADDRESS_FIRST_INDEX);
-        let mut db = self.wallet.open()?;
-        let derived = wallet::addresses(&mut db, self.wallet.net, start, u32::try_from(missing)?)?;
-        self.write_address_list(seq + 1, &used, &derived, tip, now)?;
+        let derived = if missing == 0 {
+            Vec::new()
+        } else {
+            let mut db = self.wallet.open()?;
+            wallet::addresses(&mut db, self.wallet.net, start, u32::try_from(missing)?)?
+        };
+        self.write_address_list(seq + 1, &retire, &derived, tip, now)?;
         eprintln!(
-            "addresses: list {} drops {} used address(es), adds {}",
+            "addresses: list {} retires {} address(es) ({} used), adds {}",
             seq + 1,
+            retire.len(),
             used.len(),
             derived.len()
         );

@@ -40,7 +40,7 @@ pub const BATCH_INTERVAL_SECS: u64 = 10 * 60;
 pub const CUTOFF_BEFORE_CLOSE_SECS: i64 = 10 * 60;
 pub const FINALITY_CONFIRMATIONS: u32 = 10;
 pub const CLOSING_WARNING_BLOCKS: i64 = 3;
-pub const ADDRESS_LIST_SIZE: u32 = 4096;
+pub const ADDRESS_LIST_SIZE: u32 = 1024;
 /// Market address lists start at diversifier index 1: index 0 is the account's default
 /// Orchard + Sapling address (S00 finding).
 pub const ADDRESS_FIRST_INDEX: u32 = 1;

@@ -57,7 +57,7 @@ export const PAYOUT_WINDOW_MIN_MS = 2 * 60 * 60_000;
 export const PAYOUT_WINDOW_MAX_MS = 6 * 60 * 60_000;
 
 /** Size of each published market-address list; used addresses are dropped each batch (plan §13.14). */
-export const ADDRESS_LIST_SIZE = 4096;
+export const ADDRESS_LIST_SIZE = 1024;
 
 /** Bet memo (plain text only; Zodl iOS drops non-text memos, Zingo caps at 511 bytes). */
 export const MEMO_PREFIX = "kakure:v1";
