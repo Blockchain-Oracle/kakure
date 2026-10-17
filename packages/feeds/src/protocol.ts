@@ -31,9 +31,29 @@ export const CRYPTO_SYMBOLS = [
 ] as const;
 export type CryptoSymbol = (typeof CRYPTO_SYMBOLS)[number];
 
-/** Stream keys are `<ASSET>-USD`, the Coinbase product id. */
-export type StreamSymbol = `${CryptoSymbol}-USD`;
-export const STREAM_SYMBOLS: readonly StreamSymbol[] = CRYPTO_SYMBOLS.map((symbol) => `${symbol}-USD` as const);
+/** US stocks and ETFs, priced by Pyth (keyed, server-side only) during the NYSE regular session. */
+export const STOCK_SYMBOLS = ["AAPL", "TSLA", "NVDA", "SPY", "QQQ", "MSFT", "META", "AMZN", "GOOGL", "VOO"] as const;
+export type StockSymbol = (typeof STOCK_SYMBOLS)[number];
+
+/** Pyth price feed ids (Equity.US.<SYMBOL>/USD), from Hermes /v2/price_feeds on 2026-10-17. */
+export const PYTH_FEED_IDS: Readonly<Record<StockSymbol, string>> = {
+  AAPL: "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
+  TSLA: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+  NVDA: "b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
+  SPY: "19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
+  QQQ: "9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d",
+  MSFT: "d0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1",
+  META: "78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe",
+  AMZN: "b5d0e0fa58a1f8b81498ae670ce93c872d14434b72c364885d4fa1b257cbb07a",
+  GOOGL: "5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6",
+  VOO: "236b30dd09a9c00dfeec156c7b1efd646c0f01825a1758e3e4a0679e3bdff179",
+};
+
+/** Stream keys are `<ASSET>-USD` (the Coinbase product id for crypto). */
+export type StreamSymbol = `${CryptoSymbol | StockSymbol}-USD`;
+export const CRYPTO_STREAM_SYMBOLS: readonly StreamSymbol[] = CRYPTO_SYMBOLS.map((symbol) => `${symbol}-USD` as const);
+export const STOCK_STREAM_SYMBOLS: readonly StreamSymbol[] = STOCK_SYMBOLS.map((symbol) => `${symbol}-USD` as const);
+export const STREAM_SYMBOLS: readonly StreamSymbol[] = [...CRYPTO_STREAM_SYMBOLS, ...STOCK_STREAM_SYMBOLS];
 
 export const STREAM_PATH = "/v1/stream";
 export const SNAPSHOT_PATH = "/v1/snapshot";
@@ -43,7 +63,9 @@ export interface Quote {
   p: string;
   ts: number;
   /** Which upstream produced it. */
-  src: "coinbase" | "kraken";
+  src: "coinbase" | "kraken" | "pyth";
+  /** Stocks only: whether the NYSE regular session is open now (from Pyth's published schedule). */
+  open?: boolean;
 }
 
 /** Sent once on connect: every known price. */

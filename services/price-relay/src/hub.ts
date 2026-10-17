@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { type Quote, type RelayMessage, STREAM_SYMBOLS, type StreamSymbol } from "@kakure/feeds/protocol";
+import { CRYPTO_STREAM_SYMBOLS, type Quote, type RelayMessage, type StreamSymbol } from "@kakure/feeds/protocol";
 import {
   BROADCAST_INTERVAL_MS,
   COINBASE_FAILURES_BEFORE_FALLBACK,
@@ -12,14 +12,20 @@ import {
   RECONNECT_MIN_MS,
   WS_CLOSE_GOING_AWAY,
 } from "./constants";
+import { SessionCalendar, streamStocks } from "./pyth";
 
 type Upstream = "coinbase" | "kraken";
+
+export interface HubEnv {
+  /** Pyth Hermes key (Worker secret). Without it, stocks stay in their honest "connecting" state. */
+  PYTH_API_KEY?: string;
+}
 
 /**
  * One Durable Object fans a single upstream exchange feed out to every client.
  * It keeps no logs and stores nothing about clients; the upstream only runs while someone is connected.
  */
-export class PriceHub extends DurableObject {
+export class PriceHub extends DurableObject<HubEnv> {
   private readonly prices = new Map<StreamSymbol, Quote>();
   private readonly pending = new Map<StreamSymbol, Quote>();
   private upstream: WebSocket | null = null;
@@ -27,6 +33,9 @@ export class PriceHub extends DurableObject {
   private coinbaseFailures = 0;
   private backoffMs = RECONNECT_MIN_MS;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private stocks: AbortController | null = null;
+  private stockBackoffMs = RECONNECT_MIN_MS;
+  private sessions: SessionCalendar | null = null;
 
   override async fetch(request: Request): Promise<Response> {
     if (new URL(request.url).pathname.endsWith("/snapshot")) {
@@ -55,14 +64,44 @@ export class PriceHub extends DurableObject {
     if (this.ctx.getWebSockets().length === 0) {
       this.upstream?.close(WS_CLOSE_GOING_AWAY, "idle");
       this.upstream = null;
+      this.stocks?.abort();
+      this.stocks = null;
     }
   }
 
   private ensureUpstream(): void {
+    this.ensureStocks();
     if (this.upstream) {
       return;
     }
     this.openUpstream().catch(() => this.scheduleReconnect());
+  }
+
+  /** Keyed Pyth stream for stocks, server-side only (the key never reaches clients). */
+  private ensureStocks(): void {
+    const key = this.env.PYTH_API_KEY;
+    if (!key || this.stocks) {
+      return;
+    }
+    const controller = new AbortController();
+    this.stocks = controller;
+    const run = async () => {
+      this.sessions ??= await SessionCalendar.load();
+      await streamStocks(key, this.sessions, (quotes) => this.accept(quotes), controller.signal);
+    };
+    run()
+      .catch(() => undefined)
+      .finally(() => {
+        if (this.stocks !== controller) {
+          return;
+        }
+        this.stocks = null;
+        if (!controller.signal.aborted && this.ctx.getWebSockets().length > 0) {
+          const delay = this.stockBackoffMs;
+          this.stockBackoffMs = Math.min(this.stockBackoffMs * RECONNECT_BACKOFF_FACTOR, RECONNECT_MAX_MS);
+          setTimeout(() => this.ensureStocks(), delay);
+        }
+      });
   }
 
   private async openUpstream(): Promise<void> {
@@ -84,9 +123,9 @@ export class PriceHub extends DurableObject {
 
   private subscribeMessage(): unknown {
     if (this.source === "coinbase") {
-      return { type: "subscribe", product_ids: STREAM_SYMBOLS, channels: ["ticker_batch"] };
+      return { type: "subscribe", product_ids: CRYPTO_STREAM_SYMBOLS, channels: ["ticker_batch"] };
     }
-    const symbols = STREAM_SYMBOLS.map((symbol) => symbol.replace("-", "/"));
+    const symbols = CRYPTO_STREAM_SYMBOLS.map((symbol) => symbol.replace("-", "/"));
     return { method: "subscribe", params: { channel: "ticker", symbol: symbols } };
   }
 
@@ -95,12 +134,20 @@ export class PriceHub extends DurableObject {
       return;
     }
     const quotes = this.source === "coinbase" ? parseCoinbase(data) : parseKraken(data);
+    if (quotes.length > 0 && this.source === "coinbase") {
+      this.coinbaseFailures = 0;
+    }
+    this.accept(quotes);
+  }
+
+  private accept(quotes: Array<[StreamSymbol, Quote]>): void {
+    if (quotes.length === 0) {
+      return;
+    }
+    this.stockBackoffMs = RECONNECT_MIN_MS;
     for (const [symbol, quote] of quotes) {
       this.prices.set(symbol, quote);
       this.pending.set(symbol, quote);
-    }
-    if (quotes.length > 0 && this.source === "coinbase") {
-      this.coinbaseFailures = 0;
     }
     this.flushTimer ??= setTimeout(() => this.flush(), BROADCAST_INTERVAL_MS);
   }
@@ -150,7 +197,7 @@ export class PriceHub extends DurableObject {
   }
 }
 
-const SYMBOLS = new Set<string>(STREAM_SYMBOLS);
+const SYMBOLS = new Set<string>(CRYPTO_STREAM_SYMBOLS);
 
 /** Coinbase `ticker` / `ticker_batch` messages: `{ type: "ticker", product_id, price, time }`. */
 function parseCoinbase(data: string): Array<[StreamSymbol, Quote]> {
