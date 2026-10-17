@@ -13,7 +13,7 @@
     "android": {
       "package": "xyz.getkakure.app"
     },
-    "plugins": ["expo-router"],
+    "plugins": ["expo-router", "./modules/zingo/app.plugin.js"],
     "experiments": {
       "typedRoutes": true
     },
