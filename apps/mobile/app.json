@@ -13,9 +13,7 @@
     "android": {
       "package": "xyz.getkakure.app"
     },
-    "plugins": [
-      "expo-router"
-    ],
+    "plugins": ["expo-router"],
     "experiments": {
       "typedRoutes": true
     },
