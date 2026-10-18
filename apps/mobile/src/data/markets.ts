@@ -4,8 +4,9 @@ import { DATA_SOURCE } from "@/constants";
 import { useNetwork } from "@/network/network-store";
 
 /**
- * The uniform load every visitor makes (PD14): latest → bundle → address list for the active network, verified
- * against the pinned operator key. Screens read markets from the bundle; market ids never reach the host.
+ * Markets for one network (the active one by default), verified against the pinned operator key. The files
+ * themselves are loaded for BOTH networks at the root (UniformLoad in DataProvider, audit O8); this reads the same
+ * queries from the cache. Market ids never reach the host.
  */
 export function useMarkets(network?: Network): MarketData & { network: Network } {
   const active = useNetwork();

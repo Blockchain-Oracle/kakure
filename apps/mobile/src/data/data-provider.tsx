@@ -1,13 +1,13 @@
 import "./relay-socket";
 import { configurePrices } from "@kakure/feeds";
-import { SCHEMA_VERSION } from "@kakure/query";
+import { SCHEMA_VERSION, UniformLoad } from "@kakure/query";
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core";
 import { focusManager, onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { addNetworkStateListener } from "expo-network";
 import Storage from "expo-sqlite/kv-store";
 import { type ReactNode, useEffect, useState } from "react";
 import { AppState } from "react-native";
-import { CACHE_MAX_AGE_MS, PRICE_RELAY, STORAGE_KEYS } from "@/constants";
+import { CACHE_MAX_AGE_MS, DATA_SOURCE, PRICE_RELAY, STORAGE_KEYS } from "@/constants";
 
 /**
  * One query cache for the app. Only public, signed data is ever queried (R11), and each query is persisted on its
@@ -53,5 +53,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      {/* Both networks' latest → bundle → address list, on the same publish clock, whichever network is on screen:
+          the host can't tell which network this phone uses (audit O8). Screens share these queries. */}
+      <UniformLoad source={DATA_SOURCE} />
+      {children}
+    </QueryClientProvider>
+  );
 }
