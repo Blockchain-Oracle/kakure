@@ -5,5 +5,17 @@
   "compatibility_date": "2026-10-01",
   // Privacy (D10, R5): no Workers Logs, no request tracing. Nothing about visitors is stored.
   "observability": { "enabled": false },
-  "r2_buckets": [{ "binding": "DATA", "bucket_name": "kakure-data" }]
+  // The operator's signed files, one SQLite-backed object per network (src/store.ts). SQLite objects run on the
+  // free plan, and the push is authenticated by the operator's signature, so no storage credential exists anywhere.
+  "durable_objects": {
+    "bindings": [{ "name": "STORE", "class_name": "DataStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DataStore"] }],
+  // The static web export. The Worker runs first so every page gets the CSP and /data/* never falls through to assets.
+  "assets": {
+    "directory": "../../apps/web/out",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "404-page"
+  }
 }

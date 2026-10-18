@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS merges (
     created_at INTEGER NOT NULL
 );
 
--- Files pushed to R2 (only when R2 is configured).
+-- Files pushed to the data worker (only when KAKURE_PUSH_URL is set).
 CREATE TABLE IF NOT EXISTS uploads (
     file TEXT PRIMARY KEY,
     uploaded_at INTEGER NOT NULL

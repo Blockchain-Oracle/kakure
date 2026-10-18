@@ -17,7 +17,6 @@ clap = { version = "4.5", features = ["derive"] }
 ed25519-dalek = "2"
 futures-util = "0.3"
 hex = "0.4"
-hmac = "0.12"
 rand = { version = "0.10", default-features = false, features = ["sys_rng"] }
 # Venue candles and the R2 uploader: plain HTTPS, rustls with the ring provider installed in main.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }

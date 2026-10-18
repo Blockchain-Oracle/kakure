@@ -22,6 +22,8 @@ export const ALLOWED_ORIGINS = [
   "https://getkakure.xyz",
   "https://www.getkakure.xyz",
   "https://docs.getkakure.xyz",
+  // The data worker's own address (services/data-worker), live before and alongside the custom domain.
+  "https://kakure-web.kakure-price-relay.workers.dev",
   "http://localhost:3000",
   "http://localhost:3001",
 ] as const;

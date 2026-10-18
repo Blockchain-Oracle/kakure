@@ -7,11 +7,12 @@ import { type DataSource, OPERATOR_PUBLIC_KEYS } from "@kakure/query";
  */
 
 /**
- * Where the signed public files are served (services/data-worker in production). `EXPO_PUBLIC_DATA_BASE` points a
- * development build at `scripts/data-server.mjs`, which serves the local operator's real signed files.
+ * Where the signed public files are served: services/data-worker at its workers.dev address, which keeps working
+ * after the custom domain is attached, so builds already installed never lose their data. `EXPO_PUBLIC_DATA_BASE`
+ * points a development build at `scripts/data-server.mjs`, which serves the local operator's real signed files.
  */
 export const DATA_SOURCE: DataSource = {
-  base: process.env.EXPO_PUBLIC_DATA_BASE ?? "https://getkakure.xyz/data",
+  base: process.env.EXPO_PUBLIC_DATA_BASE ?? "https://kakure-web.kakure-price-relay.workers.dev/data",
   keys: OPERATOR_PUBLIC_KEYS,
 };
 

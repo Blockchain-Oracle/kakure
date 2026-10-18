@@ -43,5 +43,5 @@ export function toHex(bytes: Uint8Array): string {
 
 export const utf8 = {
   encode: (text: string): Uint8Array => new TextEncoder().encode(text),
-  decode: (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+  decode: (bytes: Uint8Array): string => new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes),
 };

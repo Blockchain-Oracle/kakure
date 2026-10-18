@@ -2,7 +2,7 @@
  * `pnpm --filter @kakure/web dev`: serves the operator's real signed files and starts `next dev`.
  *
  * The operator (services/operator) writes each network's public files to
- * services/operator/operator-data/<network>/public/<network>/ (the R2 key layout). This tiny static server exposes them as
+ * services/operator/operator-data/<network>/public/<network>/ (the data worker's key layout). This tiny static server exposes them as
  * /data/<network>/<file> on 127.0.0.1, and next.config.ts proxies /data/* to it in development only,
  * so the app reads exactly what production will serve from the data worker. A missing file is a 404,
  * which the app shows as "No markets published yet".

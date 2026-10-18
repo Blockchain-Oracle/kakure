@@ -13,7 +13,7 @@ mod lifecycle;
 mod params;
 mod payouts;
 mod publish;
-mod r2;
+mod push;
 mod remote;
 mod resolve;
 mod scan;

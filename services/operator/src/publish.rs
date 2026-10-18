@@ -1,9 +1,10 @@
-//! Writes the signed public files and mirrors them to R2.
+//! Writes the signed public files and pushes them to the data worker.
 //!
 //! Output: `operator-data/<net>/public/<net>/{bundle-<seq>,addresses-<hash8>,latest}.json`, the
-//! same `<network>/<file>.json` keys the data-worker serves from R2. Each file is the canonical
+//! same `<network>/<file>.json` keys the data worker serves. Each file is the canonical
 //! JSON of its signed document, so `SHA-256(file bytes)` is the document hash clients check.
-//! Immutable files are written (and uploaded) first; `latest.json` advances last (plan §13.11).
+//! Immutable files are written (and pushed) first; `latest.json` advances last (plan §13.11), and
+//! the worker refuses a `latest.json` whose bundle it doesn't hold yet.
 
 use std::{
     fs,
@@ -14,7 +15,7 @@ use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 
 use crate::{
-    r2::R2,
+    push::Push,
     signing::{self, Keypair, canonical_json, file_hash},
     store::Store,
 };
@@ -25,7 +26,7 @@ pub struct Publisher {
     /// `<data-dir>/public`; files go under `<network>/`.
     root: PathBuf,
     network: &'static str,
-    r2: Option<R2>,
+    push: Option<Push>,
 }
 
 /// A signed document ready to write.
@@ -43,11 +44,11 @@ pub fn sign_file(key: &Keypair, document: &Value) -> Result<SignedFile> {
 }
 
 impl Publisher {
-    pub fn new(data_dir: &Path, network: &'static str, r2: Option<R2>) -> Self {
+    pub fn new(data_dir: &Path, network: &'static str, push: Option<Push>) -> Self {
         Self {
             root: data_dir.join("public"),
             network,
-            r2,
+            push,
         }
     }
 
@@ -55,8 +56,8 @@ impl Publisher {
         self.root.join(self.network)
     }
 
-    pub fn r2(&self) -> Option<&R2> {
-        self.r2.as_ref()
+    pub fn push(&self) -> Option<&Push> {
+        self.push.as_ref()
     }
 
     /// Writes `name` atomically (temp file + rename). Immutable files must not change once written.
@@ -86,10 +87,15 @@ impl Publisher {
         fs::read(&path).with_context(|| format!("reading {}", path.display()))
     }
 
-    /// Pushes every immutable file R2 does not have yet (address lists, then bundles in order),
+    /// Pushes every immutable file the worker does not have yet (address lists, then bundles in order),
     /// then `latest.json`. A failure leaves the rest for the next tick.
-    pub async fn sync_r2(&self, http: &reqwest::Client, store: &Store, now: i64) -> Result<usize> {
-        let Some(r2) = &self.r2 else {
+    pub async fn sync_push(
+        &self,
+        http: &reqwest::Client,
+        store: &Store,
+        now: i64,
+    ) -> Result<usize> {
+        let Some(push) = &self.push else {
             return Ok(0);
         };
         let mut pending: Vec<String> = vec![];
@@ -109,12 +115,12 @@ impl Publisher {
         }
         let mut uploaded = 0;
         for file in &pending {
-            r2.put(http, &format!("{}/{file}", self.network), self.read(file)?)
+            push.put(http, &format!("{}/{file}", self.network), self.read(file)?)
                 .await?;
             store.mark_uploaded(file, now)?;
             uploaded += 1;
         }
-        r2.put(
+        push.put(
             http,
             &format!("{}/{LATEST_FILE}", self.network),
             self.read(LATEST_FILE)?,

@@ -35,7 +35,9 @@ custody.
 ## How the design gets there
 
 - **No accounts, no bet API.** The site is static. The app and site never call the operator; the operator pushes
-  signed files to storage, and every visitor downloads the same ones.
+  signed files to the site's host, and every visitor downloads the same ones. The host keeps a file only when it
+  carries the operator's signature for that network, never replaces a published file, and only moves `latest.json`
+  forward to a bundle it already holds, so the operator needs no storage password at all.
 - **The same requests for everyone.** Every visit loads the same `latest.json`, bundle and address list, for both
   networks, on the same clock, whichever one you use; market ids live in the URL fragment, which browsers never
   send. On its first visit the site's service worker downloads every script and the address checker, the same set

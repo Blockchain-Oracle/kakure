@@ -656,6 +656,13 @@ importers:
         version: 6.0.3
 
   services/data-worker:
+    dependencies:
+      '@kakure/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@kakure/signing':
+        specifier: workspace:*
+        version: link:../../packages/signing
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 5.20261014.1

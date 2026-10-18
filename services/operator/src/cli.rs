@@ -449,7 +449,7 @@ impl Cli {
                             r.receipts,
                             r.addresses,
                             r.uploaded
-                                .map_or(String::new(), |n| format!(", {n} file(s) to R2")),
+                                .map_or(String::new(), |n| format!(", {n} file(s) pushed")),
                         ),
                         Err(e) => eprintln!("tick failed: {e:#}"),
                     }

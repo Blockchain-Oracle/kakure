@@ -29,7 +29,7 @@ use crate::{
     ingest::{self, BlockTimes},
     payouts::{self, Window},
     publish::{LATEST_FILE, Publisher, sign_file},
-    r2::R2,
+    push::Push,
     remote::Tor,
     scan::{self, SyncOpts},
     signing::{self, Keypair, canonical_json},
@@ -108,11 +108,11 @@ impl Engine {
         wallet.open()?;
         let key = signing::load(&wallet.dir)?;
         let store = Store::open(&wallet.dir.join("engine.sqlite"))?;
-        let r2 = R2::from_env()?;
-        if let Some(r2) = &r2 {
-            eprintln!("publish: R2 configured ({})", r2.describe());
+        let push = Push::from_env()?;
+        if let Some(push) = &push {
+            eprintln!("publish: pushing to {}", push.describe());
         }
-        let publisher = Publisher::new(&wallet.dir, wallet.net.name(), r2);
+        let publisher = Publisher::new(&wallet.dir, wallet.net.name(), push);
         Ok(Self {
             wallet,
             store,
@@ -175,12 +175,12 @@ impl Engine {
         payouts::track(&self.store, &self.wallet, tip, now)?;
         self.update_history(now).await?;
         let (seq, markets, tickets) = self.publish_bundle(now, tip)?;
-        let uploaded = match self.publisher.r2() {
+        let uploaded = match self.publisher.push() {
             None => None,
-            Some(_) => match self.publisher.sync_r2(&self.http, &self.store, now).await {
+            Some(_) => match self.publisher.sync_push(&self.http, &self.store, now).await {
                 Ok(n) => Some(n),
                 Err(e) => {
-                    eprintln!("publish: R2 upload failed, retrying next tick: {e:#}");
+                    eprintln!("publish: push failed, retrying next tick: {e:#}");
                     Some(0)
                 }
             },

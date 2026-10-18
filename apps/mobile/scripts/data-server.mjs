@@ -2,7 +2,7 @@
  * `pnpm --filter @kakure/mobile data`: serves the local operator's real signed files to a development build.
  *
  * The operator (services/operator) writes each network's public files to
- * services/operator/operator-data/<network>/public/<network>/ (the R2 key layout). This static server exposes them
+ * services/operator/operator-data/<network>/public/<network>/ (the data worker's key layout). This static server exposes them
  * as /data/<network>/<file> on 127.0.0.1:4810, the address a simulator reaches; start the app with
  * EXPO_PUBLIC_DATA_BASE=http://127.0.0.1:4810/data so it reads exactly what production serves from the data
  * worker, verified against the same pinned key. KAKURE_DATA_DIR=<dir> serves `<dir>/<network>/<file>` instead.
