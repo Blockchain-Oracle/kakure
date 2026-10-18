@@ -10,7 +10,8 @@ description: Ticket receipts, exporting and importing tickets, the passphrase lo
 ## Where your tickets live
 
 Only on your device. The web app keeps them in your browser's IndexedDB, encrypted with AES-GCM under a key the
-browser won't let any code read out, with a separate key and store per network. There's no account and no server
+browser won't let any code read out, with a separate key and store per network. Each record has a random id, so
+nothing stored, not even a record's name, can be matched to the published ticket lists. There's no account and no server
 copy: if you clear this browser's data without an export, the tickets are gone (payouts still go to the addresses
 in your bets).
 

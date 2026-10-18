@@ -6,12 +6,15 @@ import type { CheckPayoutAddress, PayoutAddressVerdict } from "@kakure/zaddr-was
 import { Check, ClipboardPaste } from "lucide-react";
 import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { NETWORK_LABEL } from "@/constants";
+import { useTickets } from "@/features/tickets/use-tickets";
 
 /**
  * The payout address, checked live in the browser with zcash_address compiled to WebAssembly (PD18): a Unified
  * Address for this network with an Orchard receiver and no transparent receiver. The module loads only here.
+ * It must also be fresh (O21, D8): an address another saved ticket already uses, on either network, would let the
+ * operator link the two bets, so the bet stops, as in the app (apps/mobile/src/bet/place-bet.ts).
  */
-export type FieldVerdict = "empty" | "checking" | "unavailable" | PayoutAddressVerdict;
+export type FieldVerdict = "empty" | "checking" | "unavailable" | "reused" | "locked" | PayoutAddressVerdict;
 
 export interface PayoutAddressState {
   value: string;
@@ -38,8 +41,10 @@ export function usePayoutAddress(network: Network): PayoutAddressState {
     };
   }, []);
 
+  const testnet = useTickets("testnet");
+  const mainnet = useTickets("mainnet");
   const trimmed = value.trim();
-  const verdict: FieldVerdict =
+  const format: FieldVerdict =
     trimmed === ""
       ? "empty"
       : check === null
@@ -47,6 +52,7 @@ export function usePayoutAddress(network: Network): PayoutAddressState {
         : check === "failed"
           ? "unavailable"
           : check(trimmed, network);
+  const verdict: FieldVerdict = format === "ok" ? freshness(trimmed, [testnet, mainnet]) : format;
 
   return {
     value,
@@ -62,6 +68,16 @@ export function usePayoutAddress(network: Network): PayoutAddressState {
       }
     },
   };
+}
+
+/** "ok" only when no saved ticket on either network pays out to this address. */
+function freshness(address: string, stores: ReadonlyArray<ReturnType<typeof useTickets>>): FieldVerdict {
+  if (stores.some((store) => store === "locked")) return "locked";
+  if (stores.some((store) => store === null)) return "checking";
+  const used = stores.some(
+    (store) => Array.isArray(store) && store.some((ticket) => ticket.payoutAddress.trim() === address),
+  );
+  return used ? "reused" : "ok";
 }
 
 function message(verdict: FieldVerdict, network: Network): { text: string; tone: "ok" | "bad" | "quiet" } {
@@ -93,6 +109,16 @@ function message(verdict: FieldVerdict, network: Network): { text: string; tone:
     case "transparent":
       return {
         text: "That address includes a transparent receiver, which would make your payout public. Use a shielded-only address.",
+        tone: "bad",
+      };
+    case "reused":
+      return {
+        text: "Another of your tickets already pays out to this address, so this bet is stopped: two bets paid to one address let the operator link them. Copy a fresh address from your wallet's Receive screen.",
+        tone: "bad",
+      };
+    case "locked":
+      return {
+        text: "Your tickets are locked, so this address can't be checked against them. Unlock them in Settings first.",
         tone: "bad",
       };
     case "unknown-network":

@@ -149,7 +149,9 @@ export default function BetSheet({ market, addresses, network, side: initialSide
         ? { label: "Make QR", action: () => void makeQr() }
         : payout.verdict === "checking"
           ? { label: "Checking the address…", action: () => undefined }
-          : { label: "Fix the payout address", action: () => payout.focus() };
+          : payout.verdict === "locked"
+            ? { label: "Unlock your tickets first", action: () => window.location.assign("/settings#lock") }
+            : { label: "Fix the payout address", action: () => payout.focus() };
 
   return (
     <Sheet open onClose={onClose} title={ticket ? "Pay from your wallet" : `Bet on ${asset.symbol}`}>

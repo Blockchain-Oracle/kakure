@@ -8,7 +8,9 @@ import { IV_BYTES, KDF_ITERATIONS, KEY_BITS, passphraseKey, SALT_BYTES } from ".
 /**
  * Tickets live only on this device, in IndexedDB, encrypted with AES-GCM (plan §13.17). Each network has its own key
  * and its own records (plan §13.16), so a testnet export can never carry a mainnet ticket. Records are opaque
- * `{ id, network, iv, data }`: not even the ticket hash is in the clear.
+ * `{ id, network, iv, data }` with a random id (N4): nothing in a record, not even its id, is derived from the ticket
+ * hash, so the published ticket lists can't be matched against this browser's storage. The ticket hash lives only
+ * inside the ciphertext; replacing a ticket finds its record through an in-memory index built by decrypting.
  *
  * Keys, two ways:
  * - Default: a non-extractable WebCrypto key per network, stored next to the records. Any code on this page can
@@ -105,44 +107,95 @@ async function networkKey(network: Network): Promise<CryptoKey> {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-async function recordId(ticket: Ticket): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(`${ticket.network}:${ticket.hash}`));
-  return toHex(new Uint8Array(digest));
+/** Random 128-bit record id (N4). Ids from before were SHA-256 of the public ticket hash: 64 hex characters. */
+const ID_BYTES = 16;
+const LEGACY_ID = /^[0-9a-f]{64}$/;
+
+function randomId(): string {
+  return toHex(crypto.getRandomValues(new Uint8Array(ID_BYTES)));
 }
 
-async function seal(ticket: Ticket, key: CryptoKey): Promise<SealedRecord> {
+async function seal(ticket: Ticket, key: CryptoKey, id: string): Promise<SealedRecord> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const data = await crypto.subtle.encrypt({ name: ALGORITHM, iv }, key, encoder.encode(JSON.stringify(ticket)));
-  return { id: await recordId(ticket), network: ticket.network, iv, data };
+  return { id, network: ticket.network, iv, data };
 }
 
-async function readAll(network: Network, key: CryptoKey): Promise<Ticket[]> {
+/** A network's decrypted tickets by ticket hash, with their record ids. In memory only, while the key is usable. */
+type Index = Map<string, { id: string; ticket: Ticket }>;
+const indexes = new Map<Network, Promise<Index>>();
+
+/**
+ * Decrypts a network's records once and indexes them. Old records keyed by the hash of their ticket get a random id
+ * here (the ciphertext is unchanged), and duplicates of one ticket are dropped, in one transaction.
+ */
+async function readAndMigrate(network: Network, key: CryptoKey): Promise<Index> {
   const db = await open();
   const records = (await done(
     db.transaction(TICKET_DB.tickets).objectStore(TICKET_DB.tickets).index("network").getAll(network),
   )) as SealedRecord[];
-  const tickets: Ticket[] = [];
+  const index: Index = new Map();
+  const moved: Array<{ from: string; record: SealedRecord }> = [];
+  const dropped: string[] = [];
   for (const record of records) {
+    let ticket: Ticket;
     try {
       const plain = await crypto.subtle.decrypt({ name: ALGORITHM, iv: record.iv }, key, record.data);
-      tickets.push(JSON.parse(decoder.decode(plain)) as Ticket);
+      ticket = JSON.parse(decoder.decode(plain)) as Ticket;
     } catch {
       // A record this key can't open (e.g. after the key was reset) is skipped, never shown half-read.
+      continue;
     }
+    if (index.has(ticket.hash)) {
+      dropped.push(record.id);
+      continue;
+    }
+    const id = LEGACY_ID.test(record.id) ? randomId() : record.id;
+    if (id !== record.id) moved.push({ from: record.id, record: { ...record, id } });
+    index.set(ticket.hash, { id, ticket });
   }
-  return tickets;
+  if (moved.length > 0 || dropped.length > 0) {
+    const transaction = db.transaction(TICKET_DB.tickets, "readwrite");
+    const store = transaction.objectStore(TICKET_DB.tickets);
+    for (const { from, record } of moved) {
+      store.delete(from);
+      store.put(record);
+    }
+    for (const id of dropped) store.delete(id);
+    await committed(transaction);
+  }
+  return index;
+}
+
+function indexOf(network: Network): Promise<Index> {
+  let index = indexes.get(network);
+  if (!index) {
+    const pending = networkKey(network).then((key) => readAndMigrate(network, key));
+    pending.catch(() => {
+      if (indexes.get(network) === pending) indexes.delete(network);
+    });
+    indexes.set(network, pending);
+    index = pending;
+  }
+  return index;
+}
+
+async function readAll(network: Network): Promise<Ticket[]> {
+  return [...(await indexOf(network)).values()].map((entry) => entry.ticket);
 }
 
 export async function loadTickets(network: Network): Promise<Ticket[]> {
-  const tickets = await readAll(network, await networkKey(network));
-  return tickets.sort((a, b) => b.createdAt - a.createdAt);
+  return (await readAll(network)).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-/** Stores (or replaces) a ticket. The record id is the ticket hash, hashed again so it isn't readable either. */
+/** Stores (or replaces) a ticket: a new random record id, or the id its earlier version already has. */
 export async function saveTicket(ticket: Ticket): Promise<void> {
   const db = await open();
-  const record = await seal(ticket, await networkKey(ticket.network));
+  const index = await indexOf(ticket.network);
+  const id = index.get(ticket.hash)?.id ?? randomId();
+  const record = await seal(ticket, await networkKey(ticket.network), id);
   await done(db.transaction(TICKET_DB.tickets, "readwrite").objectStore(TICKET_DB.tickets).put(record));
+  index.set(ticket.hash, { id, ticket });
 }
 
 // ── The optional passphrase lock (O23, plan §13.17)
@@ -167,8 +220,9 @@ export async function setLock(passphrase: string): Promise<void> {
   const records: SealedRecord[] = [];
   const keys = {} as LockRecord["keys"];
   const unwrapped = new Map<Network, CryptoKey>();
+  const freshIndexes = new Map<Network, Index>();
   for (const network of NETWORKS) {
-    const tickets = await readAll(network, await networkKey(network));
+    const tickets = await readAll(network);
     // Extractable only for this moment, to be wrapped; the copy kept in memory is unwrapped as non-extractable.
     const fresh = await newKey(true);
     const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
@@ -179,7 +233,13 @@ export async function setLock(passphrase: string): Promise<void> {
       "decrypt",
     ]);
     unwrapped.set(network, kept);
-    for (const ticket of tickets) records.push(await seal(ticket, kept));
+    const index: Index = new Map();
+    for (const ticket of tickets) {
+      const id = randomId();
+      records.push(await seal(ticket, kept, id));
+      index.set(ticket.hash, { id, ticket });
+    }
+    freshIndexes.set(network, index);
   }
   const lock: LockRecord = {
     v: 1,
@@ -196,6 +256,12 @@ export async function setLock(passphrase: string): Promise<void> {
   await committed(transaction);
   session.clear();
   for (const [network, key] of unwrapped) session.set(network, key);
+  replaceIndexes(freshIndexes);
+}
+
+function replaceIndexes(next: Map<Network, Index>) {
+  indexes.clear();
+  for (const [network, index] of next) indexes.set(network, Promise.resolve(index));
 }
 
 /** Opens the lock for this tab. Returns false for a wrong passphrase. */
@@ -223,12 +289,14 @@ export async function unlock(passphrase: string): Promise<boolean> {
     return false;
   }
   for (const [network, key] of opened) session.set(network, key);
+  indexes.clear();
   return true;
 }
 
 /** Forgets the unwrapped keys: the store stays locked until the passphrase is entered again. */
 export function lockNow(): void {
   session.clear();
+  indexes.clear();
 }
 
 /** Turns the lock off (while unlocked): re-encrypts under fresh non-extractable stored keys, in one transaction. */
@@ -236,11 +304,18 @@ export async function removeLock(): Promise<void> {
   const db = await open();
   const records: SealedRecord[] = [];
   const plain = new Map<Network, CryptoKey>();
+  const freshIndexes = new Map<Network, Index>();
   for (const network of NETWORKS) {
-    const tickets = await readAll(network, await networkKey(network));
+    const tickets = await readAll(network);
     const key = await newKey(false);
     plain.set(network, key);
-    for (const ticket of tickets) records.push(await seal(ticket, key));
+    const index: Index = new Map();
+    for (const ticket of tickets) {
+      const id = randomId();
+      records.push(await seal(ticket, key, id));
+      index.set(ticket.hash, { id, ticket });
+    }
+    freshIndexes.set(network, index);
   }
   const transaction = db.transaction([TICKET_DB.keys, TICKET_DB.tickets], "readwrite");
   const keyStore = transaction.objectStore(TICKET_DB.keys);
@@ -251,11 +326,13 @@ export async function removeLock(): Promise<void> {
   keyStore.delete(LOCK_KEY);
   await committed(transaction);
   session.clear();
+  replaceIndexes(freshIndexes);
 }
 
 /** Forget this device: the whole ticket database, keys and lock included. */
 export async function deleteTicketDatabase(): Promise<void> {
   session.clear();
+  indexes.clear();
   const db = await opening?.catch(() => null);
   db?.close();
   opening = null;
