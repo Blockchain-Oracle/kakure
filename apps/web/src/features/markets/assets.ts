@@ -4,7 +4,8 @@ import type { Category } from "./category-store";
 
 /**
  * What the UI knows about each market subject: its name, tab, mark and live price stream.
- * Marks are vendored in public/marks/ (scripts/marks.mjs); a subject without one gets the labelled neutral disc.
+ * Marks are symbols in the page's inline sprite (scripts/marks.mjs → mark-sprite.generated.ts); a subject without one
+ * gets the labelled neutral disc.
  */
 export interface Asset {
   symbol: string;
@@ -62,7 +63,7 @@ const MARKS = new Set(["BTC", "ETH", "SOL", "ZEC", "XRP", "DOGE", "AAPL", "TSLA"
 const ZEC = "ZEC";
 
 function markFor(symbol: string): string | null {
-  return MARKS.has(symbol) ? `/marks/${symbol.toLowerCase()}.svg` : null;
+  return MARKS.has(symbol) ? `mark-${symbol.toLowerCase()}` : null;
 }
 
 function streamFor(symbol: string): StreamSymbol | null {

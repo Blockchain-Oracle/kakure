@@ -1,11 +1,11 @@
 import type { Bundle } from "@kakure/domain";
-import { type TicketView, viewTicket } from "@kakure/query";
 import type { AppTicket } from "@/tickets/ticket-db";
+import { type AppTicketView, viewAppTicket } from "@/tickets/ticket-view";
 
 /** Positions and P&L from this device's tickets and the signed bundle. Nothing is estimated that isn't labelled. */
 export interface Position {
   ticket: AppTicket;
-  view: TicketView;
+  view: AppTicketView;
   open: boolean;
 }
 
@@ -13,7 +13,7 @@ const OPEN = new Set(["waiting", "counted"]);
 
 export function positionsOf(tickets: readonly AppTicket[], bundle: Bundle | null, now: number): Position[] {
   return tickets.map((ticket) => {
-    const view = viewTicket(ticket, bundle, now);
+    const view = viewAppTicket(ticket, bundle, now);
     const failed = ticket.send?.state === "failed";
     return { ticket, view, open: OPEN.has(view.status) && !failed };
   });

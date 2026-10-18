@@ -1,4 +1,3 @@
-import { nextBatchAt } from "@kakure/query";
 import { router, useLocalSearchParams } from "expo-router";
 import { Lock, SearchX } from "lucide-react-native";
 import { useState } from "react";
@@ -101,7 +100,6 @@ export default function MarketScreen() {
   const open = isBettable(market, now);
   const reference = openingPrice(market);
   const mine = Array.isArray(tickets) ? tickets.filter((ticket) => ticket.marketId === market.id) : [];
-  const nextCheck = data.status === "ready" ? nextBatchAt(data.latest) : null;
   const since = asset.stream ? firstSampleAt(asset.stream) : null;
 
   return (
@@ -170,8 +168,8 @@ export default function MarketScreen() {
               <Txt variant="rowStrong">{sealedLine(market)}</Txt>
             </View>
             <Txt variant="rowDetail" tone="muted">
-              Totals stay hidden until each side has 3 tickets, so no single bet can be read from them.
-              {nextCheck ? ` Next signed batch ${formatClock(nextCheck)}.` : ""}
+              The count moves only once 3 new tickets arrive, so no single bet can be read from it; the odds open when
+              each side has 3.
             </Txt>
           </>
         )}

@@ -1,9 +1,16 @@
-import { type AddressList, BATCH_INTERVAL_MS, type Bundle, type Latest, type Network } from "@kakure/domain";
+import {
+  type AddressList,
+  BATCH_INTERVAL_MS,
+  type Bundle,
+  type Latest,
+  type Network,
+  type Resolution,
+} from "@kakure/domain";
 import { queryOptions, skipToken } from "@tanstack/react-query";
 import { LATEST_FILE, MAX_RETRIES, OVERDUE_POLL_MS, PUBLISH_GRACE_MS } from "./constants";
 import { DataError, isDataError } from "./errors";
 import { type DataSource, fetchSigned } from "./fetch";
-import { addressListSchema, bundleSchema, latestSchema } from "./schemas";
+import { addressListSchema, bundleSchema, latestSchema, resolutionSchema } from "./schemas";
 
 /**
  * Every key starts with the network, so a switch never mixes mainnet and testnet data
@@ -14,6 +21,7 @@ export const queryKeys = {
   latest: (network: Network) => [network, "latest"] as const,
   bundle: (network: Network, file: string) => [network, "bundle", file] as const,
   addresses: (network: Network, file: string) => [network, "addresses", file] as const,
+  resolutions: (network: Network, bundleFile: string) => [network, "resolutions", bundleFile] as const,
 };
 
 /** Address lists are content-addressed: `addresses-<first 8 hex of the file's SHA-256>.json`. */
@@ -90,6 +98,46 @@ export function addressesQuery(source: DataSource, network: Network, bundle: Bun
             throw new DataError("missing", bundle.addresses);
           }
           return list;
+        }
+      : skipToken,
+    staleTime: BATCH_INTERVAL_MS,
+    retry,
+  });
+}
+
+/** Every resolution file a bundle names, sorted: the same set for everyone, whichever market is being checked. */
+export function resolutionFiles(bundle: Bundle): string[] {
+  const files = new Set<string>();
+  for (const market of bundle.markets) if (market.resolution) files.add(market.resolution);
+  return [...files].sort();
+}
+
+/**
+ * All of a bundle's resolution evidence at once (O22): fetching one market's file would tell the host which
+ * market you're checking, so /proof downloads the whole set the bundle names and reads each market's from it.
+ * Each file is signature-checked, and must name the market that points to it.
+ */
+export function resolutionsQuery(source: DataSource, network: Network, bundle: Bundle | null | undefined) {
+  const file = bundle ? `bundle-${bundle.seq}.json` : "";
+  return queryOptions({
+    queryKey: queryKeys.resolutions(network, file),
+    queryFn: bundle
+      ? async ({ signal }): Promise<Record<string, Resolution>> => {
+          const names = resolutionFiles(bundle);
+          const docs = await Promise.all(
+            names.map((name) => fetchSigned(source, network, name, resolutionSchema, { signal })),
+          );
+          const byMarket: Record<string, Resolution> = {};
+          docs.forEach((doc, index) => {
+            const name = names[index] ?? "";
+            if (!doc) throw new DataError("missing", name);
+            const owner = bundle.markets.find((market) => market.resolution === name);
+            if (owner && owner.id !== doc.market) {
+              throw new DataError("mismatch", name, `names ${doc.market}, expected ${owner.id}`);
+            }
+            byMarket[doc.market] = doc;
+          });
+          return byMarket;
         }
       : skipToken,
     staleTime: BATCH_INTERVAL_MS,

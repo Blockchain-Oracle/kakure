@@ -36,7 +36,7 @@ function Item({ market, network, now }: { market: Market; network: Network; now:
       href={`/m#${network}/${market.id}`}
       className="flex shrink-0 items-center gap-3 rounded-row bg-card px-4 py-3 outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <Mark src={asset.mark} label={asset.symbol} size="token" />
+      <Mark mark={asset.mark} label={asset.symbol} size="token" />
       <span className="flex flex-col">
         <span className="text-row-strong text-foreground">
           {asset.symbol} <span className="text-meta text-muted-foreground">{WINDOW_LABEL[market.window]}</span>

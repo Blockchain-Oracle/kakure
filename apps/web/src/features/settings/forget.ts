@@ -5,7 +5,7 @@ import { deleteTicketDatabase } from "@/features/tickets/ticket-db";
 
 /**
  * Forget this device (surfaces.md Settings): the encrypted ticket store and its keys, every `kakure.*` key in
- * localStorage (network, theme, preferences, the persisted public cache, played-cue memory), the service worker's
+ * localStorage (network, theme, preferences, the persisted public cache), the service worker's
  * caches and the worker itself. Then a fresh start.
  */
 export async function forgetThisDevice(): Promise<void> {

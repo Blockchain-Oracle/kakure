@@ -1,4 +1,5 @@
-import { STORAGE_KEYS } from "@/constants";
+import type { Network } from "@kakure/domain";
+import { STORAGE_KEYS, type WalletServerId } from "@/constants";
 import { readJson, writeJson } from "@/lib/kv";
 import { createStore, useStore } from "@/lib/store";
 
@@ -14,6 +15,8 @@ export interface Prefs {
   biometricLock: boolean;
   /** Colour scheme: follow the system or force one. */
   appearance: "system" | "light" | "dark";
+  /** The light-wallet server each network's wallet syncs from. */
+  walletServer: Record<Network, WalletServerId>;
 }
 
 const DEFAULTS: Prefs = {
@@ -23,6 +26,7 @@ const DEFAULTS: Prefs = {
   hideAmounts: false,
   biometricLock: false,
   appearance: "system",
+  walletServer: { mainnet: "zec.rocks", testnet: "zec.rocks" },
 };
 
 export const prefsStore = createStore<Prefs>(readJson(STORAGE_KEYS.prefs, DEFAULTS), (value) =>

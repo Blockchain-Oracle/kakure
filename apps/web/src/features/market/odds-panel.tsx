@@ -16,8 +16,9 @@ import { formatClock, formatCountdown } from "@/lib/time";
 
 /**
  * The odds as of the last release, or the sealed panel (C5, D3): odds stay hidden until each side has
- * MIN_TICKETS_PER_SIDE tickets, then move only after MIN_NEW_TICKETS_PER_RELEASE new ones. Only the ticket count
- * moves meanwhile, and the next batch time comes from the publish clock.
+ * MIN_TICKETS_PER_SIDE tickets. The ticket count, the ticket list and the totals are all published only in groups of
+ * at least MIN_NEW_TICKETS_PER_RELEASE new tickets (O1), and a last group short of that is refunded, never published
+ * (PD28). The next batch time comes from the publish clock.
  */
 export function OddsPanel({
   market,
@@ -75,7 +76,8 @@ export function OddsPanel({
           }))}
         />
         <p className="text-row-detail text-muted-foreground">
-          These totals change only after {MIN_NEW_TICKETS_PER_RELEASE} new tickets arrive. {nextLine}.
+          The count and these totals change only in groups of at least {MIN_NEW_TICKETS_PER_RELEASE} new tickets, so no
+          single bet shows. {nextLine}.
         </p>
       </section>
     );
@@ -91,11 +93,12 @@ export function OddsPanel({
           <h2 id="sealed-title" className="text-title text-foreground">
             Sealed
           </h2>
-          <p className="text-row-detail text-muted-foreground">{ticketsWord(market.ticketCount)} so far</p>
+          <p className="text-row-detail text-muted-foreground">{ticketsWord(market.ticketCount)} listed</p>
         </div>
       </div>
       <p className="text-body text-foreground">
-        Odds open when each side has {MIN_TICKETS_PER_SIDE} tickets, so nobody can read a single bet from them.
+        Odds open when each side has {MIN_TICKETS_PER_SIDE} tickets. Until then only the count is published, and it
+        moves in groups of at least {MIN_NEW_TICKETS_PER_RELEASE} new tickets, so no single bet shows.
       </p>
       <p className="text-row-detail text-muted-foreground">{nextLine}.</p>
     </section>

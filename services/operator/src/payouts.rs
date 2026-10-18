@@ -6,6 +6,10 @@
 //! - Each transaction: one recipient, no memo, `OvkPolicy::Discard`, the network's most common
 //!   expiry delta and marginal fee (sampled from the whole-block fetches; ZIP 203 / ZIP 317
 //!   fallbacks), broadcast over Tor. The house float pays the fees.
+//! - Broadcasts never follow a sync (O6): each goes out at its own random time, from the wallet as
+//!   the last tick left it, on a fresh isolated circuit to the broadcast server (a different
+//!   server from the sync one where the network has two). Retries, rebroadcasts, payouts that came
+//!   due during a tick and the note merge all get fresh random times too.
 //! - An expired transaction is rebuilt from the same inputs (re-locked and preferred).
 //! - Only coarse status is published (`payoutRuns`), after the window closes; never txids.
 
@@ -30,10 +34,10 @@ use zcash_protocol::{
 use crate::{
     catalog,
     domain::{PAYOUT_WINDOW_MAX_SECS, PAYOUT_WINDOW_MIN_SECS, canonical_notes, payout_zat},
-    remote::Tor,
+    remote::{self, Tor},
     send::{self, Spec},
-    store::{ReceiptRow, Store},
-    wallet::{self, Wallet},
+    store::{MarketRow, ReceiptRow, Store},
+    wallet::{self, Net, Wallet},
 };
 
 const ENV_WINDOW_MIN: &str = "KAKURE_PAYOUT_WINDOW_MIN_SECS";
@@ -51,8 +55,11 @@ pub const MERGE_INTERVAL_SECS: i64 = 6 * 60 * 60;
 /// Merge once the float is spread over at least this many notes.
 const MERGE_MIN_NOTES: usize = 8;
 /// A merge runs only this soon after its slot boundary; a restart later in the slot skips it,
-/// so merges always happen on the clock.
+/// so merges always happen on the clock. Its broadcast time is drawn at random inside the slot's
+/// first `MERGE_PLAN_MAX_SECS`, never right after a sync.
 const MERGE_GRACE_SECS: i64 = 30 * 60;
+const MERGE_PLAN_MIN_SECS: i64 = 60;
+const MERGE_PLAN_MAX_SECS: i64 = 20 * 60;
 /// Testnet-only check of the rebuild path (L08): withhold one payout's first broadcast and give
 /// it a short expiry, so it expires unmined and is rebuilt from the same inputs.
 const ENV_TEST_WITHHOLD: &str = "KAKURE_TEST_WITHHOLD_ONE_PAYOUT";
@@ -60,31 +67,72 @@ const TEST_WITHHOLD_EXPIRY_DELTA: u32 = 5;
 const WITHHELD: &str = "withheld once (rebuild test)";
 /// An expired payout's inputs stay reserved for its rebuild this many blocks.
 const REBUILD_LOCK_BLOCKS: u32 = 60;
-/// (id, txid, expiry, last error, lock owner, inputs)
-type TrackRow = (i64, String, u32, Option<String>, Vec<u8>, Option<String>);
-/// A payout that cannot be built yet (the float's change is confirming) is retried this much later.
-pub const RETRY_SECS: i64 = 60;
+/// (id, txid, expiry, lock owner, inputs)
+type TrackRow = (i64, String, u32, Vec<u8>, Option<String>);
+/// A payout that cannot be built or broadcast yet is retried at a random time this long after.
+const RETRY_MIN_SECS: i64 = 2 * 60;
+const RETRY_MAX_SECS: i64 = 10 * 60;
+/// Sends that came due while a tick ran (or before the first one) go out at a random time this long
+/// after it, inside the tick interval, instead of seconds after its sync (O6).
+const OVERDUE_MIN_SECS: i64 = 60;
+const OVERDUE_MAX_SECS: i64 = 9 * 60;
+/// Seconds late before a send counts as overdue.
+const OVERDUE_SLACK_SECS: i64 = 5;
+/// The wallet must be at most this many blocks behind the broadcast server's tip to build a payout.
+const MAX_WALLET_LAG_BLOCKS: u32 = 60;
 /// Coarse status buckets: "markets resolved before HH:00".
 const RUN_BUCKET_SECS: i64 = 60 * 60;
 const RUN_HISTORY_SECS: i64 = 7 * catalog::DAY_SECS;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Window {
     pub min: i64,
     pub max: i64,
 }
 
-/// The payout window: 2–6 h (`PAYOUT_WINDOW_*`), overridable for a quick testnet run.
-pub fn window() -> Result<Window> {
-    let read = |name: &str, default: i64| -> Result<i64> {
-        match std::env::var(name) {
-            Ok(v) if !v.is_empty() => v.parse().with_context(|| format!("{name} must be seconds")),
-            _ => Ok(default),
+impl Default for Window {
+    /// 2–6 h (`PAYOUT_WINDOW_*`), the window every signed rules text states unless overridden.
+    fn default() -> Self {
+        Self {
+            min: PAYOUT_WINDOW_MIN_SECS,
+            max: PAYOUT_WINDOW_MAX_SECS,
         }
+    }
+}
+
+impl Window {
+    /// The window a market's rules state (markets created before it was stored say 2–6 h).
+    pub fn of_market(m: &MarketRow) -> Self {
+        m.payout_window
+            .map_or_else(Self::default, |(min, max)| Self { min, max })
+    }
+}
+
+/// The configured payout window: 2–6 h, overridable for a quick testnet run only. On mainnet the
+/// override is refused, so the engine fails at startup rather than sign rules it won't keep (O2).
+/// New markets write this window into their rules and keep it for their payouts.
+pub fn window(net: Net) -> Result<Window> {
+    let set = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
+    window_from(net, set(ENV_WINDOW_MIN), set(ENV_WINDOW_MAX))
+}
+
+fn window_from(net: Net, min: Option<String>, max: Option<String>) -> Result<Window> {
+    if min.is_none() && max.is_none() {
+        return Ok(Window::default());
+    }
+    anyhow::ensure!(
+        net == Net::Testnet,
+        "{ENV_WINDOW_MIN} / {ENV_WINDOW_MAX} are a testnet-only override; unset them to run on {}",
+        net.name()
+    );
+    let read = |value: Option<String>, name: &str, default: i64| -> Result<i64> {
+        value.map_or(Ok(default), |v| {
+            v.parse().with_context(|| format!("{name} must be seconds"))
+        })
     };
     let w = Window {
-        min: read(ENV_WINDOW_MIN, PAYOUT_WINDOW_MIN_SECS)?,
-        max: read(ENV_WINDOW_MAX, PAYOUT_WINDOW_MAX_SECS)?,
+        min: read(min, ENV_WINDOW_MIN, PAYOUT_WINDOW_MIN_SECS)?,
+        max: read(max, ENV_WINDOW_MAX, PAYOUT_WINDOW_MAX_SECS)?,
     };
     anyhow::ensure!(
         0 <= w.min && w.min < w.max,
@@ -93,12 +141,18 @@ pub fn window() -> Result<Window> {
     Ok(w)
 }
 
-fn random_u64() -> Result<u64> {
+pub(crate) fn random_u64() -> Result<u64> {
     let mut bytes = [0u8; 8];
     SysRng
         .try_fill_bytes(&mut bytes)
         .map_err(|e| anyhow!("system RNG: {e}"))?;
     Ok(u64::from_le_bytes(bytes))
+}
+
+/// Uniform in `[min, max]`.
+pub(crate) fn random_between(min: i64, max: i64) -> Result<i64> {
+    let span = u64::try_from(max - min + 1)?;
+    Ok(min + i64::try_from(random_u64()? % span)?)
 }
 
 fn random_owner() -> Result<[u8; 32]> {
@@ -297,29 +351,15 @@ fn inputs_from_json(text: &str) -> Result<Vec<OutputRef>> {
         .collect()
 }
 
-/// Updates broadcast payouts: mined → `mined`; past expiry and unmined → rescheduled now, to be
-/// rebuilt from the same inputs; a failed broadcast of a live transaction is retried.
-pub async fn track(
-    store: &Store,
-    wallet: &Wallet,
-    tor: Option<&Tor>,
-    tip: u32,
-    now: i64,
-) -> Result<()> {
+/// Updates broadcast payouts after a sync (no network): mined → `mined`; past expiry and unmined
+/// → rescheduled, to be rebuilt from the same inputs at a random time inside the next interval.
+pub fn track(store: &Store, wallet: &Wallet, tip: u32, now: i64) -> Result<()> {
     let rows: Vec<TrackRow> = {
         let mut stmt = store.conn.prepare(
-            "SELECT id, txid, expiry_height, last_error, owner, inputs FROM payouts
-             WHERE status = 'broadcast'",
+            "SELECT id, txid, expiry_height, owner, inputs FROM payouts WHERE status = 'broadcast'",
         )?;
         stmt.query_map([], |r| {
-            Ok((
-                r.get(0)?,
-                r.get(1)?,
-                r.get(2)?,
-                r.get(3)?,
-                r.get(4)?,
-                r.get(5)?,
-            ))
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
         })?
         .collect::<Result<_, _>>()?
     };
@@ -330,7 +370,7 @@ pub async fn track(
         wallet.dir.join("wallet.sqlite"),
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
     )?;
-    for (id, txid, expiry, last_error, owner, inputs) in rows {
+    for (id, txid, expiry, owner, inputs) in rows {
         let mut internal = hex::decode(&txid)?;
         internal.reverse();
         let mined: Option<u32> = wallet_db
@@ -364,23 +404,148 @@ pub async fn track(
             }
             store.conn.execute(
                 "UPDATE payouts SET status = 'scheduled', due_at = ?2, attempts = attempts + 1,
-                     reason = reason || ' (rebuilt)' WHERE id = ?1",
-                params![id, now],
+                     last_error = NULL, reason = reason || ' (rebuilt)' WHERE id = ?1",
+                params![
+                    id,
+                    now + random_between(OVERDUE_MIN_SECS, OVERDUE_MAX_SECS)?
+                ],
             )?;
-        } else if let (Some(error), Some(tor)) = (last_error, tor)
-            && !error.starts_with(WITHHELD)
-        {
-            let db = wallet.open()?;
-            if let Some(tx) = db.get_transaction(txid_of(&txid)?)? {
-                let mut raw = vec![];
-                tx.write(&mut raw)?;
-                let result = send::broadcast(tor, &raw).await;
-                store.conn.execute(
-                    "UPDATE payouts SET last_error = ?2 WHERE id = ?1",
-                    params![id, result.err().map(|e| format!("{e:#}"))],
-                )?;
-            }
         }
+    }
+    Ok(())
+}
+
+/// Broadcast rows whose last broadcast failed and that are due for another try.
+const REBROADCAST_DUE: &str = "status = 'broadcast' AND last_error IS NOT NULL AND substr(last_error, 1, 13) != 'withheld once'";
+
+/// Re-sends one live transaction whose broadcast failed, at its own random retry time
+/// (`None`: nothing to re-send now).
+pub async fn rebroadcast_due(
+    store: &Store,
+    wallet: &Wallet,
+    tor: &Tor,
+    now: i64,
+) -> Result<Option<usize>> {
+    let row: Option<(i64, String)> = store
+        .conn
+        .query_row(
+            &format!(
+                "SELECT id, txid FROM payouts WHERE {REBROADCAST_DUE} AND due_at <= ?1 ORDER BY due_at LIMIT 1"
+            ),
+            [now],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    let Some((id, txid)) = row else {
+        return Ok(None);
+    };
+    let raw = {
+        let db = wallet.open()?;
+        let tx = db
+            .get_transaction(txid_of(&txid)?)?
+            .with_context(|| format!("payout {id}'s transaction is not stored"))?;
+        let mut raw = vec![];
+        tx.write(&mut raw)?;
+        raw
+    };
+    let result = send::broadcast(tor, &raw).await;
+    record_broadcast(store, id, result.as_ref().err(), now)?;
+    Ok(Some(usize::from(result.is_ok())))
+}
+
+/// Whether a payout is still due (one was attempted and stays due, or is waiting its turn).
+pub fn has_due(store: &Store, now: i64) -> Result<bool> {
+    Ok(store.conn.query_row(
+        "SELECT COUNT(*) > 0 FROM payouts WHERE status = 'scheduled' AND due_at <= ?1",
+        [now],
+        |r| r.get(0),
+    )?)
+}
+
+/// After a failed merge: another random time in this slot.
+pub fn replan_merge(store: &Store, now: i64) -> Result<()> {
+    let slot = now.div_euclid(MERGE_INTERVAL_SECS);
+    store.conn.execute(
+        "INSERT OR REPLACE INTO state (key, value) VALUES (?1, ?2)",
+        params![
+            format!("merge_plan:{slot}"),
+            (now + random_between(RETRY_MIN_SECS, RETRY_MAX_SECS)?).to_string()
+        ],
+    )?;
+    Ok(())
+}
+
+/// Stores a broadcast result; a failure is retried at a fresh random time.
+fn record_broadcast(store: &Store, id: i64, error: Option<&anyhow::Error>, now: i64) -> Result<()> {
+    match error {
+        None => store
+            .conn
+            .execute("UPDATE payouts SET last_error = NULL WHERE id = ?1", [id])?,
+        Some(e) => {
+            eprintln!(
+                "payouts: broadcast failed, retrying at a random time while the transaction is live: {e:#}"
+            );
+            store.conn.execute(
+                "UPDATE payouts SET last_error = ?2, due_at = ?3 WHERE id = ?1",
+                params![
+                    id,
+                    format!("{e:#}"),
+                    now + random_between(RETRY_MIN_SECS, RETRY_MAX_SECS)?
+                ],
+            )?
+        }
+    };
+    Ok(())
+}
+
+/// Gives every send that is already late (it came due during a tick, or before the first tick of
+/// this run) its own random time inside the next tick interval, so none follows the sync (O6).
+pub fn spread_overdue(store: &Store, now: i64) -> Result<usize> {
+    let ids: Vec<i64> = {
+        let mut stmt = store.conn.prepare(&format!(
+            "SELECT id FROM payouts WHERE (status = 'scheduled' OR ({REBROADCAST_DUE})) AND due_at < ?1"
+        ))?;
+        stmt.query_map([now - OVERDUE_SLACK_SECS], |r| r.get(0))?
+            .collect::<Result<_, _>>()?
+    };
+    for id in &ids {
+        store.conn.execute(
+            "UPDATE payouts SET due_at = ?2 WHERE id = ?1",
+            params![
+                id,
+                now + random_between(OVERDUE_MIN_SECS, OVERDUE_MAX_SECS)?
+            ],
+        )?;
+    }
+    let slot = now.div_euclid(MERGE_INTERVAL_SECS);
+    if let Some(plan) = merge_plan(store, now)?
+        && plan < now - OVERDUE_SLACK_SECS
+    {
+        store.conn.execute(
+            "INSERT OR REPLACE INTO state (key, value) VALUES (?1, ?2)",
+            params![
+                format!("merge_plan:{slot}"),
+                (now + random_between(OVERDUE_MIN_SECS, OVERDUE_MAX_SECS)?).to_string()
+            ],
+        )?;
+    }
+    Ok(ids.len())
+}
+
+/// Postpones every due payout to its own random retry time (the float's change is confirming).
+fn postpone_due(store: &Store, now: i64, error: &str) -> Result<()> {
+    let ids: Vec<i64> = {
+        let mut stmt = store
+            .conn
+            .prepare("SELECT id FROM payouts WHERE status = 'scheduled' AND due_at <= ?1")?;
+        stmt.query_map([now], |r| r.get(0))?
+            .collect::<Result<_, _>>()?
+    };
+    for id in ids {
+        store.conn.execute(
+            "UPDATE payouts SET attempts = attempts + 1, last_error = ?2, due_at = ?3 WHERE id = ?1",
+            params![id, error, now + random_between(RETRY_MIN_SECS, RETRY_MAX_SECS)?],
+        )?;
     }
     Ok(())
 }
@@ -388,35 +553,39 @@ pub async fn track(
 /// (id, recipient, zat, lock owner, inputs of an earlier attempt)
 type DueRow = (i64, String, u64, Vec<u8>, Option<String>);
 
-/// Builds and broadcasts every payout that is due, one transaction per note.
+/// Builds and broadcasts the earliest due payout (one note, one transaction), from the wallet as
+/// the last tick left it: no sync first. GetLatestBlock and the broadcast share one fresh circuit
+/// to the broadcast server, and the expiry is set from that tip, like any light wallet's send.
+/// `None`: nothing was due.
 pub async fn send_due(
     store: &Store,
     wallet: &Wallet,
     tor: &Tor,
     tip: u32,
     now: i64,
-) -> Result<usize> {
+) -> Result<Option<usize>> {
+    if !has_due(store, now)? {
+        return Ok(None);
+    }
     if let Some(reason) = wallet
         .net
         .params()
         .payout_pause(BlockHeight::from_u32(tip))?
     {
+        postpone_due(store, now, &reason)?;
         eprintln!("payouts: {reason}");
-        return Ok(0);
+        return Ok(Some(0));
     }
     let due: Vec<DueRow> = {
         let mut stmt = store.conn.prepare(
             "SELECT id, recipient, amount_zat, owner, inputs FROM payouts
-             WHERE status = 'scheduled' AND due_at <= ?1 ORDER BY inputs IS NULL, due_at",
+             WHERE status = 'scheduled' AND due_at <= ?1 ORDER BY inputs IS NULL, due_at LIMIT 1",
         )?;
         stmt.query_map([now], |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
         })?
         .collect::<Result<_, _>>()?
     };
-    if due.is_empty() {
-        return Ok(0);
-    }
     let (expiry_delta, marginal_fee, _) = network_shape(store, wallet, tip)?;
     // The rebuild test hook runs once per token value (testnet only).
     let token = std::env::var(ENV_TEST_WITHHOLD)
@@ -432,6 +601,41 @@ pub async fn send_due(
     };
     let mut sent = 0;
     for (id, recipient, zat, owner, inputs) in due {
+        let opened = async {
+            let mut lwd = tor.broadcast_circuit().await?;
+            let tip = remote::latest_height(&mut lwd).await?;
+            anyhow::Ok((lwd, u32::from(tip)))
+        };
+        let (mut lwd, network_tip) = match opened.await {
+            Ok(v) => v,
+            Err(e) => {
+                store.conn.execute(
+                    "UPDATE payouts SET last_error = ?2, due_at = ?3 WHERE id = ?1",
+                    params![
+                        id,
+                        format!("{e:#}"),
+                        now + random_between(RETRY_MIN_SECS, RETRY_MAX_SECS)?
+                    ],
+                )?;
+                eprintln!(
+                    "payouts: broadcast server unreachable, retrying at a random time: {e:#}"
+                );
+                break;
+            }
+        };
+        let wallet_tip = wallet.open()?.chain_height()?.map_or(tip, u32::from);
+        let lag = network_tip.saturating_sub(wallet_tip);
+        if lag > MAX_WALLET_LAG_BLOCKS {
+            postpone_due(
+                store,
+                now,
+                &format!("wallet {lag} blocks behind; waiting for a sync"),
+            )?;
+            eprintln!(
+                "payouts: the wallet is {lag} blocks behind the tip; waiting for a tick's sync"
+            );
+            break;
+        }
         let owner: [u8; 32] = owner.try_into().map_err(|_| anyhow!("bad lock owner"))?;
         let pinned = match inputs.as_deref() {
             Some(text) => Some((LockOwner::new(owner), inputs_from_json(text)?)),
@@ -445,11 +649,14 @@ pub async fn send_due(
                 to: &recipient,
                 zat,
                 memo: None,
-                expiry_delta: Some(if withhold_this {
-                    TEST_WITHHOLD_EXPIRY_DELTA
-                } else {
-                    expiry_delta
-                }),
+                // The builder counts from the wallet's tip; count from the network's instead.
+                expiry_delta: Some(
+                    lag + if withhold_this {
+                        TEST_WITHHOLD_EXPIRY_DELTA
+                    } else {
+                        expiry_delta
+                    },
+                ),
                 marginal_fee,
                 pinned,
             },
@@ -457,12 +664,8 @@ pub async fn send_due(
         let built = match built {
             Ok(b) => b,
             Err(e) => {
-                // Usually the float's change is still confirming; the next wake retries.
-                store.conn.execute(
-                    "UPDATE payouts SET attempts = attempts + 1, last_error = ?2, due_at = ?3
-                     WHERE status = 'scheduled' AND due_at <= ?4 AND (id = ?1 OR due_at <= ?4)",
-                    params![id, format!("{e:#}"), now + RETRY_SECS, now],
-                )?;
+                // Usually the float's change is still confirming; each retries at its own time.
+                postpone_due(store, now, &format!("{e:#}"))?;
                 eprintln!("payouts: a due payout could not be built yet: {e:#}");
                 break;
             }
@@ -507,31 +710,64 @@ pub async fn send_due(
             )?;
             continue;
         }
-        let result = send::broadcast(tor, &built.raw).await;
-        store.conn.execute(
-            "UPDATE payouts SET last_error = ?2 WHERE id = ?1",
-            params![id, result.as_ref().err().map(|e| format!("{e:#}"))],
-        )?;
-        match result {
-            Ok(()) => sent += 1,
-            Err(e) => eprintln!(
-                "payouts: broadcast failed, retrying while the transaction is live: {e:#}"
-            ),
+        let result = send::broadcast_on(&mut lwd, &built.raw).await;
+        record_broadcast(store, id, result.as_ref().err(), now)?;
+        if result.is_ok() {
+            sent += 1;
         }
     }
-    Ok(sent)
+    Ok(Some(sent))
 }
 
-/// The earliest scheduled payout time, for the run loop's wake-up.
-pub fn next_due(store: &Store) -> Result<Option<i64>> {
-    Ok(store.conn.query_row(
-        "SELECT MIN(due_at) FROM payouts WHERE status = 'scheduled'",
+/// The earliest time anything should go out (a payout, a rebroadcast or the merge), for the run
+/// loop's wake-up.
+pub fn next_due(store: &Store, now: i64) -> Result<Option<i64>> {
+    let send: Option<i64> = store.conn.query_row(
+        &format!(
+            "SELECT MIN(due_at) FROM payouts WHERE status = 'scheduled' OR ({REBROADCAST_DUE})"
+        ),
         [],
         |r| r.get(0),
-    )?)
+    )?;
+    let merge = merge_plan(store, now)?;
+    Ok(match (send, merge) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    })
 }
 
-/// On the fixed merge clock, consolidates the float when it is spread over many notes.
+/// This merge slot's random broadcast time, drawn once per slot; `None` once the slot is done.
+fn merge_plan(store: &Store, now: i64) -> Result<Option<i64>> {
+    let slot = now.div_euclid(MERGE_INTERVAL_SECS);
+    let done: bool = store
+        .conn
+        .query_row("SELECT 1 FROM merges WHERE slot = ?1", [slot], |_| Ok(()))
+        .optional()?
+        .is_some();
+    if done {
+        return Ok(None);
+    }
+    let key = format!("merge_plan:{slot}");
+    let stored: Option<String> = store
+        .conn
+        .query_row("SELECT value FROM state WHERE key = ?1", [&key], |r| {
+            r.get(0)
+        })
+        .optional()?;
+    if let Some(plan) = stored {
+        return Ok(Some(plan.parse()?));
+    }
+    let plan =
+        slot * MERGE_INTERVAL_SECS + random_between(MERGE_PLAN_MIN_SECS, MERGE_PLAN_MAX_SECS)?;
+    store.conn.execute(
+        "INSERT INTO state (key, value) VALUES (?1, ?2)",
+        params![key, plan.to_string()],
+    )?;
+    Ok(Some(plan))
+}
+
+/// On the fixed merge clock, at the slot's random time, consolidates the float when it is spread
+/// over many notes.
 pub async fn maybe_merge(
     store: &Store,
     wallet: &Wallet,
@@ -540,12 +776,10 @@ pub async fn maybe_merge(
     now: i64,
 ) -> Result<()> {
     let slot = now.div_euclid(MERGE_INTERVAL_SECS);
-    let done: bool = store
-        .conn
-        .query_row("SELECT 1 FROM merges WHERE slot = ?1", [slot], |_| Ok(()))
-        .optional()?
-        .is_some();
-    if done {
+    let Some(plan) = merge_plan(store, now)? else {
+        return Ok(());
+    };
+    if now < plan {
         return Ok(());
     }
     if now - slot * MERGE_INTERVAL_SECS > MERGE_GRACE_SECS {
@@ -576,9 +810,17 @@ pub async fn maybe_merge(
     };
     let mut record = (None, None);
     if notes >= MERGE_MIN_NOTES {
-        let (_, marginal_fee, _) = network_shape(store, wallet, tip)?;
-        let built = send::build_merge(wallet, pool, marginal_fee)?;
-        send::broadcast(tor, &built.raw).await?;
+        let (expiry_delta, marginal_fee, _) = network_shape(store, wallet, tip)?;
+        let mut lwd = tor.broadcast_circuit().await?;
+        let network_tip = u32::from(remote::latest_height(&mut lwd).await?);
+        let wallet_tip = wallet.open()?.chain_height()?.map_or(tip, u32::from);
+        let lag = network_tip.saturating_sub(wallet_tip);
+        anyhow::ensure!(
+            lag <= MAX_WALLET_LAG_BLOCKS,
+            "wallet {lag} blocks behind; merging after a sync"
+        );
+        let built = send::build_merge(wallet, pool, marginal_fee, Some(expiry_delta + lag))?;
+        send::broadcast_on(&mut lwd, &built.raw).await?;
         eprintln!(
             "payouts: merged {notes} notes on the {}-hour clock",
             MERGE_INTERVAL_SECS / 3_600
@@ -680,7 +922,29 @@ mod tests {
             size_zat: Some(size),
             value_zat: size,
             payout_address: Some("utest1x".into()),
+            leaf: None,
+            first_seen: 0,
         }
+    }
+
+    #[test]
+    fn window_override_is_testnet_only() {
+        let quick = || (Some("120".to_string()), Some("900".to_string()));
+        assert_eq!(
+            window_from(Net::Mainnet, None, None).expect("default"),
+            Window::default()
+        );
+        let (min, max) = quick();
+        assert!(
+            window_from(Net::Mainnet, min, max).is_err(),
+            "mainnet refuses the override"
+        );
+        let (min, max) = quick();
+        assert_eq!(
+            window_from(Net::Testnet, min, max).expect("testnet"),
+            Window { min: 120, max: 900 }
+        );
+        assert!(window_from(Net::Mainnet, None, Some("900".into())).is_err());
     }
 
     #[test]

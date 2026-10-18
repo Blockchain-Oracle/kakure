@@ -1,9 +1,9 @@
-import { viewTicket } from "@kakure/query";
 import { useEffect } from "react";
 import { useMarkets } from "@/data/markets";
 import { fire } from "@/feedback/fire";
 import { useWallet } from "@/wallet/wallet-store";
 import type { AppTicket } from "./ticket-db";
+import { viewAppTicket } from "./ticket-view";
 import { putTicket, useTickets } from "./use-tickets";
 
 /**
@@ -54,7 +54,7 @@ export function useTicketTracker(): void {
             };
         }
       }
-      const view = viewTicket(next, bundle, now);
+      const view = viewAppTicket(next, bundle, now);
       if (view.market && view.seq !== null && next.last?.status !== view.status) {
         next = {
           ...next,

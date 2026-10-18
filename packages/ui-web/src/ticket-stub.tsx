@@ -3,7 +3,7 @@ import { cx } from "./cx";
 
 /**
  * Kawase's receipt slip (kawase.md §6.1), adapted from 21st.dev ravikatiyar162/ticket-confirmation-card (#6492):
- * a head with the brand and a folio, the result (the figure in the condensed display face, with a stamp), facts as
+ * a head with the brand and a tag (the folio, or what kind of slip it is), the result (the figure in the condensed display face, with a stamp), facts as
  * label/value rows, then a perforation (a dashed rule with notches cut in the colour of the ground) and a stub.
  * Paper is the `card` plate with the `receipt` shadow, radius 20; no border.
  */
@@ -14,7 +14,8 @@ export interface StubFact {
 
 export interface TicketStubProps {
   brand: ReactNode;
-  folio: string;
+  /** Printed top right as given, e.g. "Ticket 3F2A9C" or "Outcome slip". */
+  tag: string;
   eyebrow: string;
   figure: ReactNode;
   caption?: ReactNode;
@@ -35,7 +36,7 @@ const STAMP_TONE = {
 
 export function TicketStub({
   brand,
-  folio,
+  tag,
   eyebrow,
   figure,
   caption,
@@ -50,7 +51,7 @@ export function TicketStub({
       <div className="flex flex-col gap-5 p-5">
         <header className="flex items-center justify-between gap-3">
           {brand}
-          <span className="text-label text-muted-foreground tabular-nums">Ticket {folio}</span>
+          <span className="text-label text-muted-foreground tabular-nums">{tag}</span>
         </header>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

@@ -66,7 +66,7 @@ export function HeroMarket() {
   return (
     <article className="flex flex-col gap-5 rounded-stage bg-card p-6 shadow-receipt" aria-label="A live market">
       <div className="flex items-center gap-3">
-        <Mark src={asset.mark} label={asset.symbol} size="detail" />
+        <Mark mark={asset.mark} label={asset.symbol} size="detail" />
         <div className="min-w-0 flex-1">
           <div className="text-row-title text-foreground">{shortTitle(market, asset.symbol)}</div>
           <div className="text-meta text-muted-foreground">

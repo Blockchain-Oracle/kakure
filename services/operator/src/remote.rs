@@ -3,6 +3,10 @@
 //! Every request group gets its own isolated Tor circuit (`tor::Client::isolated_client`),
 //! so the server cannot link one group (chain metadata, a batch of compact blocks, a chunk
 //! of full transactions, a broadcast) to another by circuit.
+//!
+//! Broadcasts go to a different server from the one the wallet syncs from, where the network has
+//! one (mainnet: zec.rocks and stardust, either way round), so the sync server never sees our
+//! transactions arrive from us (O6, L20). Testnet has a single public server, which does both.
 
 use std::{
     os::unix::fs::PermissionsExt,
@@ -27,6 +31,9 @@ pub type Lwd = CompactTxStreamerClient<Channel>;
 
 /// Fresh isolated circuits tried before a connection is reported as failed.
 const CIRCUIT_ATTEMPTS: u32 = 3;
+/// The two independent public mainnet servers (research §4).
+pub const MAINNET_SERVER: &str = "zec.rocks:443";
+pub const MAINNET_SECOND_SERVER: &str = "us.zec.stardust.rest:443";
 
 /// A lightwalletd-protocol server (gRPC over TLS).
 #[derive(Clone, Debug)]
@@ -48,6 +55,22 @@ impl Server {
                 host: "zec.rocks".into(),
                 port: 443,
             },
+        }
+    }
+
+    /// The server payouts are broadcast to: the other public server on mainnet, the same one on
+    /// testnet (`testnet.zec.rocks` is the only testnet server that answered).
+    pub fn broadcast_for(net: Net, sync: &Server) -> Result<Self> {
+        match net {
+            Net::Testnet => Ok(sync.clone()),
+            Net::Mainnet => {
+                let first = Self::parse(MAINNET_SERVER)?;
+                Self::parse(if sync.host == first.host {
+                    MAINNET_SECOND_SERVER
+                } else {
+                    MAINNET_SERVER
+                })
+            }
         }
     }
 
@@ -86,13 +109,14 @@ struct CircuitStats {
 pub struct Tor {
     client: tor::Client,
     server: Server,
+    broadcast: Server,
     bootstrap: Duration,
     stats: Mutex<CircuitStats>,
 }
 
 impl Tor {
     /// Bootstraps Tor with its state in `dir` (created 0700 if missing).
-    pub async fn bootstrap(dir: &Path, server: Server) -> Result<Self> {
+    pub async fn bootstrap(dir: &Path, server: Server, broadcast: Server) -> Result<Self> {
         std::fs::create_dir_all(dir)?;
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
         let t0 = Instant::now();
@@ -100,10 +124,19 @@ impl Tor {
             .await
             .context("Tor bootstrap failed")?;
         let bootstrap = t0.elapsed();
-        eprintln!("tor: bootstrapped in {:.1}s", bootstrap.as_secs_f64());
+        eprintln!(
+            "tor: bootstrapped in {:.1}s; sync via {server}, broadcast via {broadcast}{}",
+            bootstrap.as_secs_f64(),
+            if broadcast.host == server.host {
+                " (the only server on this network)"
+            } else {
+                ""
+            }
+        );
         Ok(Self {
             client,
             server,
+            broadcast,
             bootstrap,
             stats: Mutex::default(),
         })
@@ -121,6 +154,12 @@ impl Tor {
     /// The configured server.
     pub fn server(&self) -> &Server {
         &self.server
+    }
+
+    /// A fresh isolated circuit to the broadcast server.
+    pub async fn broadcast_circuit(&self) -> Result<Lwd> {
+        let server = self.broadcast.clone();
+        self.circuit_to(&server).await.context("broadcast circuit")
     }
 
     /// As `circuit`, to another server (independent cross-checks).

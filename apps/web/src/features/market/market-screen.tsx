@@ -115,7 +115,7 @@ function Detail({
     <>
       <header className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <Mark src={asset.mark} label={asset.symbol} size="detail" />
+          <Mark mark={asset.mark} label={asset.symbol} size="detail" />
           <div className="min-w-0 flex-1">
             <div className="text-row-title text-foreground">{asset.name}</div>
             <div className="text-meta text-muted-foreground">

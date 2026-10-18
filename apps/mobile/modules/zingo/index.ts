@@ -70,3 +70,4 @@ export const drainOrchard = () => Native.drainOrchard();
 
 /** Marks a file as never backed up (iOS iCloud; Android relies on `allowBackup: false`). */
 export const excludeFromBackup = (path: string) => Native.excludeFromBackup(path);
+export const excludeAppDataFromBackup = () => Native.excludeAppDataFromBackup();

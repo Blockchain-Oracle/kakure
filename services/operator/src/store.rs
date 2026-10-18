@@ -65,6 +65,17 @@ CREATE TABLE IF NOT EXISTS receipts (
 );
 CREATE INDEX IF NOT EXISTS receipts_market ON receipts (market_id, status);
 
+-- Tickets a bundle has made public (PD28): a market's ticketCount, leaves and totals are exactly
+-- these rows. Pending tickets join only in releases of MIN_NEW_TICKETS_PER_RELEASE or more.
+CREATE TABLE IF NOT EXISTS released_tickets (
+    market_id TEXT NOT NULL,
+    leaf TEXT NOT NULL,
+    side TEXT NOT NULL,
+    size_zat INTEGER NOT NULL,
+    seq INTEGER NOT NULL,
+    PRIMARY KEY (market_id, leaf)
+);
+
 CREATE TABLE IF NOT EXISTS addresses (
     idx INTEGER PRIMARY KEY,
     address TEXT NOT NULL UNIQUE,
@@ -181,9 +192,8 @@ pub struct MarketRow {
     pub opening: Option<String>,
     pub cancelled: bool,
     pub cutoff_height: Option<u32>,
+    /// The bundle whose release last changed the published tickets (`released_tickets`).
     pub released_seq: Option<u64>,
-    pub released_count: Option<u32>,
-    pub released_sides: Option<String>,
     pub cutoff_hash: Option<String>,
     pub bet_height_cap: Option<u32>,
     pub final_count: Option<u32>,
@@ -192,12 +202,14 @@ pub struct MarketRow {
     pub outcome_reason: Option<String>,
     pub resolution_file: Option<String>,
     pub resolved_at: Option<i64>,
+    /// The payout window its signed rules state (`None`: created before it was stored, 2–6 h).
+    pub payout_window: Option<(i64, i64)>,
 }
 
 const MARKET_COLUMNS: &str = "id, kind, subject, window, opens_at, cutoff_at, closes_at, rules, rules_hash,
      target_height, opening, cancelled, cutoff_height, released_seq, released_count, released_sides,
      cutoff_hash, bet_height_cap, final_count, final_sides, outcome, outcome_reason, resolution_file,
-     resolved_at";
+     resolved_at, payout_min_secs, payout_max_secs";
 
 fn market_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MarketRow> {
     Ok(MarketRow {
@@ -215,8 +227,7 @@ fn market_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MarketRow> {
         cancelled: r.get(11)?,
         cutoff_height: r.get(12)?,
         released_seq: r.get(13)?,
-        released_count: r.get(14)?,
-        released_sides: r.get(15)?,
+        // 14, 15: released_count and released_sides, kept for older databases only.
         cutoff_hash: r.get(16)?,
         bet_height_cap: r.get(17)?,
         final_count: r.get(18)?,
@@ -225,6 +236,10 @@ fn market_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MarketRow> {
         outcome_reason: r.get(21)?,
         resolution_file: r.get(22)?,
         resolved_at: r.get(23)?,
+        payout_window: match (r.get(24)?, r.get(25)?) {
+            (Some(min), Some(max)) => Some((min, max)),
+            _ => None,
+        },
     })
 }
 
@@ -267,6 +282,8 @@ impl Store {
             ("outcome_reason", "TEXT"),
             ("resolution_file", "TEXT"),
             ("resolved_at", "INTEGER"),
+            ("payout_min_secs", "INTEGER"),
+            ("payout_max_secs", "INTEGER"),
         ] {
             let exists: bool = conn.query_row(
                 "SELECT COUNT(*) > 0 FROM pragma_table_info('markets') WHERE name = ?1",
@@ -277,6 +294,15 @@ impl Store {
                 conn.execute_batch(&format!("ALTER TABLE markets ADD COLUMN {column} {ty}"))?;
             }
         }
+        // Before PD28 every ticket was published in the next bundle, so all known tickets are public.
+        conn.execute_batch(
+            "INSERT OR IGNORE INTO released_tickets (market_id, leaf, side, size_zat, seq)
+                 SELECT r.market_id, r.leaf, r.side, r.size_zat, COALESCE((SELECT MAX(seq) FROM bundles), 0)
+                 FROM receipts r
+                 WHERE r.status = 'ticket'
+                   AND NOT EXISTS (SELECT 1 FROM state WHERE key = 'released_tickets_seeded');
+             INSERT OR IGNORE INTO state (key, value) VALUES ('released_tickets_seeded', '1');",
+        )?;
         Ok(Self { conn })
     }
 
@@ -388,6 +414,15 @@ impl Store {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// Released (public) tickets of a market: (side, size, leaf).
+    pub fn released(&self, market_id: &str) -> Result<Vec<(String, u64, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT side, size_zat, leaf FROM released_tickets WHERE market_id = ?1 ORDER BY leaf",
+        )?;
+        let rows = stmt.query_map([market_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     /// Address indices that have received any output that counts as a bet attempt.
     pub fn used_address_indices(&self) -> Result<Vec<u32>> {
         let mut stmt = self
@@ -430,8 +465,8 @@ pub fn insert_market(
 ) -> Result<bool> {
     let inserted = tx.execute(
         "INSERT OR IGNORE INTO markets (id, kind, subject, window, opens_at, cutoff_at, closes_at, rules,
-             rules_hash, target_height, created_at, bet_height_cap)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             rules_hash, target_height, created_at, bet_height_cap, payout_min_secs, payout_max_secs)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             m.id,
             m.kind.as_str(),
@@ -444,7 +479,9 @@ pub fn insert_market(
             m.rules_hash,
             m.target_height,
             now,
-            m.bet_height_cap
+            m.bet_height_cap,
+            m.payout_window.min,
+            m.payout_window.max
         ],
     )?;
     Ok(inserted == 1)
@@ -518,7 +555,8 @@ impl Store {
         args: P,
     ) -> Result<Vec<ReceiptRow>> {
         let mut stmt = self.conn.prepare(&format!(
-            "SELECT txid, pool, output_index, status, reason, market_id, side, size_zat, value_zat, payout_address
+            "SELECT txid, pool, output_index, status, reason, market_id, side, size_zat, value_zat, payout_address,
+                 leaf, first_seen
              FROM receipts WHERE {filter} ORDER BY height, tx_index, pool, output_index"
         ))?;
         let rows = stmt.query_map(args, |r| {
@@ -533,6 +571,8 @@ impl Store {
                 size_zat: r.get(7)?,
                 value_zat: r.get(8)?,
                 payout_address: r.get(9)?,
+                leaf: r.get(10)?,
+                first_seen: r.get(11)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -552,4 +592,7 @@ pub struct ReceiptRow {
     pub size_zat: Option<u64>,
     pub value_zat: u64,
     pub payout_address: Option<String>,
+    pub leaf: Option<String>,
+    /// The tick that first saw it (refund timing never keys off it directly: O20).
+    pub first_seen: i64,
 }

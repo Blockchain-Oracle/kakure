@@ -1,10 +1,11 @@
 ---
 title: Receipts and backup
-description: Ticket receipts, exporting and importing tickets, and Forget this device.
+description: Ticket receipts, exporting and importing tickets, the passphrase lock, and Forget this device.
 ---
 
-{/* Sources: apps/web/src/features/receipts/*, apps/web/src/features/tickets/{ticket-db,export}.ts,
-   apps/web/src/features/settings/forget.ts, packages/query/src/tickets.ts, plan §3 Receipts, §13.17. */}
+{/* Sources: apps/web/src/features/receipts/*, apps/web/src/features/tickets/{ticket-db,export,passphrase}.ts,
+   apps/web/src/features/settings/{settings-screen,forget}.ts*, apps/web/src/lib/clipboard.ts, packages/query/src/tickets.ts,
+   packages/sounds/src/feedback.ts, plan §3 Receipts, §13.17, context/16-privacy-audit/audit.md (O3, O4, O12, O23). */}
 
 ## Where your tickets live
 
@@ -18,10 +19,11 @@ in your bets).
 Open a ticket in the portfolio to see it as a perforated slip. Receipts are made on your device from your ticket and
 the signed bundle, and they're **redacted by default**: no payout address, no transaction id, no bet time.
 
-- **Outcome slip:** the market, side, size and result. It can't be checked against the signed list, and it can't
-  be traced to your payment.
+- **Outcome slip:** the market, side, size and result. It carries nothing derived from your ticket hash, not even a
+  ticket number, so it can't be matched to the signed list or traced to your payment.
 - **Provable:** adds your ticket's nonce, so anyone with the link can recompute the ticket hash and find it in the
-  signed list. Share it only with someone you want to prove the bet to.
+  signed list; only this mode prints a ticket number (the start of the hash). Share it only with someone you want
+  to prove the bet to. A copied Provable link is wiped from your clipboard after a minute where the browser allows it.
 
 Each receipt can be saved as a PNG, emailed (your mail app opens with a short summary; attach the PNG), or shared
 as a `/verify#…` link.
@@ -33,8 +35,23 @@ this network's tickets, encrypted with AES-GCM-256 under a key derived from your
 310,000 iterations). It includes payout addresses and nonces, so keep it like a wallet backup. **Import** takes the
 same file and passphrase on another device. A file from the other network is refused: switch networks first.
 
+## Lock with a passphrase
+
+The ticket store is encrypted either way, but by default its key sits next to it in this browser: any page script
+on Kakure's origin can use it, though none can read it out. **Settings → Ticket lock** adds a passphrase (at least 8
+characters). Every ticket is then re-encrypted under new keys that are stored only wrapped by your passphrase
+(PBKDF2-SHA-256, 310,000 iterations), so someone with this browser's files sees only ciphertext. Enter the
+passphrase once per tab to see or add tickets; it locks again when the tab closes, or with **Lock now**. You can
+change the passphrase or turn the lock off while unlocked. If you forget it, only an exported file brings the
+tickets back.
+
+## What else is stored
+
+Only preferences (network, theme, sound, motion) and a cache of the public signed files, the same ones every visitor
+downloads, are kept outside the encrypted store. No ticket hash, nonce or result is ever written there.
+
 ## Forget this device
 
-**Settings → Forget this device** erases everything Kakure stored in this browser: the ticket store and its keys,
+**Settings → Forget this device** erases everything Kakure stored in this browser: the ticket store, its keys and its lock,
 settings, the cached public files and the service worker. It asks you to slide to confirm. Export first if you want
 to keep your tickets.

@@ -2,14 +2,16 @@
 //!
 //! 1. Freeze: once the cutoff block `H_c` has 10 confirmations, the wallet is fully scanned
 //!    through `H_c + 9` and no memo enhancement is pending at or below it, the final counts are
-//!    recorded with `H_c`'s block hash. A later tick that finds a different `H_c` or hash (a
-//!    reorg below `H_c + 10`) unfreezes the market, re-selects `H_c` and reconciles again.
+//!    recorded with `H_c`'s block hash. They are the released tickets only (PD28): fewer than
+//!    `MIN_NEW_TICKETS_PER_RELEASE` still pending are refunded in full and never counted. A later
+//!    tick that finds a different `H_c` or hash (a reorg below `H_c + 10`) unfreezes the market,
+//!    re-selects `H_c` and reconciles again.
 //! 2. Resolve: venue votes (close markets) or a chain read (event markets), archived in a signed
 //!    `resolution-<marketId>.json`.
 //! 3. Settle: winners by `payout_zat`, everyone refunded when the pool is thin, the vote is
 //!    split or flat, or the market was cancelled; each amount split into canonical notes.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use anyhow::{Context, Result, anyhow, ensure};
 use rusqlite::params;
@@ -22,7 +24,7 @@ use crate::{
     engine::Engine,
     history,
     ingest::BlockTimes,
-    payouts,
+    payouts::{self, Window},
     publish::sign_file,
     remote::{Server, Tor},
     resolve::{self, EventResult, PoolSide, ResolutionDoc},
@@ -31,7 +33,10 @@ use crate::{
 };
 
 /// The second, independent mainnet server for the NU7 cross-check (plan §13.6).
-const NU7_SECOND_SERVER: &str = "us.zec.stardust.rest:443";
+use crate::remote::MAINNET_SECOND_SERVER as NU7_SECOND_SERVER;
+
+/// Payout reason of a ticket still pending at the final freeze (PD28): refunded in full.
+const UNRELEASED: &str = "unreleased";
 
 /// `H_c`, or for a height event the smaller of `H_c` and the target height.
 fn effective_cutoff(m: &MarketRow, blocks: &BlockTimes) -> Option<u32> {
@@ -53,8 +58,9 @@ fn sides_of(kind: &str) -> &'static [&'static str] {
 }
 
 impl Engine {
-    /// Step 1: freeze qualifying ranges, or unfreeze them after a reorg.
-    pub(crate) fn finalize(&mut self, blocks: &BlockTimes) -> Result<()> {
+    /// Step 1: freeze qualifying ranges, or unfreeze them after a reorg. `seq` is the bundle
+    /// about to be published.
+    pub(crate) fn finalize(&mut self, blocks: &BlockTimes, seq: u64) -> Result<()> {
         let tip = blocks.tip().unwrap_or(0);
         let db = self.wallet.open()?;
         let fully_scanned = db
@@ -105,7 +111,36 @@ impl Engine {
             }
             let mut totals: BTreeMap<&str, (u32, u64)> =
                 sides_of(&m.kind).iter().map(|s| (*s, (0, 0))).collect();
-            let tickets = self.store.tickets(&m.id)?;
+            // Counted: released tickets whose payment is still a ticket below H_c. A released
+            // ticket a reorg dropped (or made late) leaves the published set here, the only
+            // time a count can go down.
+            let live: HashSet<String> = self
+                .store
+                .tickets(&m.id)?
+                .into_iter()
+                .map(|(_, _, leaf)| leaf)
+                .collect();
+            let (counted, gone): (Vec<_>, Vec<_>) = self
+                .store
+                .released(&m.id)?
+                .into_iter()
+                .partition(|(_, _, leaf)| live.contains(leaf));
+            for (_, _, leaf) in &gone {
+                self.store.conn.execute(
+                    "DELETE FROM released_tickets WHERE market_id = ?1 AND leaf = ?2",
+                    params![m.id, leaf],
+                )?;
+                self.store.conn.execute(
+                    "UPDATE markets SET released_seq = ?2 WHERE id = ?1",
+                    params![m.id, seq],
+                )?;
+                eprintln!(
+                    "finality: {} drops a released ticket the chain no longer has",
+                    m.id
+                );
+            }
+            let unreleased = live.len() - counted.len();
+            let tickets = counted;
             for (side, size, _) in &tickets {
                 if let Some(t) = totals.get_mut(side.as_str()) {
                     t.0 += 1;
@@ -129,7 +164,7 @@ impl Engine {
                 params![m.id, h, blocks.hash_at(h), tickets.len(), sides],
             )?;
             eprintln!(
-                "finality: {} frozen at H_c {h} with {} ticket(s)",
+                "finality: {} frozen at H_c {h} with {} ticket(s); {unreleased} unreleased, refunded in full (PD28)",
                 m.id,
                 tickets.len()
             );
@@ -189,14 +224,21 @@ impl Engine {
             } else {
                 (direction.clone(), "chain")
             };
-            let tickets: Vec<_> = self
+            let released: HashSet<String> = self
+                .store
+                .released(&m.id)?
+                .into_iter()
+                .map(|(_, _, leaf)| leaf)
+                .collect();
+            let (tickets, unreleased): (Vec<_>, Vec<_>) = self
                 .store
                 .market_receipts(&m.id)?
                 .into_iter()
                 .filter(|r| r.status == "ticket")
-                .collect();
+                .partition(|r| r.leaf.as_ref().is_some_and(|l| released.contains(l)));
             ensure!(
-                Some(u32::try_from(tickets.len())?) == m.final_count,
+                Some(u32::try_from(tickets.len())?) == m.final_count
+                    && unreleased.len() < crate::domain::MIN_NEW_TICKETS_PER_RELEASE as usize,
                 "{}: ticket set changed after the freeze",
                 m.id
             );
@@ -220,8 +262,12 @@ impl Engine {
             let name = format!("resolution-{}.json", m.id);
             self.publisher.write(&name, &file.bytes, true)?;
 
-            let window = payouts::window()?;
-            let owed = payouts::settle(&outcome, reason, &tickets)?;
+            // The window this market's signed rules state (O2).
+            let window = Window::of_market(&m);
+            let mut owed = payouts::settle(&outcome, reason, &tickets)?;
+            for t in &unreleased {
+                owed.push((t, "refund", UNRELEASED.to_string(), t.value_zat));
+            }
             let tx = self.store.conn.transaction()?;
             tx.execute(
                 "UPDATE markets SET outcome = ?2, outcome_reason = ?3, resolution_file = ?4, resolved_at = ?5
@@ -235,11 +281,19 @@ impl Engine {
             }
             tx.commit()?;
             eprintln!(
-                "resolve: {} → {outcome} ({reason}); {} payment(s) in {notes} note(s), {}–{} s after resolution",
+                "resolve: {} → {outcome} ({reason}); {} payment(s) in {notes} note(s), {}–{} s after resolution{}",
                 m.id,
                 owed.len(),
                 window.min,
-                window.max
+                window.max,
+                if unreleased.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "; {} unreleased ticket(s) refunded in full",
+                        unreleased.len()
+                    )
+                }
             );
             if m.kind == Kind::Close.as_str()
                 && let Err(e) = history::fetch_path(&self.store, &self.http, &m, now).await
@@ -347,6 +401,10 @@ impl Engine {
     /// Refunds owed outside a market's settlement (late, wrong amount, duplicate nonce, wrong
     /// side, not open, unknown market): scheduled once their market has resolved (or never
     /// existed), so they ride in the same random payout windows.
+    ///
+    /// Their window starts on the fixed clock, never at the payment's arrival (O20): at the
+    /// market's resolution, or (no market, or the payment came after it resolved) at the first
+    /// whole hour after the tick that saw the payment, the same hour boundaries markets resolve on.
     pub(crate) fn schedule_refunds(&mut self, now: i64) -> Result<()> {
         let markets: BTreeMap<String, MarketRow> = self
             .store
@@ -354,7 +412,6 @@ impl Engine {
             .into_iter()
             .map(|m| (m.id.clone(), m))
             .collect();
-        let window = payouts::window()?;
         let pending = self.store.unscheduled_refunds()?;
         let tx = self.store.conn.transaction()?;
         let mut notes = 0;
@@ -363,6 +420,15 @@ impl Engine {
             if market.is_some_and(|m| m.outcome.is_none()) {
                 continue;
             }
+            let next_hour = catalog::next_window_start(r.first_seen, catalog::HOUR_SECS);
+            let start = match market.and_then(|m| m.resolved_at) {
+                Some(resolved) if r.first_seen <= resolved => resolved,
+                _ => next_hour,
+            };
+            if start > now {
+                continue;
+            }
+            let window = market.map_or(self.payout_window, Window::of_market);
             let reason = r.reason.as_deref().unwrap_or("refund");
             notes += payouts::schedule(
                 &tx,
@@ -371,7 +437,7 @@ impl Engine {
                 "refund",
                 reason,
                 r.value_zat,
-                now,
+                start,
                 window,
             )?;
         }

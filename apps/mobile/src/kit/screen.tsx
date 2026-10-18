@@ -1,3 +1,4 @@
+import { Lock } from "lucide-react-native";
 import { type ReactNode, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -5,6 +6,7 @@ import { useDockClearance } from "@/shell/dock";
 import { ModeCapsule } from "@/shell/mode-capsule";
 import type { Theme } from "@/theme/theme";
 import { useTheme, useThemed } from "@/theme/theme-provider";
+import { useAway } from "./away";
 import { Txt } from "./text";
 
 /**
@@ -84,10 +86,25 @@ export function Screen({ title, children, trailing, showCapsule = true, onRefres
   );
 }
 
-/** A sheet's body: sheet padding and the sheet title (sheets are native form sheets). */
-export function SheetBody({ title, children, subtitle }: { title: string; subtitle?: string; children: ReactNode }) {
+/**
+ * A sheet's body: sheet padding and the sheet title (sheets are native form sheets). A `secret` sheet (recovery words,
+ * a seed being typed) shows a cover instead of its content while the app isn't active, so the app switcher's
+ * snapshot holds no secret (audit O17). The screen's own state is kept; only what is drawn changes.
+ */
+export function SheetBody({
+  title,
+  children,
+  subtitle,
+  secret = false,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  secret?: boolean;
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const away = useAway(secret);
   return (
     <ScrollView
       style={{ backgroundColor: theme.color.background }}
@@ -108,7 +125,24 @@ export function SheetBody({ title, children, subtitle }: { title: string; subtit
           </Txt>
         ) : null}
       </View>
-      {children}
+      {away ? (
+        <View
+          style={{
+            alignItems: "center",
+            gap: theme.space.md,
+            paddingVertical: theme.space.xxxl,
+            borderRadius: theme.radius.group,
+            backgroundColor: theme.color.card,
+          }}
+        >
+          <Lock color={theme.color.mutedForeground} size={theme.size.icon} />
+          <Txt variant="rowDetail" tone="muted" align="center">
+            Hidden while Kakure isn't on screen
+          </Txt>
+        </View>
+      ) : (
+        children
+      )}
     </ScrollView>
   );
 }

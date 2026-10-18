@@ -1,11 +1,10 @@
 import { buildPaymentUri, encodeBetMemo, fromBase64Url, type Network, newNonce, toBase64Url } from "@kakure/domain";
 import { ticketLeaf } from "@kakure/query";
-import * as Zingo from "@zingo";
 import { fire } from "@/feedback/fire";
 import type { AppTicket } from "@/tickets/ticket-db";
 import { putTicket, ticketsNow } from "@/tickets/use-tickets";
 import { walletStore } from "@/wallet/wallet-store";
-import { BetError, type BetRequest, pickAddress } from "./place-bet";
+import { BetError, type BetRequest, freshPayoutAddress, pickAddress } from "./place-bet";
 
 /**
  * "Pay from another wallet" (C3): the same ticket as the web's QR. The payout goes to a fresh Orchard-only address
@@ -25,7 +24,7 @@ export async function prepareExternalTicket({
   }
   const marketAddress = addresses ? pickAddress(addresses) : undefined;
   if (!marketAddress) throw new BetError("no-addresses", "The signed address list hasn't loaded yet.");
-  const payout = await Zingo.newPayoutAddress();
+  const payoutAddress = await freshPayoutAddress();
   const nonce = newNonce();
   const draft = {
     network,
@@ -33,7 +32,7 @@ export async function prepareExternalTicket({
     side,
     sizeZat: sizeZat.toString(),
     nonce: toBase64Url(nonce),
-    payoutAddress: payout.address,
+    payoutAddress,
     marketAddress,
     createdAt: Date.now(),
     question: market.rules.question,

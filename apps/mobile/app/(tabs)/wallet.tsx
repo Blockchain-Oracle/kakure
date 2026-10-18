@@ -10,7 +10,7 @@ import {
   WalletMinimal,
 } from "lucide-react-native";
 import { Linking, View } from "react-native";
-import { FAUCETS, NETWORK_COIN, NETWORK_LABEL, WALLET_SYNC_EVERY_MS } from "@/constants";
+import { FAUCETS, NETWORK_COIN, NETWORK_LABEL, WALLET_PRIVACY_LINE, WALLET_SYNC_EVERY_MS } from "@/constants";
 import { Button } from "@/kit/button";
 import { Pill } from "@/kit/controls";
 import { Screen } from "@/kit/screen";
@@ -21,7 +21,7 @@ import { useNow } from "@/lib/time";
 import { useNetwork } from "@/network/network-store";
 import { usePrefs } from "@/settings/prefs";
 import { useTheme } from "@/theme/theme-provider";
-import { createWallet, openWallet, syncWallet, useWallet } from "@/wallet/wallet-store";
+import { createWallet, openWallet, syncWallet, useWallet, walletServerFor } from "@/wallet/wallet-store";
 
 /**
  * Wallet (C10, surfaces.md): the Kawase money card with Ironwood as the hero figure and an Orchard legacy line with
@@ -176,8 +176,7 @@ export default function WalletTab() {
       ) : null}
 
       <Txt variant="meta" tone="text3">
-        Sends travel over the Nym mixnet, so the server that relays them doesn't learn your IP. Syncing reads the chain
-        from {NETWORK_LABEL[network]}'s public light-wallet server.
+        {WALLET_PRIVACY_LINE} This wallet syncs from {walletServerFor(network).label}; change it in Settings → Privacy.
       </Txt>
     </Screen>
   );

@@ -1,20 +1,24 @@
 "use client";
 
 import { configurePrices, pauseWhenHidden } from "@kakure/feeds";
-import { SCHEMA_VERSION } from "@kakure/query";
-import { installAudioUnlock } from "@kakure/sounds";
+import { SCHEMA_VERSION, UniformLoad } from "@kakure/query";
+import { clearLegacyCueMemory, installAudioUnlock } from "@kakure/sounds";
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
-import { CACHE_MAX_AGE_MS, PRICE_RELAY, STORAGE_KEYS } from "@/constants";
+import { CACHE_MAX_AGE_MS, DATA_SOURCE, PRICE_RELAY, STORAGE_KEYS } from "@/constants";
 import { getPrefs } from "@/features/settings/prefs-store";
 import { safeStorage } from "@/lib/storage";
 import { registerServiceWorker } from "./service-worker";
 
+/** Resolution evidence is large (raw venue responses) and only read on /proof: kept in memory, never persisted. */
+const NOT_PERSISTED = new Set(["resolutions"]);
+
 /**
- * One query cache for the app. Only public, signed data is ever queried, and each query is persisted on its own
- * under `kakure.cache.v1-<query hash>`; every hash starts with the network, so mainnet and testnet caches stay
- * separate and can be cleared separately (plan §13.16). A revisit paints from the device, then re-checks.
+ * One query cache for the app. Only public, signed data is ever queried (the same files every visitor loads), and
+ * each query is persisted on its own under `kakure.cache.v1-<query hash>`; every hash starts with the network, so
+ * mainnet and testnet caches stay separate and can be cleared separately (plan §13.16). A revisit paints from the
+ * device, then re-checks. Nothing about this device's tickets is ever stored here (O4).
  */
 function makeClient() {
   const persister = experimental_createQueryPersister({
@@ -22,7 +26,10 @@ function makeClient() {
     prefix: STORAGE_KEYS.cache,
     maxAge: CACHE_MAX_AGE_MS,
     buster: String(SCHEMA_VERSION),
+    filters: { predicate: (query) => !NOT_PERSISTED.has(String(query.queryKey[1])) },
   });
+  // Old batches' entries expire; sweep them so the cache doesn't grow with every bundle.
+  if (typeof window !== "undefined") void persister.persisterGc();
   return new QueryClient({
     defaultOptions: {
       queries: {
@@ -47,9 +54,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Preferences apply sound volume and motion; the first tap unlocks audio; the worker caches for offline.
   useEffect(() => {
     getPrefs();
+    clearLegacyCueMemory();
     registerServiceWorker();
     return installAudioUnlock();
   }, []);
 
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <UniformLoad source={DATA_SOURCE} />
+      {children}
+    </QueryClientProvider>
+  );
 }

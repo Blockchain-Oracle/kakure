@@ -7,16 +7,18 @@ description: When a ticket isn't counted, a page won't load, or an address is re
    apps/web/src/features/bet/{payout-address,qr-step}.tsx, packages/domain/src/constants.ts (REFUND_MIN_ZAT),
    context/15-plan/kakure-plan.md §3 (cutoff, settle or refund). */}
 
-## My ticket says "Waiting for the chain"
+## My ticket says "Waiting for its batch"
 
-The site can't see your wallet. Your ticket shows as counted once the payment is mined and the next signed batch
-(every 10 minutes) lists its hash. Check your wallet that the payment went out. **Don't pay twice.**
+It's counted once 3 new tickets arrive, and refunded in full if the market closes first. Tickets are listed in
+groups so that no single bet shows, so a paid ticket can wait a few batches (one goes out every 10 minutes). The site
+can't see your wallet either: check there that the payment went out. **Don't pay twice.**
 
 ## My ticket says "Not counted"
 
-No signed batch listed it by the time betting closed. If you didn't pay, nothing was lost. A late payment (mined
-at or after the cutoff block) is refunded to your payout address. So is a payment of the wrong amount, unless it's
-under 0.001 ZEC, which is kept as dust.
+Its market's cutoff block is final and no signed batch listed it. If you didn't pay, nothing was lost. If you paid,
+it's refunded to your payout address: a late payment (mined at or after the cutoff block), a payment of the wrong
+amount (unless it's under 0.001 ZEC, which is kept as dust), and a last group of fewer than 3 tickets are all
+refunded under the rules.
 
 ## The payout address is refused
 

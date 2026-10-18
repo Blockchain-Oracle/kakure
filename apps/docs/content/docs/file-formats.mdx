@@ -60,12 +60,12 @@ Each market:
 | `opening` | Per-venue opening references (close markets), once recorded |
 | `state` | `scheduled`, `open`, `closing`, `closed`, `resolving`, `resolved`, `refunding` or `paid` |
 | `sealed` | `true` while each side has fewer than 3 tickets |
-| `ticketCount` | Tickets counted so far |
-| `released` | Totals at the last release: `{ seq, sides: { U: { tickets, zat }, D: … } }`, only once unsealed |
+| `ticketCount` | Tickets listed so far; it changes only in groups of at least 3 new tickets |
+| `released` | Totals at the last release: `{ seq, sides: { U: { tickets, zat }, D: … } }`, only once unsealed; also moves only in groups of at least 3 |
 | `cutoffHeight` | The cutoff block H_c, once final |
 | `outcome` | `U`, `D`, `Y`, `N` or `refund`, once resolved |
 | `resolution` | File name of the archived resolution evidence, once resolved |
-| `leaves` | Ticket hashes, sorted and merged across sides |
+| `leaves` | Ticket hashes, sorted and merged across sides, as of the last group (the same release as `ticketCount`) |
 
 ## `addresses-<hash>.json`
 
@@ -77,10 +77,15 @@ bet. The name carries the first 8 hex characters of the file's SHA-256.
 | `v`, `network`, `seq`, `sig` | As above |
 | `addresses` | The list (1,024 addresses per network) |
 
+Each batch, the addresses that were paid are retired together with random unused ones, and the next list replaces
+them, so a list change doesn't show which addresses were paid. Two bets in one batch pick the same address with
+probability at most n(n−1)/2,048 for n bets (under 5% for 10 bets); only the operator can see a shared address.
+
 ## `resolution-<market>.json`
 
 The signed evidence of one resolution, named in the market's `resolution` field. Anyone can re-derive the outcome
-from it.
+from it. Apps download every resolution file a bundle names together, never one market's, so a download doesn't
+show which market someone is checking.
 
 | Field | Meaning |
 | --- | --- |

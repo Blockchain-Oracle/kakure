@@ -7,6 +7,7 @@ import {
   type Latest,
   MARKET_ID_PATTERN,
   NETWORKS,
+  type Resolution,
   TICKET_HASH_BYTES,
 } from "@kakure/domain";
 import { z } from "zod/mini";
@@ -103,9 +104,58 @@ export const addressListSchema = z.object({
   sig: signature,
 });
 
+const venueVote = z.object({
+  venue: text,
+  pair: text,
+  opening: z.optional(z.string()),
+  close: z.optional(z.string()),
+  vote: z.enum(["U", "D", "flat", "none"]),
+});
+
+const sourceResponse = z.object({
+  source: text,
+  url: text,
+  fetchedAt: isoTime,
+  status: z.int(),
+  body: z.string(),
+});
+
+const chainEvidence = z.object({
+  server: text,
+  targetHeight: z.optional(z.int().check(z.positive())),
+  deadline: isoTime,
+  blockHeight: z.int().check(z.positive()),
+  blockHash: hexHash,
+  blockTime: z.int(),
+  medianTimePast: z.int(),
+  tip: z.int().check(z.positive()),
+  confirmations: z.int().check(z.positive()),
+  branchId: z.optional(z.string()),
+});
+
+/** `resolution-<marketId>.json`, the signed evidence of one resolution (shown on /proof). */
+export const resolutionSchema = z.object({
+  v: z.literal(SCHEMA_VERSION),
+  network,
+  market: z.string().check(z.regex(MARKET_ID_PATTERN)),
+  kind: z.enum(["close", "event"]),
+  rulesHash: hexHash,
+  resolvedAt: isoTime,
+  cutoffHeight: z.int().check(z.positive()),
+  totals: z.partialRecord(side, poolSide),
+  direction: z.union([side, z.literal("none"), z.literal("disagree")]),
+  outcome: z.union([side, z.literal("refund")]),
+  reason: z.enum(["majority", "chain", "thin-pool", "no-majority", "cancelled", "servers-disagree"]),
+  votes: z.optional(z.array(venueVote)),
+  chain: z.optional(chainEvidence),
+  responses: z.array(sourceResponse),
+  sig: signature,
+});
+
 // ── The parsed shapes must equal domain's (a compile-time check; it fails `tsc` if they drift).
 type Equal<A, B> = (<T>() => T extends A ? "yes" : "no") extends <T>() => T extends B ? "yes" : "no" ? true : false;
 const sameShape = <T extends true>(proof: T) => proof;
 sameShape<Equal<z.infer<typeof bundleSchema>, Bundle>>(true);
 sameShape<Equal<z.infer<typeof latestSchema>, Latest>>(true);
 sameShape<Equal<z.infer<typeof addressListSchema>, AddressList>>(true);
+sameShape<Equal<z.infer<typeof resolutionSchema>, Resolution>>(true);

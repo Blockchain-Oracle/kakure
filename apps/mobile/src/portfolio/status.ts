@@ -7,7 +7,7 @@ export type ShownStatus = TicketStatus | "sending" | "failed";
 export const STATUS_LABEL: Record<ShownStatus, string> = {
   sending: "Sending privately",
   failed: "Not sent",
-  waiting: "Waiting for a batch",
+  waiting: "Waiting for its batch",
   missed: "Not counted",
   counted: "Counted",
   won: "Won",

@@ -1,8 +1,15 @@
-//! The engine tick: sync → catalog → openings → address pool → ingest → markets → publish.
+//! The engine tick: sync → catalog → openings → ingest → address pool → releases → markets →
+//! publish.
 //!
 //! Runs on a fixed clock (`BATCH_INTERVAL_SECS`, aligned to UTC) and publishes a signed bundle
 //! every tick whether or not anything changed (PD14/PD15). All state is in `engine.sqlite`, so a
 //! restart continues the same sequence.
+//!
+//! A market's public `ticketCount`, `leaves` and totals are its released tickets only (PD28):
+//! tickets stay pending, unpublished, until at least `MIN_NEW_TICKETS_PER_RELEASE` are pending,
+//! and all of them join in one release. This holds for the first (unsealing) release and every
+//! later one; at the final freeze, fewer pending are refunded in full and never counted.
+//! Payouts are never sent from a tick: they go out between ticks at their own random times.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -14,12 +21,13 @@ use zcash_protocol::consensus::{BlockHeight, NetworkUpgrade, Parameters as _};
 use crate::{
     catalog::{self, Kind},
     domain::{
-        ADDRESS_FIRST_INDEX, ADDRESS_LIST_SIZE, CLOSE_SIDES, CLOSING_WARNING_BLOCKS, EVENT_SIDES,
-        MIN_NEW_TICKETS_PER_RELEASE, MIN_TICKETS_PER_SIDE, Network, SCHEMA_VERSION,
+        ADDRESS_FIRST_INDEX, ADDRESS_LIST_SIZE, ADDRESS_RETIRE_MIN, CLOSE_SIDES,
+        CLOSING_WARNING_BLOCKS, EVENT_SIDES, MIN_NEW_TICKETS_PER_RELEASE, MIN_TICKETS_PER_SIDE,
+        Network, SCHEMA_VERSION,
     },
     history,
     ingest::{self, BlockTimes},
-    payouts,
+    payouts::{self, Window},
     publish::{LATEST_FILE, Publisher, sign_file},
     r2::R2,
     remote::Tor,
@@ -42,6 +50,8 @@ const PRE_NU7_SPACING_SECS: i64 = 75;
 const POST_NU7_SPACING_SECS: i64 = 25;
 /// At least this many venues must give an opening reference for a 2-of-3 vote to be possible.
 const MIN_OPENING_VENUES: usize = 2;
+/// The run loop never wakes for sends more often than this (a send that keeps failing).
+pub const MIN_WAKE_GAP_SECS: i64 = 20;
 
 pub struct Engine {
     pub wallet: Wallet,
@@ -49,6 +59,8 @@ pub struct Engine {
     pub(crate) key: Keypair,
     pub(crate) http: reqwest::Client,
     pub(crate) publisher: Publisher,
+    /// The payout window new markets state in their rules and use (O2).
+    pub(crate) payout_window: Window,
     tick_secs: i64,
 }
 
@@ -60,7 +72,6 @@ pub struct TickReport {
     pub receipts: usize,
     pub addresses: String,
     pub uploaded: Option<usize>,
-    pub sent: usize,
 }
 
 pub fn domain_network(net: Net) -> Network {
@@ -72,6 +83,14 @@ pub fn domain_network(net: Net) -> Network {
 
 impl Engine {
     pub fn open(wallet: Wallet, tick_secs: i64) -> Result<Self> {
+        // Refuses the payout-window override on mainnet, before anything is published (O2).
+        let payout_window = payouts::window(wallet.net)?;
+        if payout_window != Window::default() {
+            eprintln!(
+                "payouts: testnet window override {}–{} s, written into new markets' rules",
+                payout_window.min, payout_window.max
+            );
+        }
         wallet.open()?;
         let key = signing::load(&wallet.dir)?;
         let store = Store::open(&wallet.dir.join("engine.sqlite"))?;
@@ -86,6 +105,7 @@ impl Engine {
             key,
             http: venues::client()?,
             publisher,
+            payout_window,
             tick_secs,
         })
     }
@@ -128,15 +148,12 @@ impl Engine {
             tx.commit()?;
         }
         self.rotate_addresses(tip, now)?;
-        self.finalize(&blocks)?;
+        let seq = self.store.last_bundle()?.map_or(0, |(s, _, _)| s + 1);
+        self.release_tickets(seq)?;
+        self.finalize(&blocks, seq)?;
         self.resolve_markets(&blocks, tor, now).await?;
         self.schedule_refunds(now)?;
-        payouts::track(&self.store, &self.wallet, tor, tip, now).await?;
-        if let Some(tor) = tor
-            && let Err(e) = payouts::maybe_merge(&self.store, &self.wallet, tor, tip, now).await
-        {
-            eprintln!("payouts: merge failed, retrying next tick: {e:#}");
-        }
+        payouts::track(&self.store, &self.wallet, tip, now)?;
         self.update_history(now).await?;
         let (seq, markets, tickets) = self.publish_bundle(now, tip)?;
         let uploaded = match self.publisher.r2() {
@@ -148,10 +165,6 @@ impl Engine {
                     Some(0)
                 }
             },
-        };
-        let sent = match tor {
-            Some(tor) => payouts::send_due(&self.store, &self.wallet, tor, tip, now).await?,
-            None => 0,
         };
         Ok(TickReport {
             seq,
@@ -165,18 +178,30 @@ impl Engine {
                 .map(|(_, f)| f)
                 .unwrap_or_default(),
             uploaded,
-            sent,
         })
     }
 
-    /// Between ticks: sync, then send the payouts that have come due.
-    pub async fn payout_wake(&mut self, tor: &Tor, sync: &SyncOpts) -> Result<usize> {
-        let report = scan::sync(&self.wallet, tor, sync).await?;
-        self.store_samples(&report.samples)?;
+    /// When the run loop should next wake to send something.
+    pub fn next_send(&self, now: i64) -> Result<Option<i64>> {
+        payouts::next_due(&self.store, now)
+    }
+
+    /// Between ticks, at a send's own random time: one broadcast (a rebroadcast, a payout or the
+    /// note merge), from the wallet as the last tick synced it. Never a sync here (O6).
+    pub async fn payout_wake(&mut self, tor: &Tor) -> Result<usize> {
         let tip = BlockTimes::load(&self.wallet)?.tip().unwrap_or(0);
         let now = Utc::now().timestamp();
-        payouts::track(&self.store, &self.wallet, Some(tor), tip, now).await?;
-        payouts::send_due(&self.store, &self.wallet, tor, tip, now).await
+        if let Some(sent) = payouts::rebroadcast_due(&self.store, &self.wallet, tor, now).await? {
+            return Ok(sent);
+        }
+        if let Some(sent) = payouts::send_due(&self.store, &self.wallet, tor, tip, now).await? {
+            return Ok(sent);
+        }
+        if let Err(e) = payouts::maybe_merge(&self.store, &self.wallet, tor, tip, now).await {
+            eprintln!("payouts: merge failed, retrying at a random time: {e:#}");
+            payouts::replan_merge(&self.store, now)?;
+        }
+        Ok(0)
     }
 
     fn store_samples(&mut self, samples: &[scan::TxSample]) -> Result<()> {
@@ -199,15 +224,20 @@ impl Engine {
 
     /// Creates the next window's markets (never retroactively: rules are fixed before opening).
     fn create_markets(&mut self, now: i64, tip: u32) -> Result<()> {
-        let mut due = catalog::due_close_markets(now)?;
+        let mut due = catalog::due_close_markets(now, self.payout_window)?;
         let pending_event = self
             .store
             .markets()?
             .iter()
             .any(|m| m.kind == Kind::Event.as_str() && m.closes_at > now);
         if !pending_event
-            && let Some(event) =
-                catalog::due_event_market(self.wallet.net, now, self.tick_secs, tip)?
+            && let Some(event) = catalog::due_event_market(
+                self.wallet.net,
+                now,
+                self.tick_secs,
+                tip,
+                self.payout_window,
+            )?
         {
             // The NU7 market is created once; it never repeats.
             if !self.store.market_exists(&event.id)? {
@@ -320,7 +350,11 @@ impl Engine {
         self.write_address_list(0, &[], &derived, tip, now)
     }
 
-    /// Drops every listed address that received a bet and refills from the next index.
+    /// Every batch: retires each listed address that received a payment plus random unused ones,
+    /// a multiple of `ADDRESS_RETIRE_MIN` in all (never fewer), then refills from the next index.
+    /// Every list therefore differs from the last by the same-sized random-looking set, so neither
+    /// the paid address nor whether anything was paid shows (O9). Retired addresses still receive
+    /// (the account's one IVK covers them), so a bettor holding an older list loses nothing.
     fn rotate_addresses(&mut self, tip: u32, now: i64) -> Result<()> {
         let live: HashSet<u32> = self
             .store
@@ -334,8 +368,8 @@ impl Engine {
             .into_iter()
             .filter(|i| live.contains(i))
             .collect();
-        // Retire used addresses; if the list is larger than ADDRESS_LIST_SIZE (the size was lowered),
-        // also retire the newest surplus. The account's one IVK still covers retired addresses.
+        // If the list is larger than ADDRESS_LIST_SIZE (the size was lowered), also retire the
+        // newest surplus.
         let target = ADDRESS_LIST_SIZE as usize;
         let mut active: Vec<u32> = live.iter().copied().filter(|i| !used.contains(i)).collect();
         active.sort_unstable();
@@ -343,10 +377,10 @@ impl Engine {
         if active.len() > target {
             retire.extend(active.split_off(target));
         }
+        let decoys = decoy_count(used.len()).min(active.len());
+        shuffle(&mut active)?;
+        retire.extend(active.split_off(active.len() - decoys));
         let missing = target - active.len();
-        if missing == 0 && retire.is_empty() {
-            return Ok(());
-        }
         let (seq, _) = self
             .store
             .current_address_list()?
@@ -369,6 +403,50 @@ impl Engine {
             used.len(),
             derived.len()
         );
+        Ok(())
+    }
+
+    /// Releases each open market's pending tickets once at least `MIN_NEW_TICKETS_PER_RELEASE`
+    /// are pending, all at once, into bundle `seq` (PD28). Frozen markets never release again.
+    fn release_tickets(&mut self, seq: u64) -> Result<()> {
+        for m in self.store.markets()? {
+            if m.outcome.is_some() || m.cutoff_hash.is_some() || m.cancelled {
+                continue;
+            }
+            let released: HashSet<String> = self
+                .store
+                .released(&m.id)?
+                .into_iter()
+                .map(|(_, _, leaf)| leaf)
+                .collect();
+            let pending: Vec<(String, u64, String)> = self
+                .store
+                .tickets(&m.id)?
+                .into_iter()
+                .filter(|(_, _, leaf)| !released.contains(leaf))
+                .collect();
+            if pending.len() < MIN_NEW_TICKETS_PER_RELEASE as usize {
+                continue;
+            }
+            let tx = self.store.conn.transaction()?;
+            for (side, size, leaf) in &pending {
+                tx.execute(
+                    "INSERT INTO released_tickets (market_id, leaf, side, size_zat, seq)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    rusqlite::params![m.id, leaf, side, size, seq],
+                )?;
+            }
+            tx.execute(
+                "UPDATE markets SET released_seq = ?2, released_count = ?3 WHERE id = ?1",
+                rusqlite::params![m.id, seq, released.len() + pending.len()],
+            )?;
+            tx.commit()?;
+            eprintln!(
+                "release: {} publishes {} pending ticket(s) in bundle {seq}",
+                m.id,
+                pending.len()
+            );
+        }
         Ok(())
     }
 
@@ -450,20 +528,16 @@ impl Engine {
         let closing_warning = self.closing_warning_secs(tip);
 
         let mut markets_json = vec![];
-        let mut releases = vec![];
         let mut ticket_total = 0;
         let progress = payouts::market_progress(&self.store)?;
         for m in self.store.markets()? {
-            let (market, release) = self.market_json(&m, seq, now, closing_warning, &progress)?;
+            let market = self.market_json(&m, now, closing_warning, &progress)?;
             let state = market["state"].as_str().unwrap_or_default();
             let settled = state == "paid" || (state == "resolved" && !progress.contains_key(&m.id));
             if settled && m.closes_at < now - BUNDLE_RETENTION_SECS {
                 continue;
             }
             ticket_total += market["ticketCount"].as_u64().unwrap_or(0) as usize;
-            if let Some(r) = release {
-                releases.push((m.id.clone(), r));
-            }
             markets_json.push(market);
         }
         let market_count = markets_json.len();
@@ -482,18 +556,10 @@ impl Engine {
         let name = format!("bundle-{seq}.json");
         self.publisher.write(&name, &file.bytes, true)?;
 
-        let tx = self.store.conn.transaction()?;
-        for (id, (count, sides)) in &releases {
-            tx.execute(
-                "UPDATE markets SET released_seq = ?2, released_count = ?3, released_sides = ?4 WHERE id = ?1",
-                rusqlite::params![id, seq, count, sides],
-            )?;
-        }
-        tx.execute(
+        self.store.conn.execute(
             "INSERT INTO bundles (seq, file, hash, published_at) VALUES (?1, ?2, ?3, ?4)",
             rusqlite::params![seq, name, file.hash, now],
         )?;
-        tx.commit()?;
 
         let latest = sign_file(
             &self.key,
@@ -510,21 +576,21 @@ impl Engine {
         Ok((seq, market_count, ticket_total))
     }
 
-    /// One market's bundle entry, plus a new release `(count, sides JSON)` when one is due.
+    /// One market's bundle entry. Count, leaves and totals are the released tickets only (PD28),
+    /// so they change exactly when `release_tickets` adds a batch of at least 3.
     fn market_json(
         &self,
         m: &MarketRow,
-        seq: u64,
         now: i64,
         closing_warning: i64,
         progress: &std::collections::HashMap<String, (u32, u32, i64)>,
-    ) -> Result<(Value, Option<(u32, String)>)> {
+    ) -> Result<Value> {
         let kind = Kind::parse(&m.kind).ok_or_else(|| anyhow!("{}: bad kind", m.id))?;
         let sides: &[&str] = match kind {
             Kind::Close => &CLOSE_SIDES,
             Kind::Event => &EVENT_SIDES,
         };
-        let tickets = self.store.tickets(&m.id)?;
+        let tickets = self.store.released(&m.id)?;
         let mut totals: BTreeMap<&str, (u32, u64)> = sides.iter().map(|s| (*s, (0, 0))).collect();
         for (side, size, _) in &tickets {
             if let Some(t) = totals.get_mut(side.as_str()) {
@@ -536,36 +602,32 @@ impl Engine {
         leaves.sort_unstable();
         let count = u32::try_from(tickets.len())?;
         let frozen = m.cutoff_hash.is_some();
-        // Sealed until each side has the minimum (D3); then totals move only on ≥ 3 new tickets,
-        // except the final release once the cutoff block is final (plan §3).
+        // Sealed until each released side has the minimum (D3).
         let sealed = totals.values().any(|(n, _)| *n < MIN_TICKETS_PER_SIDE);
-        let mut release = None;
-        let mut released = None;
-        if !sealed {
-            let due = match m.released_count {
-                None => true,
-                Some(prev) => {
-                    count >= prev + MIN_NEW_TICKETS_PER_RELEASE || (frozen && count != prev)
-                }
+        let released = if sealed {
+            None
+        } else {
+            let seq = match m.released_seq {
+                Some(s) => s,
+                None => self.store.conn.query_row(
+                    "SELECT COALESCE(MAX(seq), 0) FROM released_tickets WHERE market_id = ?1",
+                    [&m.id],
+                    |r| r.get(0),
+                )?,
             };
-            if due {
-                let sides_json = canonical_json(&Value::Object(
-                    totals
-                        .iter()
-                        .map(|(side, (n, zat))| {
-                            (
-                                (*side).to_string(),
-                                json!({ "tickets": n, "zat": zat.to_string() }),
-                            )
-                        })
-                        .collect(),
-                ))?;
-                released = Some((seq, sides_json.clone()));
-                release = Some((count, sides_json));
-            } else if let (Some(s), Some(sides_json)) = (m.released_seq, &m.released_sides) {
-                released = Some((s, sides_json.clone()));
-            }
-        }
+            let sides_json = Value::Object(
+                totals
+                    .iter()
+                    .map(|(side, (n, zat))| {
+                        (
+                            (*side).to_string(),
+                            json!({ "tickets": n, "zat": zat.to_string() }),
+                        )
+                    })
+                    .collect(),
+            );
+            Some((seq, sides_json))
+        };
 
         let state = if let Some(outcome) = &m.outcome {
             match progress.get(&m.id) {
@@ -607,10 +669,7 @@ impl Engine {
             object.insert("opening".into(), serde_json::from_str(opening)?);
         }
         if let Some((s, sides_json)) = released {
-            object.insert(
-                "released".into(),
-                json!({ "seq": s, "sides": serde_json::from_str::<Value>(&sides_json)? }),
-            );
+            object.insert("released".into(), json!({ "seq": s, "sides": sides_json }));
         }
         if let Some(h) = m.cutoff_height {
             object.insert("cutoffHeight".into(), json!(h));
@@ -623,6 +682,43 @@ impl Engine {
         if let Some(file) = &m.resolution_file {
             object.insert("resolution".into(), json!(file));
         }
-        Ok((market, release))
+        Ok(market)
+    }
+}
+
+/// Unused addresses retired alongside `used` ones: the total is the next multiple of
+/// `ADDRESS_RETIRE_MIN`, and at least one multiple even when nothing was paid.
+fn decoy_count(used: usize) -> usize {
+    let k = ADDRESS_RETIRE_MIN as usize;
+    used.div_ceil(k).max(1) * k - used
+}
+
+/// Fisher–Yates with the system RNG.
+fn shuffle<T>(items: &mut [T]) -> Result<()> {
+    for i in (1..items.len()).rev() {
+        let j = usize::try_from(payouts::random_u64()? % (i as u64 + 1))?;
+        items.swap(i, j);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rotation_retires_a_multiple_of_k() {
+        let k = ADDRESS_RETIRE_MIN as usize;
+        assert_eq!(decoy_count(0), k, "a batch with no payment still retires k");
+        assert_eq!(decoy_count(1), k - 1);
+        assert_eq!(decoy_count(k), 0);
+        assert_eq!(decoy_count(k + 1), k - 1);
+        for used in 0..40 {
+            assert_eq!((used + decoy_count(used)) % k, 0);
+        }
+        let mut items: Vec<u32> = (0..50).collect();
+        shuffle(&mut items).expect("shuffle");
+        items.sort_unstable();
+        assert_eq!(items, (0..50).collect::<Vec<_>>());
     }
 }

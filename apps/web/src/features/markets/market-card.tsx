@@ -29,7 +29,7 @@ export function MarketCard({ market, network, now }: { market: Market; network: 
       className="kk-press group flex flex-col gap-4 rounded-group bg-card p-5 text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-center gap-3">
-        <Mark src={asset.mark} label={asset.symbol} />
+        <Mark mark={asset.mark} label={asset.symbol} />
         <div className="min-w-0 flex-1">
           <div className="text-row-strong text-foreground">{asset.symbol}</div>
           <div className="truncate text-meta text-muted-foreground">

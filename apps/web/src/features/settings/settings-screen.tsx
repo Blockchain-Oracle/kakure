@@ -2,7 +2,7 @@
 
 import { fire, hapticsAvailable } from "@kakure/sounds";
 import { Button, SegmentedControl, Sheet, SlideToConfirm, Switch } from "@kakure/ui-web";
-import { Download, Upload } from "lucide-react";
+import { Download, Lock, Upload } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { NETWORK_LABEL } from "@/constants";
@@ -10,7 +10,15 @@ import { NetworkCapsule } from "@/features/network/network-capsule";
 import { useNetwork } from "@/features/network/network-store";
 import { ABOUT_LINKS } from "@/features/shell/nav-items";
 import { downloadBlob, exportTickets, ImportError, importTickets } from "@/features/tickets/export";
-import { reloadTickets } from "@/features/tickets/use-tickets";
+import { TicketsLockedError } from "@/features/tickets/ticket-db";
+import { UnlockForm } from "@/features/tickets/unlock-form";
+import {
+  lockTickets,
+  lockTicketsNow,
+  reloadTickets,
+  removeTicketLock,
+  useLockState,
+} from "@/features/tickets/use-tickets";
 import { forgetThisDevice } from "./forget";
 import { setPrefs, usePrefs } from "./prefs-store";
 
@@ -110,11 +118,15 @@ export function SettingsScreen() {
             This site never sees your bets, but its host sees your IP address. To hide it, open Kakure in Tor Browser.
             An onion address isn't live yet; it will be listed here when it is.
           </p>
-          <p>Your wallet's server sees your IP when you pay. Zodl can send over Tor: turn it on in Zodl's settings.</p>
+          <p>
+            Your wallet's server sees your IP when your wallet syncs and when you pay, and which transactions it
+            fetches. Zodl can send over Tor: turn it on in Zodl's settings.
+          </p>
         </div>
       </Group>
 
       <Backup network={network} />
+      <TicketLock />
       <Forget />
 
       <Group title="About">
@@ -161,12 +173,22 @@ function Backup({ network }: { network: "mainnet" | "testnet" }) {
   const ready = passphrase.length >= MIN_PASSPHRASE;
 
   const doExport = async () => {
-    const { file: blob, name, count } = await exportTickets(network, passphrase);
-    downloadBlob(blob, name);
-    setMessage({
-      text: `Exported ${count} ${NETWORK_LABEL[network]} ticket${count === 1 ? "" : "s"}. Keep the passphrase: without it the file can't be opened.`,
-      bad: false,
-    });
+    try {
+      const { file: blob, name, count } = await exportTickets(network, passphrase);
+      downloadBlob(blob, name);
+      setMessage({
+        text: `Exported ${count} ${NETWORK_LABEL[network]} ticket${count === 1 ? "" : "s"}. Keep the passphrase: without it the file can't be opened.`,
+        bad: false,
+      });
+    } catch (error) {
+      setMessage({
+        text:
+          error instanceof TicketsLockedError
+            ? "Your tickets are locked. Unlock them below first."
+            : "This browser can't open the ticket store.",
+        bad: true,
+      });
+    }
   };
   const doImport = async (chosen: File) => {
     try {
@@ -174,7 +196,15 @@ function Backup({ network }: { network: "mainnet" | "testnet" }) {
       reloadTickets();
       setMessage({ text: `Imported ${count} ticket${count === 1 ? "" : "s"}.`, bad: false });
     } catch (error) {
-      setMessage({ text: error instanceof ImportError ? error.message : "That file couldn't be imported.", bad: true });
+      setMessage({
+        text:
+          error instanceof ImportError
+            ? error.message
+            : error instanceof TicketsLockedError
+              ? "Your tickets are locked. Unlock them below first."
+              : "That file couldn't be imported.",
+        bad: true,
+      });
     }
   };
 
@@ -224,6 +254,113 @@ function Backup({ network }: { network: "mainnet" | "testnet" }) {
             event.target.value = "";
           }}
         />
+        {message ? (
+          <p
+            role="status"
+            className={message.bad ? "text-row-detail text-destructive" : "text-row-detail text-foreground"}
+          >
+            {message.text}
+          </p>
+        ) : null}
+      </div>
+    </Group>
+  );
+}
+
+const INPUT =
+  "h-11 rounded-row bg-input px-4 text-row text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/**
+ * The optional passphrase lock for this device's ticket store (O23, plan §13.17). Off by default: the store is
+ * encrypted either way, but without the lock its key sits beside the data in this browser.
+ */
+function TicketLock() {
+  const state = useLockState();
+  const [passphrase, setPassphrase] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ text: string; bad: boolean } | null>(null);
+  const ready = passphrase.length >= MIN_PASSPHRASE;
+
+  const run = async (action: () => Promise<void>, done: string) => {
+    setBusy(true);
+    try {
+      await action();
+      setPassphrase("");
+      setMessage({ text: done, bad: false });
+    } catch {
+      setMessage({ text: "That didn't work, so nothing changed. Try again.", bad: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Group title="Ticket lock" id="lock">
+      <div className="flex flex-col gap-3 p-4">
+        <p className="text-row-detail text-muted-foreground">
+          {state === "off"
+            ? "Your tickets are encrypted in this browser, but the key sits next to them. Add a passphrase and the key is kept only wrapped by it: you'll enter it once per tab to see or add tickets. Forget it and only an exported file brings the tickets back."
+            : state === "locked"
+              ? "Your tickets are locked. Enter the passphrase to open them in this tab."
+              : "Your tickets are open in this tab and lock again when it closes."}
+        </p>
+        {state === "locked" ? (
+          <UnlockForm onUnlocked={() => setMessage({ text: "Unlocked for this tab.", bad: false })} />
+        ) : state === null ? null : (
+          <>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-label text-muted-foreground">
+                {state === "off" ? "New passphrase" : "New passphrase (to change it)"} (at least {MIN_PASSPHRASE}{" "}
+                characters)
+              </span>
+              <input
+                type="password"
+                value={passphrase}
+                onChange={(event) => setPassphrase(event.target.value)}
+                autoComplete="new-password"
+                className={INPUT}
+              />
+            </label>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy || !ready}
+                onClick={() =>
+                  void run(
+                    () => lockTickets(passphrase),
+                    state === "off" ? "Locked. Keep the passphrase somewhere safe." : "Passphrase changed.",
+                  )
+                }
+              >
+                <Lock aria-hidden className="size-4" />{" "}
+                {state === "off" ? "Lock with a passphrase" : "Change passphrase"}
+              </Button>
+              {state === "unlocked" ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      lockTicketsNow();
+                      setMessage({ text: "Locked.", bad: false });
+                    }}
+                  >
+                    Lock now
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void run(removeTicketLock, "The lock is off.")}
+                  >
+                    Turn the lock off
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </>
+        )}
         {message ? (
           <p
             role="status"

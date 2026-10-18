@@ -25,7 +25,7 @@ use zcash_client_backend::{
     },
     proto::{
         compact_formats::CompactBlock,
-        service::{self, BlockId, BlockRange, GetSubtreeRootsArg, ShieldedProtocol, TxFilter},
+        service::{BlockId, BlockRange, GetSubtreeRootsArg, ShieldedProtocol, TxFilter},
     },
 };
 use zcash_primitives::{merkle_tree::HashSer, transaction::Transaction};
@@ -44,6 +44,9 @@ use crate::{
 const BATCH_BLOCKS: u32 = 1_000;
 /// How far below a continuity error to rewind before re-scanning.
 const REORG_REWIND: u32 = 10;
+/// The leftover path re-fetches whole aligned ranges of this many blocks, never single blocks of
+/// interest (O19): compact blocks by range, then every shielded transaction in each, as a sync does.
+const LEFTOVER_RANGE_BLOCKS: u32 = 100;
 
 pub struct SyncOpts {
     /// Concurrent full-transaction circuits.
@@ -378,8 +381,10 @@ async fn fetch_chunk(
 }
 
 /// Handles requests the wallet still has after scanning, without ever asking the server
-/// for one transaction on its own:
-/// - `Enhancement` of a mined tx: re-fetch its whole block (every shielded tx in it).
+/// for one transaction, or one block, on its own:
+/// - `Enhancement` of a mined tx: re-fetch the aligned `LEFTOVER_RANGE_BLOCKS` range around its
+///   block like a sync batch (`GetBlockRange`, then every shielded tx of every block in it, on
+///   the same circuits a sync uses), so the server can't tell which block was of interest.
 /// - `GetStatus` and unmined `Enhancement`: left for the scan that mines the tx, which
 ///   enhances it as part of its block.
 async fn resolve_leftover_requests(
@@ -409,28 +414,38 @@ async fn resolve_leftover_requests(
         return Ok(());
     }
 
+    let tip = db.chain_height()?.context("no chain tip after a sync")?;
+    let ranges: BTreeSet<u32> = heights
+        .iter()
+        .map(|h| u32::from(*h) / LEFTOVER_RANGE_BLOCKS * LEFTOVER_RANGE_BLOCKS)
+        .collect();
     let mut wanted = vec![];
-    let mut lwd = tor.circuit().await.context("block re-fetch circuit")?;
-    for h in heights {
-        let block = lwd
-            .get_block(service::BlockId {
-                height: u64::from(h),
-                hash: vec![],
-            })
-            .await?
-            .into_inner();
+    let mut blocks_fetched = 0;
+    for first in ranges {
+        let start = BlockHeight::from_u32(first);
+        let end = BlockHeight::from_u32((first + LEFTOVER_RANGE_BLOCKS).min(u32::from(tip) + 1));
+        let mut lwd = tor.circuit().await.context("blocks circuit")?;
+        let blocks = fetch_blocks(&mut lwd, start, end).await?;
+        drop(lwd);
         ensure!(
-            block.height() == h,
-            "server returned block {} for {h}",
-            block.height()
+            blocks.len() == usize::try_from(u32::from(end) - u32::from(start))?,
+            "server returned an incomplete block range {start}..{end}"
         );
-        wanted.push((h, shielded_txids(&block)));
+        blocks_fetched += blocks.len();
+        wanted.extend(
+            blocks
+                .iter()
+                .map(|b| (b.height(), shielded_txids(b)))
+                .filter(|(_, txids)| !txids.is_empty()),
+        );
     }
-    drop(lwd);
     let txs = fetch_full_txs(tor, params, wanted, opts).await?;
     for (tx, height) in &txs {
         decrypt_and_store_transaction(params, db, tx, Some(*height))?;
     }
-    eprintln!("sync: re-enhanced {} txs from whole blocks", txs.len());
+    eprintln!(
+        "sync: re-enhanced from {blocks_fetched} whole blocks ({} shielded txs)",
+        txs.len()
+    );
     Ok(())
 }

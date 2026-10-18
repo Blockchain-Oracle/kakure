@@ -1,6 +1,6 @@
 ---
 title: Verify it yourself
-description: Find your ticket, check signatures and rules hashes, and what re-verify will add.
+description: Find your ticket, check signatures and rules hashes, and read the resolution evidence.
 ---
 
 {/* Sources: apps/web/src/features/verify/*, apps/web/src/features/proof/*, packages/query/src/fetch.ts,
@@ -11,6 +11,10 @@ description: Find your ticket, check signatures and rules hashes, and what re-ve
 Open your ticket in the portfolio and tap **Find my ticket**. Nothing is sent anywhere: the app searches the signed
 list it already downloaded for your ticket's hash. You can also paste a ticket hash (64 hex characters) on
 the app's **Verify** page.
+
+Tickets are listed in groups of at least 3 new ones, so a paid ticket can wait a few batches: until it's listed it
+shows **Waiting for its batch**. If the market's cutoff block is final and it still isn't listed, it was refunded in
+full (or never paid).
 
 ## What the app checks on every load
 
@@ -53,8 +57,10 @@ integers only (amounts are decimal strings of zatoshi). The signature `sig` is E
 the `sig` field removed, encoded as unpadded base64url. The repository's `packages/domain/scripts/validate.ts` checks
 a whole folder of published files: signatures, hashes, the chain of `previous` hashes, rules hashes and ticket lists.
 
-## Re-verify a resolution
+## Read the resolution evidence
 
-Re-verifying a result from the venues' own candles (or the chain, for events) arrives with the operator's
-resolution records. Until a market has resolved and its evidence is published, the app says so instead of
-pretending to check.
+When a market resolves, the operator publishes a signed `resolution-<market>.json` with each venue's vote and its raw
+response (or the chain read, for events); see [Published file formats](/file-formats). The **Proof** page downloads
+every resolution file the current batch names at once, never just the one you want, so the host can't tell which
+market you're checking. It checks each signature, then shows each market's votes, final counts and raw responses in
+the page. Venue URLs are shown as text, so reading them makes no request.

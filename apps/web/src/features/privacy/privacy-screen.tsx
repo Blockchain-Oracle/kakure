@@ -3,6 +3,7 @@
  * Sources: context/11-chosen-direction/privacy-design.md (the promise, "Who learns what", residual risks) and
  * plan §6 (disclosed residuals). A server component: it ships no JavaScript of its own.
  */
+import { MIN_NEW_TICKETS_PER_RELEASE } from "@kakure/domain";
 import { PARTIES, RESIDUALS } from "./words";
 
 export function PrivacyScreen() {
@@ -77,8 +78,8 @@ export function PrivacyScreen() {
           </p>
           <p className="mt-3 text-muted-foreground">
             On the web, the site can't see your wallet. A ticket shows as counted only when its hash appears in a signed
-            batch, and as paid only when the operator marks its market's payouts sent; your wallet is the only proof a
-            payout arrived.
+            batch, which happens in groups of at least {MIN_NEW_TICKETS_PER_RELEASE} new tickets, and as paid only when
+            the operator marks its market's payouts sent; your wallet is the only proof a payout arrived.
           </p>
         </div>
       </section>

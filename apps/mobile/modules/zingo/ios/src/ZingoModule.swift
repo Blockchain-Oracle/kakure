@@ -97,6 +97,10 @@ public class ZingoModule: Module {
         return ["path": path]
       }
     }.runOnQueue(queue)
+
+    AsyncFunction("excludeAppDataFromBackup") {
+      WalletVault.excludeAppDataFromBackup()
+    }.runOnQueue(queue)
   }
 
   private func run(_ body: () throws -> [String: Any]) throws -> [String: Any] {

@@ -1,6 +1,6 @@
 import type { Network } from "@kakure/domain";
 import { router } from "expo-router";
-import { EyeOff, Landmark, Smartphone } from "lucide-react-native";
+import { EyeOff, Landmark, Route, Smartphone } from "lucide-react-native";
 import { useState } from "react";
 import {
   type NativeScrollEvent,
@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { NETWORK_LABEL } from "@/constants";
+import { NETWORK_LABEL, WALLET_PRIVACY_LINE } from "@/constants";
 import { Button } from "@/kit/button";
 import { Segmented } from "@/kit/controls";
 import { Txt } from "@/kit/text";
@@ -22,8 +22,9 @@ import { useTheme, useThemed } from "@/theme/theme-provider";
 import { createWallet, openWallet } from "@/wallet/wallet-store";
 
 /**
- * First run (surfaces.md Mobile → First run): three short slides on the promise, then the network (testnet
- * suggested for trying it) and Create wallet or Restore. A wallet already on this phone is opened, never replaced.
+ * First run (surfaces.md Mobile → First run): four short slides on the promise and on what a server can see (audit
+ * O5), then the network (testnet suggested for trying it) and Create wallet or Restore. A wallet already on this
+ * phone is opened, never replaced.
  */
 const SLIDES = [
   {
@@ -40,6 +41,11 @@ const SLIDES = [
     icon: Smartphone,
     title: "Your wallet, on this phone.",
     body: "No account, no email. Keys and tickets stay on this device, encrypted.",
+  },
+  {
+    icon: Route,
+    title: "What a server can see.",
+    body: WALLET_PRIVACY_LINE,
   },
 ] as const;
 

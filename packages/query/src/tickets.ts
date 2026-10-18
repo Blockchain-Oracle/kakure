@@ -41,9 +41,13 @@ export interface Ticket {
 
 /**
  * Ticket states on the web (plan §13.2, adapted: the site can't see the bettor's wallet).
- * built → waiting (QR shown, before the cutoff) → counted (its leaf is in a signed bundle) → won / lost / refunded,
- * then paid once the market's payout run is marked sent. `missed` = never seen in a bundle by the cutoff
- * (unpaid, late, or not seen); `unknown` = the market isn't in the current bundle and nothing was seen before.
+ * built → waiting → counted → won / lost / refunded, then paid once the market's payout run is marked sent.
+ * - `waiting`: not in the signed list yet. Counts and ticket hashes are published only in groups of at least
+ *   MIN_NEW_TICKETS_PER_RELEASE new tickets, so a paid ticket waits for its group; if fewer than that are pending
+ *   when the cutoff block is final, they are refunded in full and never published (PD28).
+ * - `missed`: the cutoff block is final and the ticket was never listed (unpaid, late, a wrong amount, or refunded
+ *   under PD28).
+ * - `unknown`: the market isn't in the current bundle and nothing was seen before.
  */
 export type TicketStatus = "waiting" | "missed" | "counted" | "won" | "lost" | "refunded" | "paid" | "unknown";
 
@@ -77,6 +81,13 @@ export interface TicketView {
   payoutZat: bigint | null;
 }
 
+const FINAL_STATES: ReadonlySet<Market["state"]> = new Set(["resolving", "resolved", "refunding", "paid"]);
+
+/** The cutoff block is final (H_c published): the ticket list won't grow any more. */
+export function isFinal(market: Market): boolean {
+  return market.cutoffHeight !== undefined || FINAL_STATES.has(market.state);
+}
+
 /** Derives a ticket's status from the current signed bundle (and what was seen before). */
 export function viewTicket(ticket: Ticket, bundle: Bundle | null, now: number): TicketView {
   const market = bundle?.markets.find((candidate) => candidate.id === ticket.marketId) ?? null;
@@ -91,7 +102,7 @@ export function viewTicket(ticket: Ticket, bundle: Bundle | null, now: number): 
       };
     }
     return {
-      status: now < Date.parse(ticket.cutoffAt) ? "waiting" : "unknown",
+      status: now < Date.parse(ticket.closesAt) ? "waiting" : "unknown",
       seq: null,
       market: null,
       payoutZat: null,
@@ -100,8 +111,8 @@ export function viewTicket(ticket: Ticket, bundle: Bundle | null, now: number): 
   const counted = market.leaves.includes(ticket.hash);
   const seq = bundle.seq;
   if (!counted) {
-    // Not in the signed list: either not paid yet, or paid late or wrongly (refunded by rule, plan §13.3).
-    return { status: now < Date.parse(ticket.cutoffAt) ? "waiting" : "missed", seq, market, payoutZat: null };
+    // Not listed: unpaid, or paid and waiting for its group, until the cutoff block is final (PD28).
+    return { status: isFinal(market) ? "missed" : "waiting", seq, market, payoutZat: null };
   }
   if (market.outcome === "refund" || market.state === "refunding") {
     return { status: "refunded", seq, market, payoutZat: BigInt(ticket.sizeZat) };

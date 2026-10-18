@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Roboto_Condensed } from "next/font/google";
 import type { ReactNode } from "react";
 import { DataProvider } from "@/features/data/data-provider";
+import { MarkSprite } from "@/features/markets/mark-sprite";
 import { INIT_SCRIPT } from "@/features/shell/init-script";
 import "./globals.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: INIT_SCRIPT }} />
       </head>
       <body>
+        <MarkSprite />
         <DataProvider>{children}</DataProvider>
       </body>
     </html>

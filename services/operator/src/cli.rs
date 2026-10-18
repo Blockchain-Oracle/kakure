@@ -51,6 +51,11 @@ struct Common {
     /// Light-wallet server host:port (default: testnet.zec.rocks:443 / zec.rocks:443).
     #[arg(long)]
     server: Option<String>,
+
+    /// Server transactions are broadcast to (default: the other mainnet server, us.zec.stardust.rest:443
+    /// or zec.rocks:443; on testnet the sync server, the only one).
+    #[arg(long)]
+    broadcast_server: Option<String>,
 }
 
 impl Common {
@@ -63,7 +68,11 @@ impl Common {
             Some(s) => Server::parse(s)?,
             None => Server::default_for(self.network),
         };
-        Tor::bootstrap(&wallet.tor_dir(), server).await
+        let broadcast = match &self.broadcast_server {
+            Some(s) => Server::parse(s)?,
+            None => Server::broadcast_for(self.network, &server)?,
+        };
+        Tor::bootstrap(&wallet.tor_dir(), server, broadcast).await
     }
 }
 
@@ -374,11 +383,48 @@ impl Cli {
                     blocks_per_circuit,
                 };
                 eprintln!("run: publishing to {}", engine.public_dir().display());
+                let offset = TICK_OFFSET_SECS.min(interval / 4);
+                let mut synced = false;
                 let mut last_wake = 0;
                 loop {
+                    if !once {
+                        // Bundles only ever go out on the aligned clock, after a restart too (O10).
+                        let now = chrono::Utc::now().timestamp();
+                        let mut next = catalog::next_window_start(now, interval) + offset;
+                        if next - interval > now {
+                            next -= interval;
+                        }
+                        // Payouts go out at their own random times, never right after a sync (O6),
+                        // and only once a tick of this run has synced the wallet.
+                        loop {
+                            let now = chrono::Utc::now().timestamp();
+                            let due = match &tor {
+                                Some(_) if synced => engine.next_send(now)?.filter(|d| *d < next),
+                                _ => None,
+                            };
+                            let wake = due.map_or(next, |d| {
+                                d.max(now).max(last_wake + engine::MIN_WAKE_GAP_SECS)
+                            });
+                            tokio::time::sleep(Duration::from_secs(u64::try_from(
+                                (wake - now).max(0),
+                            )?))
+                            .await;
+                            if wake >= next {
+                                break;
+                            }
+                            last_wake = chrono::Utc::now().timestamp();
+                            if let Some(tor) = &tor {
+                                match engine.payout_wake(tor).await {
+                                    Ok(n) if n > 0 => eprintln!("payouts: sent {n} transaction(s)"),
+                                    Ok(_) => {}
+                                    Err(e) => eprintln!("payouts: wake failed: {e:#}"),
+                                }
+                            }
+                        }
+                    }
                     match engine.tick(tor.as_ref(), &opts).await {
                         Ok(r) => println!(
-                            "{} tick: bundle-{}.json, tip {}, {} markets, {} tickets, {} receipts, {}{}{}",
+                            "{} tick: bundle-{}.json, tip {}, {} markets, {} tickets, {} receipts, {}{}",
                             catalog::iso(chrono::Utc::now().timestamp()),
                             r.seq,
                             r.tip,
@@ -388,46 +434,22 @@ impl Cli {
                             r.addresses,
                             r.uploaded
                                 .map_or(String::new(), |n| format!(", {n} file(s) to R2")),
-                            if r.sent > 0 {
-                                format!(", {} payout tx(s) sent", r.sent)
-                            } else {
-                                String::new()
-                            }
                         ),
                         Err(e) => eprintln!("tick failed: {e:#}"),
                     }
+                    synced = true;
+                    // Whatever came due while the tick ran gets its own random time (O6).
+                    match payouts::spread_overdue(&engine.store, chrono::Utc::now().timestamp()) {
+                        Ok(n) if n > 0 => {
+                            eprintln!(
+                                "payouts: {n} late send(s) given random times in this interval"
+                            )
+                        }
+                        Ok(_) => {}
+                        Err(e) => eprintln!("payouts: spreading late sends failed: {e:#}"),
+                    }
                     if once {
                         break;
-                    }
-                    let now = chrono::Utc::now().timestamp();
-                    let offset = TICK_OFFSET_SECS.min(interval / 4);
-                    let mut next = catalog::next_window_start(now, interval) + offset;
-                    if next - interval > now {
-                        next -= interval;
-                    }
-                    // Payouts go out at their own random times, not on the publication clock.
-                    loop {
-                        let now = chrono::Utc::now().timestamp();
-                        let due = payouts::next_due(&engine.store)?.filter(|d| *d < next);
-                        let wake =
-                            due.map_or(next, |d| d.max(now).max(last_wake + payouts::RETRY_SECS));
-                        tokio::time::sleep(Duration::from_secs(u64::try_from(
-                            (wake - now).max(0),
-                        )?))
-                        .await;
-                        if wake >= next {
-                            break;
-                        }
-                        last_wake = chrono::Utc::now().timestamp();
-                        if let Some(tor) = &tor {
-                            match engine.payout_wake(tor, &opts).await {
-                                Ok(n) if n > 0 => eprintln!("payouts: sent {n} transaction(s)"),
-                                Ok(_) => {}
-                                Err(e) => eprintln!("payouts: wake failed: {e:#}"),
-                            }
-                        } else {
-                            break;
-                        }
                     }
                 }
             }
@@ -452,6 +474,7 @@ impl Cli {
                     opens_at,
                     catalog::next_window_start(now + duration_secs, tick),
                     tip + blocks_ahead,
+                    payouts::window(common.network)?,
                 )?;
                 let mut store = Store::open(&wallet.dir.join("engine.sqlite"))?;
                 let tx = store.conn.transaction()?;
@@ -632,6 +655,7 @@ fn status(wallet: &Wallet) -> Result<()> {
             continue;
         }
         let tickets = store.tickets(&m.id)?;
+        let released = store.released(&m.id)?.len();
         let phase = if let Some(outcome) = &m.outcome {
             if outcome == "refund" {
                 "resolved: refund"
@@ -654,10 +678,11 @@ fn status(wallet: &Wallet) -> Result<()> {
             "closed"
         };
         println!(
-            "{:<26} {:<16} tickets {:>3}  opens {}  cutoff {}{}{}",
+            "{:<26} {:<16} tickets {:>3} ({:>3} released)  opens {}  cutoff {}{}{}",
             m.id,
             phase,
             tickets.len(),
+            released,
             catalog::iso(m.opens_at),
             catalog::iso(m.cutoff_at),
             m.cutoff_height

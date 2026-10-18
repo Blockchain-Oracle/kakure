@@ -1,6 +1,6 @@
 "use client";
 
-import { cx } from "@kakure/ui-web";
+import { cx, Mark } from "@kakure/ui-web";
 import { type MouseEvent, useCallback, useRef, useState } from "react";
 import { NETWORK_LABEL } from "@/constants";
 import { MainnetSheet } from "./mainnet-sheet";
@@ -60,7 +60,7 @@ export function NetworkCapsule({ compact = false }: { compact?: boolean }) {
           compact ? "px-2" : "pr-2 pl-1.5",
         )}
       >
-        {compact ? null : <img src="/marks/zec.svg" alt="" aria-hidden className="size-5 rounded-full" />}
+        {compact ? null : <Mark mark="mark-zec" label="ZEC" size="inline" />}
         {compact ? null : (
           <span aria-hidden className="text-mode-label text-network-label">
             <span className="kk-when-mainnet">{NETWORK_LABEL.mainnet}</span>

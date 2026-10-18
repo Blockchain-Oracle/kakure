@@ -11,7 +11,7 @@ import * as mini from "../src/schemas";
 const DEFAULT_DIR = new URL("../../../services/operator/operator-data/testnet/public", import.meta.url).pathname;
 const dirs = process.argv.slice(2).length > 0 ? process.argv.slice(2) : [DEFAULT_DIR];
 
-type Kind = "latest" | "bundle" | "addresses";
+type Kind = "latest" | "bundle" | "addresses" | "resolution";
 const pick = (file: string): Kind | null =>
   file === "latest.json"
     ? "latest"
@@ -19,11 +19,14 @@ const pick = (file: string): Kind | null =>
       ? "bundle"
       : file.startsWith("addresses")
         ? "addresses"
-        : null;
+        : file.startsWith("resolution-")
+          ? "resolution"
+          : null;
 const schemas = {
   latest: [full.latestSchema, mini.latestSchema],
   bundle: [full.bundleSchema, mini.bundleSchema],
   addresses: [full.addressListSchema, mini.addressListSchema],
+  resolution: [full.resolutionSchema, mini.resolutionSchema],
 } as const;
 
 /** Mutations that must be rejected (or accepted) identically by both. */

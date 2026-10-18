@@ -1,4 +1,4 @@
-import { encodeReceipt, nextBatchAt, viewTicket } from "@kakure/query";
+import { encodeReceipt } from "@kakure/query";
 import { router, useLocalSearchParams } from "expo-router";
 import { Mail, SearchX, Share2 } from "lucide-react-native";
 import { type ComponentRef, useRef, useState } from "react";
@@ -17,11 +17,12 @@ import { useNow } from "@/lib/time";
 import { ReceiptSlip, type SlipModel } from "@/receipts/receipt-slip";
 import { captureSlip, emailSlip, shareSlip } from "@/receipts/share-receipt";
 import { useTheme } from "@/theme/theme-provider";
+import { NEVER_PUBLISHED_COPY, viewAppTicket, WAITING_COPY } from "@/tickets/ticket-view";
 import { useTickets } from "@/tickets/use-tickets";
 
 /**
  * A ticket (C4, C8; surfaces.md Ticket detail): the stub, its state from the signed bundle, and its receipt.
- * "Outcome slip" (default) shows no nonce; "Provable" adds it so anyone can recompute the leaf. The verify link
+ * "Outcome slip" (default) shows no nonce and no hash; "Provable" adds both so anyone can recompute the leaf. The verify link
  * keeps the receipt in the #fragment, which is never sent to a server.
  */
 const HEADLINES: Record<string, string> = {
@@ -30,7 +31,7 @@ const HEADLINES: Record<string, string> = {
   lost: "Not this time",
   refunded: "Refunded",
   counted: "Ticket counted",
-  waiting: "Ticket built",
+  waiting: "Waiting for its batch",
   missed: "Not counted",
   unknown: "Ticket",
 };
@@ -58,12 +59,11 @@ export default function TicketScreen() {
     ) : null;
   }
   const bundle = data.status === "ready" ? data.bundle : null;
-  const view = viewTicket(ticket, bundle, now);
+  const view = viewAppTicket(ticket, bundle, now);
   const verifyUrl = `${SITE_ORIGIN}/verify#${encodeReceipt(ticket, mode, view.seq ?? undefined)}`;
   const model: SlipModel = { ticket, status: view.status, payoutZat: view.payoutZat, seq: view.seq, verifyUrl, mode };
   const headline = HEADLINES[view.status] ?? "Ticket";
   const counted = ["counted", "won", "lost", "refunded", "paid"].includes(view.status);
-  const nextBatch = data.status === "ready" ? nextBatchAt(data.latest) : null;
 
   const capture = () => captureSlip(slip, PixelRatio.get());
 
@@ -71,14 +71,19 @@ export default function TicketScreen() {
     <SheetBody title={headline}>
       {ticket.source === "wallet" && !counted ? (
         <Plate>
-          <TxSteps steps={stepsFor(ticket, counted, nextBatch)} />
+          <TxSteps steps={stepsFor(ticket, counted)} />
         </Plate>
       ) : null}
-      {view.status === "missed" ? (
+      {view.status === "waiting" && (ticket.source === "qr" || ticket.send?.state === "sent") ? (
+        <Strip>{WAITING_COPY}</Strip>
+      ) : view.status === "missed" ? (
         <Strip>
-          Not in the signed list by the cutoff: unpaid, mined late or with a wrong amount. Late and wrong-amount
-          payments are refunded by the rules.
+          Not in the signed list: unpaid, mined after the cutoff, or the wrong amount. Late and wrong-amount payments
+          are refunded by the rules, and so is a ticket paid in time that was still waiting for its batch when the
+          market closed.
         </Strip>
+      ) : view.neverPublished ? (
+        <Strip>{NEVER_PUBLISHED_COPY}</Strip>
       ) : null}
       <ReceiptSlip model={model} ref={slip} />
       <Segmented

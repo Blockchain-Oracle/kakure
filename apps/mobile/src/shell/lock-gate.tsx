@@ -36,7 +36,12 @@ export function LockGate({ children }: { children: ReactNode }) {
     }
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "background") hiddenAt.current = Date.now();
-      if (state === "active" && hiddenAt.current && Date.now() - hiddenAt.current > RELOCK_AFTER_MS) setLocked(true);
+      if (state !== "active") return;
+      // Read once and clear: the Face ID sheet itself makes the app inactive and active again, and a remembered
+      // background time would re-lock it right after every successful unlock.
+      const away = hiddenAt.current;
+      hiddenAt.current = null;
+      if (away !== null && Date.now() - away > RELOCK_AFTER_MS) setLocked(true);
     });
     return () => sub.remove();
   }, [biometricLock]);

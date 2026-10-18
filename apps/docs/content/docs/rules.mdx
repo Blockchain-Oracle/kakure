@@ -38,9 +38,14 @@ median-time-past, read from public light-wallet servers, with 10 confirmations).
 
 ## Odds
 
-Odds stay **sealed** until each side has at least 3 tickets; only the ticket count moves. After that, the published
-totals change only once at least 3 new tickets have arrived since the last release. A signed batch goes out every
-10 minutes regardless.
+A market's ticket count, its list of ticket hashes and its totals are published only in groups: each change needs at
+least 3 new tickets since the last one, so no single bet shows. Odds stay **sealed** (hidden) until each side has at
+least 3 tickets; until then only the count is published, in the same groups. A signed batch goes out every 10
+minutes regardless.
+
+When the cutoff block is final, any tickets still waiting are published in a last group, but only if there are at
+least 3 of them. **Fewer than 3 are refunded in full and never published**, so a bet that arrives last, alone,
+doesn't play.
 
 ## Payouts
 
@@ -67,7 +72,7 @@ Every ticket in a market is refunded to its payout address if, at the cutoff:
   (event markets);
 - fewer than 2 venues gave an opening reference (close markets).
 
-Single tickets are refunded when they were mined at or after H_c, mined before betting opened, paid with a wrong
+Single tickets are refunded when they were in a last group of fewer than 3 (see Odds), mined at or after H_c, mined before betting opened, paid with a wrong
 amount of 0.001 ZEC or more (smaller amounts are kept as dust), named a side the market doesn't have, or repeated a
 nonce (the first, by block height and transaction index, counts).
 

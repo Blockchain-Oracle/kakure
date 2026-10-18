@@ -54,7 +54,7 @@
       [
         "expo-secure-store",
         {
-          "configureAndroidBackup": true
+          "configureAndroidBackup": false
         }
       ],
       [
@@ -71,6 +71,7 @@
           "granularPermissions": ["photo"]
         }
       ],
+      "./plugins/with-no-backup.js",
       [
         "expo-splash-screen",
         {

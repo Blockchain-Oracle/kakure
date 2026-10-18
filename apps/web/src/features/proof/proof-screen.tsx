@@ -1,22 +1,34 @@
 "use client";
 
-import { type Bundle, type Market, RULES_HASH_PERSONAL, toHex, utf8 } from "@kakure/domain";
+import {
+  type Bundle,
+  type Market,
+  type Network,
+  type Resolution,
+  RULES_HASH_PERSONAL,
+  toHex,
+  utf8,
+} from "@kakure/domain";
+import { resolutionFiles, resolutionsQuery } from "@kakure/query";
 import { canonicalJson } from "@kakure/signing";
 import { EmptyState, Pill, Skeleton } from "@kakure/ui-web";
 import { blake2b } from "@noble/hashes/blake2.js";
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, FileJson, XCircle } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { DATA_SOURCE, NETWORK_LABEL } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
 import { useMarkets } from "@/features/data/use-markets";
 import { assetFor } from "@/features/markets/assets";
 import { sideWord, WINDOW_LABEL } from "@/features/markets/market-view";
 import { formatDateTime } from "@/lib/time";
+import { EvidenceDetails, EvidenceLoader } from "./evidence";
 
 /**
  * Proof (C5–C7, surfaces.md): the signed files behind every market, and what this device re-checks itself:
  * the signature chain (latest → bundle → address list), each market's rules hash recomputed from its published
  * rules (D13), and its ticket count against its list. Payout runs are coarse by design, never txids (PD7).
+ * Resolution evidence is read in the page from the whole set the bundle names, never fetched per market (O22).
  */
 const RULES_HASH_BYTES = 32;
 
@@ -45,16 +57,36 @@ export function ProofScreen() {
           reason={`No signed batch exists on ${NETWORK_LABEL[data.network]} yet.`}
         />
       ) : (
-        <>
-          <Files bundle={data.bundle} latestFile="latest.json" network={data.network} />
-          <ul className="flex flex-col gap-3">
-            {data.bundle.markets.map((market) => (
-              <MarketProof key={market.id} market={market} network={data.network} />
-            ))}
-          </ul>
-        </>
+        <Batch bundle={data.bundle} network={data.network} />
       )}
     </div>
+  );
+}
+
+function Batch({ bundle, network }: { bundle: Bundle; network: Network }) {
+  const [wanted, setWanted] = useState(false);
+  const evidence = useQuery({ ...resolutionsQuery(DATA_SOURCE, network, bundle), enabled: wanted });
+  return (
+    <>
+      <Files bundle={bundle} latestFile="latest.json" network={network} />
+      <EvidenceLoader
+        count={resolutionFiles(bundle).length}
+        loaded={Boolean(evidence.data)}
+        loading={evidence.isFetching}
+        error={evidence.error}
+        onLoad={() => setWanted(true)}
+      />
+      <ul className="flex flex-col gap-3">
+        {bundle.markets.map((market) => (
+          <MarketProof
+            key={market.id}
+            market={market}
+            resolution={evidence.data?.[market.id] ?? null}
+            loaded={Boolean(evidence.data)}
+          />
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -120,7 +152,15 @@ function Files({ bundle, latestFile, network }: { bundle: Bundle; latestFile: st
   );
 }
 
-function MarketProof({ market, network }: { market: Market; network: string }) {
+function MarketProof({
+  market,
+  resolution,
+  loaded,
+}: {
+  market: Market;
+  resolution: Resolution | null;
+  loaded: boolean;
+}) {
   const asset = assetFor(market);
   const rulesOk = rulesHashOf(market) === market.rulesHash;
   const countOk = market.leaves.length === market.ticketCount;
@@ -169,7 +209,13 @@ function MarketProof({ market, network }: { market: Market; network: string }) {
         <div>
           <dt className="text-label text-muted-foreground">Resolution evidence</dt>
           <dd className="text-foreground">
-            {market.resolution ? <FileLink network={network} file={market.resolution} /> : "Published when it resolves"}
+            {!market.resolution
+              ? "Published when it resolves"
+              : resolution
+                ? `${market.resolution}, signature checked`
+                : loaded
+                  ? "Not in the downloaded set"
+                  : `${market.resolution}: load the evidence above`}
           </dd>
         </div>
         <div>
@@ -177,6 +223,16 @@ function MarketProof({ market, network }: { market: Market; network: string }) {
           <dd className="break-all text-foreground tabular-nums">{market.rulesHash}</dd>
         </div>
       </dl>
+      {resolution ? (
+        <details className="rounded-row bg-raised-2 p-4">
+          <summary className="cursor-pointer rounded-xs text-row-strong text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            How it resolved
+          </summary>
+          <div className="mt-3">
+            <EvidenceDetails resolution={resolution} />
+          </div>
+        </details>
+      ) : null}
     </li>
   );
 }

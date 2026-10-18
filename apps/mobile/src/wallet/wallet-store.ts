@@ -1,10 +1,18 @@
 import type { Network } from "@kakure/domain";
 import * as Zingo from "@zingo";
 import { AppState } from "react-native";
-import { SYNC_MAX_POLLS, SYNC_POLL_MS, WALLET_SERVER, WALLET_SYNC_EVERY_MS } from "@/constants";
+import {
+  SYNC_MAX_POLLS,
+  SYNC_POLL_MS,
+  WALLET_SERVERS,
+  WALLET_SYNC_EVERY_MS,
+  type WalletServer,
+  type WalletServerId,
+} from "@/constants";
 import { devLog } from "@/lib/dev-log";
 import { createStore, useStore } from "@/lib/store";
 import { networkStore } from "@/network/network-store";
+import { prefsStore, setPrefs } from "@/settings/prefs";
 
 /**
  * The in-app wallet (C10) for the active network. The binding holds one wallet at a time, so a network switch
@@ -165,11 +173,26 @@ async function afterOpen(): Promise<void> {
   void syncWallet();
 }
 
+/** The server this network's wallet syncs from: the one chosen in Settings, else the first listed. */
+export function walletServerFor(network: Network): WalletServer {
+  const servers = WALLET_SERVERS[network];
+  const chosen = prefsStore.get().walletServer?.[network];
+  return servers.find((server) => server.id === chosen) ?? servers[0];
+}
+
+/** Moves a network's wallet to another server: the wallet re-opens from its saved file on the new connection. */
+export async function switchWalletServer(network: Network, id: WalletServerId): Promise<void> {
+  const prefs = prefsStore.get();
+  if (walletServerFor(network).id === id) return;
+  setPrefs({ walletServer: { ...prefs.walletServer, [network]: id } });
+  if (walletStore.get().network === network && walletStore.get().phase === "ready") await openWallet(network);
+}
+
 /** Opens this network's saved wallet, if any. Never creates one. */
 export async function openWallet(network: Network = networkStore.get()): Promise<WalletPhase> {
   walletStore.set({ ...blank(network), phase: "opening" });
   try {
-    const opened = await Zingo.openWallet(network, WALLET_SERVER[network]);
+    const opened = await Zingo.openWallet(network, walletServerFor(network).uri);
     if (networkStore.get() !== network) return "unknown";
     if (opened.status === "absent") {
       patch({ phase: "absent" });
@@ -187,7 +210,7 @@ export async function openWallet(network: Network = networkStore.get()): Promise
 export async function createWallet(network: Network): Promise<void> {
   walletStore.set({ ...blank(network), phase: "opening" });
   try {
-    const created = await Zingo.createWallet(network, WALLET_SERVER[network]);
+    const created = await Zingo.createWallet(network, walletServerFor(network).uri);
     patch({ phase: "ready", birthday: created.birthday ?? null });
     void afterOpen();
   } catch (error) {
@@ -199,7 +222,7 @@ export async function createWallet(network: Network): Promise<void> {
 export async function restoreWallet(network: Network, phrase: string, birthday: number): Promise<void> {
   walletStore.set({ ...blank(network), phase: "opening" });
   try {
-    const restored = await Zingo.restoreWallet(network, WALLET_SERVER[network], phrase, birthday);
+    const restored = await Zingo.restoreWallet(network, walletServerFor(network).uri, phrase, birthday);
     patch({ phase: "ready", birthday: restored.birthday ?? null });
     void afterOpen();
   } catch (error) {

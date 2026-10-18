@@ -1,16 +1,17 @@
-import { viewTicket } from "@kakure/query";
+import type { Network } from "@kakure/domain";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
-import { CLOSE_REMINDER_MS } from "@/constants";
 import { useMarkets } from "@/data/markets";
-import { assetFor } from "@/markets/assets";
-import { WINDOW_LABEL } from "@/markets/market-view";
+import { viewAppTicket } from "@/tickets/ticket-view";
 import { useTickets } from "@/tickets/use-tickets";
 
 /**
- * Local notifications only (R5, PD10): scheduled on this device from public times in the signed bundle, with
- * generic text (no amounts, no side). There is no push token, no server, nothing leaves the phone. Permission is
- * asked once this device holds a ticket that a reminder would help.
+ * Local notifications only (R5, PD10): scheduled on this device from public times in the signed bundle. There is no
+ * push token, no server, nothing leaves the phone. Permission is asked once this device holds a ticket a reminder
+ * would help.
+ *
+ * The lock screen is public (audit O24): the text never names an asset, a market, a side or an amount, and markets
+ * that close at the same moment share one notification, so not even the number of markets shows.
  */
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -20,6 +21,16 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+
+const TITLE = "Kakure";
+const CLOSED_BODY = "A market you're in has closed";
+const PAYOUT_BODY = "Payout batch sent";
+
+interface Reminder {
+  identifier: string;
+  at: number;
+  body: string;
+}
 
 let permission: Promise<boolean> | null = null;
 
@@ -34,15 +45,33 @@ function allowed(): Promise<boolean> {
   return permission;
 }
 
-async function scheduleAt(identifier: string, at: number, title: string, body: string) {
-  if (at <= Date.now()) return;
-  const existing = await Notifications.getAllScheduledNotificationsAsync();
-  if (existing.some((notification) => notification.identifier === identifier)) return;
-  await Notifications.scheduleNotificationAsync({
-    identifier,
-    content: { title, body },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(at) },
-  });
+/**
+ * Makes this network's scheduled set exactly `wanted`: cancels this module's notifications that are no longer wanted or whose
+ * text changed (older builds named the asset), and schedules the missing ones.
+ */
+async function reconcile(network: Network, wanted: readonly Reminder[]): Promise<void> {
+  // This network's identifiers only: the other network's reminders and anything else on the device stay.
+  const own = (identifier: string) =>
+    identifier.startsWith(`close:${network}:`) || identifier.startsWith(`payout:${network}:`);
+  const byId = new Map(wanted.map((reminder) => [reminder.identifier, reminder]));
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const kept = new Set<string>();
+  for (const notification of scheduled) {
+    if (!own(notification.identifier)) continue;
+    const reminder = byId.get(notification.identifier);
+    const same =
+      reminder !== undefined && notification.content.title === TITLE && notification.content.body === reminder.body;
+    if (same) kept.add(notification.identifier);
+    else await Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => undefined);
+  }
+  for (const reminder of wanted) {
+    if (kept.has(reminder.identifier) || reminder.at <= Date.now()) continue;
+    await Notifications.scheduleNotificationAsync({
+      identifier: reminder.identifier,
+      content: { title: TITLE, body: reminder.body },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(reminder.at) },
+    }).catch(() => undefined);
+  }
 }
 
 export function useNotificationsForTickets(): void {
@@ -55,27 +84,20 @@ export function useNotificationsForTickets(): void {
     void (async () => {
       if (!(await allowed())) return;
       const now = Date.now();
+      const wanted = new Map<string, Reminder>();
       for (const ticket of tickets) {
-        const view = viewTicket(ticket, bundle, now);
-        if (view.status === "waiting" || view.status === "counted") {
-          const asset = assetFor({ kind: ticket.kind, subject: ticket.subject });
-          const window = WINDOW_LABEL[ticket.window].toLowerCase();
-          await scheduleAt(
-            `close:${ticket.network}:${ticket.marketId}`,
-            Date.parse(ticket.closesAt) - CLOSE_REMINDER_MS,
-            "Kakure",
-            `Your ${asset.symbol} ${window} market closes in 10 min`,
-          ).catch(() => undefined);
-        }
+        if (ticket.send?.state === "failed") continue;
+        const view = viewAppTicket(ticket, bundle, now);
+        if (view.status !== "waiting" && view.status !== "counted") continue;
+        // Keyed by the close time, not the market: one line for every market closing then.
+        const identifier = `close:${ticket.network}:${ticket.closesAt}`;
+        wanted.set(identifier, { identifier, at: Date.parse(ticket.closesAt), body: CLOSED_BODY });
       }
       for (const run of bundle?.payoutRuns ?? []) {
-        await scheduleAt(
-          `payout:${data.network}:${run.allSentBy}`,
-          Date.parse(run.allSentBy),
-          "Kakure",
-          "Payout batch sent",
-        ).catch(() => undefined);
+        const identifier = `payout:${data.network}:${run.allSentBy}`;
+        wanted.set(identifier, { identifier, at: Date.parse(run.allSentBy), body: PAYOUT_BODY });
       }
-    })();
+      await reconcile(data.network, [...wanted.values()]);
+    })().catch(() => undefined);
   }, [tickets, bundle, data.network]);
 }

@@ -1,5 +1,6 @@
-import { type AddressList, BATCH_INTERVAL_MS, type Bundle, type Latest, type Network } from "@kakure/domain";
+import { type AddressList, BATCH_INTERVAL_MS, type Bundle, type Latest, NETWORKS, type Network } from "@kakure/domain";
 import { useQuery } from "@tanstack/react-query";
+import { createElement } from "react";
 import { PUBLISH_GRACE_MS } from "./constants";
 import { DataError, isDataError } from "./errors";
 import type { DataSource } from "./fetch";
@@ -62,6 +63,22 @@ export function useMarketData(source: DataSource, network: Network): MarketData 
     return { status: "error", error: asDataError(error), refetch };
   }
   return { status: "loading" };
+}
+
+function NetworkLoad({ source, network }: { source: DataSource; network: Network }) {
+  const latest = useQuery(latestQuery(source, network));
+  const bundle = useQuery(bundleQuery(source, network, latest.data));
+  useQuery(addressesQuery(source, network, bundle.data));
+  return null;
+}
+
+/**
+ * Mount once at the app root (O8): keeps BOTH networks' latest → bundle → address list loaded and polled, each on
+ * its own publish clock, whichever network is on screen, so the host sees the same requests at the same times from
+ * every visitor and can't tell which network you use. Screens share these queries through the cache.
+ */
+export function UniformLoad({ source }: { source: DataSource }) {
+  return NETWORKS.map((network) => createElement(NetworkLoad, { key: network, source, network }));
 }
 
 /** Whether the published bundle is older than the clock says it should be (the operator missed a batch). */

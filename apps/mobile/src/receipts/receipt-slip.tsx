@@ -13,6 +13,7 @@ import { SIDE_SIGN, sideWord } from "@/markets/market-view";
 import type { Theme } from "@/theme/theme";
 import { useTheme, useThemed } from "@/theme/theme-provider";
 import type { AppTicket } from "@/tickets/ticket-db";
+import { folioOf } from "./folio";
 
 /**
  * Kawase's perforated slip (kawase.md §6.1), for a Kakure ticket: the head with the folio, the result and figure,
@@ -131,7 +132,7 @@ export function ReceiptSlip({
             </Txt>
           </View>
           <Txt variant="label" tone="paperInk">
-            TICKET #{ticket.hash.slice(HASH_SHORT.folioStart, HASH_SHORT.folioEnd).toUpperCase()}
+            TICKET #{folioOf(ticket)}
           </Txt>
         </View>
         <View style={s.result}>
@@ -161,11 +162,16 @@ export function ReceiptSlip({
         />
         <Fact label="Closes" value={formatDateTime(ticket.closesAt)} />
         {seq !== null ? <Fact label="Signed batch" value={String(seq)} /> : null}
-        <Fact
-          label="Ticket hash"
-          value={`${ticket.hash.slice(0, HASH_SHORT.head)}…${ticket.hash.slice(-HASH_SHORT.tail)}`}
-        />
-        {model.mode === "provable" ? <Fact label="Mode" value="Provable (shows the nonce)" /> : null}
+        {/* The hash names the leaf in the signed list (and so the batch it arrived in): Provable only (audit O3). */}
+        {model.mode === "provable" ? (
+          <>
+            <Fact
+              label="Ticket hash"
+              value={`${ticket.hash.slice(0, HASH_SHORT.head)}…${ticket.hash.slice(-HASH_SHORT.tail)}`}
+            />
+            <Fact label="Mode" value="Provable (shows the nonce)" />
+          </>
+        ) : null}
       </View>
       <View style={s.perforation}>
         <View
@@ -188,9 +194,13 @@ export function ReceiptSlip({
             Verify it
           </Txt>
           <Txt variant="meta" tone="paperInk">
-            {exporting
-              ? "Scan to check this ticket against the signed batch on getkakure.xyz/verify."
-              : "Open the verify page: it checks the ticket hash and the operator's signature."}
+            {model.mode === "provable"
+              ? exporting
+                ? "Scan to check this ticket against the signed batch on getkakure.xyz/verify."
+                : "Open the verify page: it finds this ticket in the signed list and checks the operator's signature."
+              : exporting
+                ? "Scan to check the outcome against the signed batch on getkakure.xyz/verify."
+                : "Open the verify page: it checks the market's signed outcome and the operator's signature."}
           </Txt>
         </View>
         <QrSvg value={model.verifyUrl} size={STUB_QR} ecc="M" />

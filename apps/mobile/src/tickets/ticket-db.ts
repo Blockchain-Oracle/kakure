@@ -7,11 +7,12 @@ import * as SecureStore from "expo-secure-store";
 import { deleteDatabaseAsync, openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 import { Platform } from "react-native";
 import { STORAGE_KEYS, TICKET_DB_NAME } from "@/constants";
+import { keepAppDataOutOfBackups } from "@/lib/no-backup";
 
 /**
  * Tickets live only on this device (C9, R6), in an SQLCipher database whose 256-bit key is random, generated here,
- * and kept in secure-store readable only on this device while unlocked (plan §2 Device storage, §13.17). The file
- * is excluded from iCloud backups (Android: `allowBackup: false`). Every row carries its network (plan §13.16).
+ * and kept in secure-store readable only on this device while unlocked (plan §2 Device storage, §13.17). The file,
+ * like all app data, is kept out of backups (src/lib/no-backup.ts). Every row carries its network (plan §13.16).
  */
 
 /** How an in-app bet is travelling, before the bundle can count it (C3 states). */
@@ -63,6 +64,8 @@ async function open(): Promise<SQLiteDatabase> {
   if (Platform.OS === "ios") {
     await Zingo.excludeFromBackup(db.databasePath).catch(() => undefined);
   }
+  // A new database file (or its -wal/-shm) appears here: flag the whole data area again (audit O4).
+  keepAppDataOutOfBackups();
   return db;
 }
 
@@ -81,6 +84,13 @@ export async function loadTickets(network: Network): Promise<AppTicket[]> {
     network,
   );
   return rows.map((row) => JSON.parse(row.body) as AppTicket);
+}
+
+/** Whether any saved ticket, on either network, already pays out to this address (audit O21). */
+export async function payoutAddressUsed(address: string): Promise<boolean> {
+  const db = await ticketDb();
+  const rows = await db.getAllAsync<{ body: string }>("SELECT body FROM tickets");
+  return rows.some((row) => (JSON.parse(row.body) as Partial<AppTicket>).payoutAddress === address);
 }
 
 export async function saveTicket(ticket: AppTicket): Promise<void> {

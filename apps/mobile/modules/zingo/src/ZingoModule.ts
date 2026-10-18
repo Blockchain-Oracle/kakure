@@ -38,6 +38,8 @@ declare class ZingoNativeModule extends NativeModule<ZingoEvents> {
   planOrchardDrain(): Promise<DrainPlan>;
   drainOrchard(): Promise<DrainResult>;
   excludeFromBackup(path: string): Promise<{ path: string }>;
+  /** iOS: flags Documents and Library (and everything in them) as never backed up. Android: the manifest does it. */
+  excludeAppDataFromBackup(): Promise<{ excluded: number; refused: number }>;
 }
 
 export default requireNativeModule<ZingoNativeModule>("Zingo");

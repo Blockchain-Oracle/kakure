@@ -7,6 +7,7 @@ import type { View } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import { HASH_SHORT, NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { sideWord } from "@/markets/market-view";
+import { folioOf } from "./folio";
 import type { SlipModel } from "./receipt-slip";
 
 /**
@@ -54,7 +55,7 @@ export function slipHtml(model: SlipModel, headline: string): string {
 <tr><td style="padding:22px 22px 8px 22px">
   <table role="presentation" width="100%"><tr>
     <td style="font-weight:700;font-size:16px">Kakure</td>
-    <td style="text-align:right;font-size:12px;font-weight:600;letter-spacing:0.9px">TICKET #${escapeHtml(ticket.hash.slice(HASH_SHORT.folioStart, HASH_SHORT.folioEnd).toUpperCase())}</td>
+    <td style="text-align:right;font-size:12px;font-weight:600;letter-spacing:0.9px">TICKET #${escapeHtml(folioOf(ticket))}</td>
   </tr></table>
 </td></tr>
 <tr><td style="padding:8px 22px">
@@ -68,7 +69,7 @@ export function slipHtml(model: SlipModel, headline: string): string {
     ${fact("Ticket", `${zatToZec(BigInt(ticket.sizeZat))} ${coin}`)}
     ${fact("Network", NETWORK_LABEL[ticket.network])}
     ${model.seq !== null ? fact("Signed batch", String(model.seq)) : ""}
-    ${fact("Ticket hash", `${ticket.hash.slice(0, HASH_SHORT.head)}…${ticket.hash.slice(-HASH_SHORT.tail)}`)}
+    ${model.mode === "provable" ? fact("Ticket hash", `${ticket.hash.slice(0, HASH_SHORT.head)}…${ticket.hash.slice(-HASH_SHORT.tail)}`) : ""}
   </table>
 </td></tr>
 <tr><td style="padding:0 22px"><div style="border-top:1px dashed ${RULE}"></div></td></tr>
@@ -87,7 +88,7 @@ export type EmailOutcome = "sent" | "saved" | "cancelled" | "unavailable";
 export async function emailSlip(model: SlipModel, headline: string, pngUri: string): Promise<EmailOutcome> {
   if (!(await MailComposer.isAvailableAsync())) return "unavailable";
   const result = await MailComposer.composeAsync({
-    subject: `Kakure ticket #${model.ticket.hash.slice(HASH_SHORT.folioStart, HASH_SHORT.folioEnd).toUpperCase()}`,
+    subject: `Kakure ticket #${folioOf(model.ticket)}`,
     body: slipHtml(model, headline),
     isHtml: true,
     attachments: [pngUri],

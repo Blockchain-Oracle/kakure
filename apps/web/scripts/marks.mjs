@@ -1,52 +1,74 @@
 /**
- * Vendors the real asset marks into public/marks/ so the site never fetches a logo from a third party (D10, R4).
+ * Vendors the real asset marks into one inline SVG sprite, src/features/markets/mark-sprite.generated.ts, that the
+ * root layout writes into every page (O7). Every visitor gets every mark with the page itself, so showing an asset
+ * makes no request at all, not even a same-origin one that would name the asset (D10, R4).
  *
  * - Crypto: @web3icons/core (MIT), the "background" variant (the brand's own disc), clipped round by the UI.
+ *   DOGE's web3icons mark is ~10 KB gzipped, so it uses simple-icons' Dogecoin disc on its brand hex instead.
  * - Stocks: simple-icons (CC0-1.0 icon data; the marks remain their owners' trademarks), drawn white on the
  *   brand's own hex. ETFs (SPY, QQQ) have no mark and use the labelled neutral disc instead.
  *
- * Run `pnpm --filter @kakure/web marks` after changing the lists; the output is committed.
+ * Run `pnpm --filter @kakure/web marks` after changing the lists; the output is committed. Symbol ids are
+ * `mark-<symbol>`; src/features/markets/assets.ts lists the same symbols.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const MODULES = fileURLToPath(new URL("../node_modules/", import.meta.url));
-const OUT = new URL("../public/marks/", import.meta.url);
+const OUT = new URL("../src/features/markets/mark-sprite.generated.ts", import.meta.url);
 
-const CRYPTO = { BTC: "Bitcoin", ETH: "Ethereum", SOL: "Solana", ZEC: "Zcash", XRP: "XRP", DOGE: "Dogecoin" };
+const WEB3ICONS = { BTC: "Bitcoin", ETH: "Ethereum", SOL: "Solana", ZEC: "Zcash", XRP: "XRP" };
+/** Full-disc glyphs from simple-icons, drawn in the brand hex on white. */
+const DISCS = { DOGE: "dogecoin" };
+/** Glyphs from simple-icons, drawn white on the brand hex. */
 const STOCKS = { AAPL: "apple", TSLA: "tesla", NVDA: "nvidia" };
 const GLYPH_SCALE = 0.58;
 const VIEWBOX = 24;
 
-mkdirSync(OUT, { recursive: true });
+const symbols = [];
+const symbol = (ticker, inner) =>
+  symbols.push(`<symbol id="mark-${ticker.toLowerCase()}" viewBox="0 0 ${VIEWBOX} ${VIEWBOX}">${inner}</symbol>`);
+const squeeze = (svg) => svg.replace(/>\s+</g, "><").trim();
 
 const web3icons = join(MODULES, "@web3icons/core");
-for (const [symbol, title] of Object.entries(CRYPTO)) {
-  const module = readFileSync(join(web3icons, "dist/svgs/tokens/background", `${symbol}.svg.js`), "utf8");
+for (const ticker of Object.keys(WEB3ICONS)) {
+  const module = readFileSync(join(web3icons, "dist/svgs/tokens/background", `${ticker}.svg.js`), "utf8");
   const svg = /'(<svg[\s\S]*<\/svg>)\\n'/.exec(module)?.[1];
-  if (!svg) throw new Error(`No SVG in web3icons ${symbol}`);
-  const clean = svg
-    .replaceAll("\\n", "\n")
-    .replace(' class="web3icons"', "")
-    .replace(/(<svg[^>]*>)/, `$1<title>${title}</title>`);
-  writeFileSync(new URL(`${symbol.toLowerCase()}.svg`, OUT), `${clean}\n`);
+  if (!svg) throw new Error(`No SVG in web3icons ${ticker}`);
+  const inner = /<svg[^>]*>([\s\S]*)<\/svg>/.exec(svg.replaceAll("\\n", "\n"))?.[1];
+  if (!inner) throw new Error(`No SVG body in web3icons ${ticker}`);
+  symbol(ticker, squeeze(inner));
 }
 
 const simpleIcons = join(MODULES, "simple-icons");
 const data = JSON.parse(readFileSync(join(simpleIcons, "data/simple-icons.json"), "utf8"));
-for (const [symbol, slug] of Object.entries(STOCKS)) {
+function simpleIcon(slug) {
   const icon = readFileSync(join(simpleIcons, "icons", `${slug}.svg`), "utf8");
   const path = /<path d="([^"]+)"/.exec(icon)?.[1];
   const entry = (Array.isArray(data) ? data : data.icons).find(
     (item) => (item.slug ?? item.title.toLowerCase()) === slug,
   );
   if (!path || !entry) throw new Error(`No simple-icons data for ${slug}`);
-  const offset = ((VIEWBOX * (1 - GLYPH_SCALE)) / 2).toFixed(2);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><title>${entry.title}</title><rect width="24" height="24" fill="#${entry.hex}"/><path fill="#fff" transform="translate(${offset} ${offset}) scale(${GLYPH_SCALE})" d="${path}"/></svg>\n`;
-  writeFileSync(new URL(`${symbol.toLowerCase()}.svg`, OUT), svg);
+  return { path, hex: entry.hex };
+}
+for (const [ticker, slug] of Object.entries(DISCS)) {
+  const { path, hex } = simpleIcon(slug);
+  symbol(ticker, `<rect width="${VIEWBOX}" height="${VIEWBOX}" fill="#fff"/><path fill="#${hex}" d="${path}"/>`);
+}
+const offset = ((VIEWBOX * (1 - GLYPH_SCALE)) / 2).toFixed(2);
+for (const [ticker, slug] of Object.entries(STOCKS)) {
+  const { path, hex } = simpleIcon(slug);
+  symbol(
+    ticker,
+    `<rect width="${VIEWBOX}" height="${VIEWBOX}" fill="#${hex}"/><path fill="#fff" transform="translate(${offset} ${offset}) scale(${GLYPH_SCALE})" d="${path}"/>`,
+  );
 }
 
-console.log(
-  `marks: ${Object.keys(CRYPTO).length} crypto + ${Object.keys(STOCKS).length} stock marks written to public/marks/`,
+const sprite = symbols.join("");
+writeFileSync(
+  OUT,
+  `// Generated by scripts/marks.mjs from @web3icons/core and simple-icons. Do not edit.\n` +
+    `export const MARK_SPRITE = ${JSON.stringify(sprite)};\n`,
 );
+console.log(`marks: ${symbols.length} symbols, ${sprite.length} bytes, written to ${fileURLToPath(OUT)}`);

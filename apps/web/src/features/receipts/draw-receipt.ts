@@ -10,7 +10,8 @@ import { RECEIPT_PNG } from "./constants";
  * address, the bet time and any txid are never drawn.
  */
 export interface ReceiptImage {
-  folio: string;
+  /** Top-right label: "Outcome slip", or "Ticket <hash prefix>" on a Provable receipt. */
+  tag: string;
   eyebrow: string;
   figure: string;
   caption: string;
@@ -71,7 +72,7 @@ export async function drawReceipt(data: ReceiptImage): Promise<Blob> {
   ctx.font = `600 ${L.meta}px ${sans}`;
   ctx.fillStyle = COLORS.text2;
   ctx.textAlign = "right";
-  ctx.fillText(`Ticket ${data.folio}`, L.width - L.pad, y + L.folioOffset);
+  ctx.fillText(data.tag, L.width - L.pad, y + L.folioOffset);
   ctx.textAlign = "left";
   y += L.headGap;
 

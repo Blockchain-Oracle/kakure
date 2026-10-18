@@ -1,18 +1,19 @@
 import type { Market } from "@kakure/domain";
-import { nextBatchAt, viewTicket } from "@kakure/query";
 import { router } from "expo-router";
 import { View } from "react-native";
-import { HASH_SHORT, NETWORK_COIN, TX_STEP_LABELS } from "@/constants";
+import { NETWORK_COIN, TX_STEP_LABELS } from "@/constants";
 import { useMarkets } from "@/data/markets";
 import { Button } from "@/kit/button";
 import { SheetBody } from "@/kit/screen";
 import { Plate } from "@/kit/surface";
 import { Txt } from "@/kit/text";
 import { type Step, TxSteps } from "@/kit/tx-steps";
-import { formatClock, useNow } from "@/lib/time";
+import { useNow } from "@/lib/time";
 import { coinAmount, SIDE_SIGN, sideWord } from "@/markets/market-view";
+import { folioOf } from "@/receipts/folio";
 import { useTheme } from "@/theme/theme-provider";
 import type { AppTicket } from "@/tickets/ticket-db";
+import { viewAppTicket, WAITING_COPY, WAITING_STEP } from "@/tickets/ticket-view";
 import { useTickets } from "@/tickets/use-tickets";
 
 /**
@@ -20,7 +21,7 @@ import { useTickets } from "@/tickets/use-tickets";
  * preparing private route → proving → sending privately → in mempool → counted. confirm() proves and sends over
  * Nym in one native call, so those two steps are active together. Failure always says whether money moved.
  */
-export function stepsFor(ticket: AppTicket, counted: boolean, nextBatch: number | null): Step[] {
+export function stepsFor(ticket: AppTicket, counted: boolean): Step[] {
   const send = ticket.send;
   const sent = send?.state === "sent";
   const phase = send?.phase;
@@ -53,7 +54,8 @@ export function stepsFor(ticket: AppTicket, counted: boolean, nextBatch: number 
     {
       label: countedLabel,
       state: counted ? "done" : sent ? "active" : "pending",
-      ...(!counted && sent && nextBatch ? { detail: `Next signed batch ${formatClock(nextBatch)}` } : {}),
+      // Counts are published only once 3 new tickets are pending (audit O1, PD28): no batch time is promised.
+      ...(!counted && sent ? { detail: WAITING_STEP } : {}),
     },
   ];
 }
@@ -70,9 +72,8 @@ export function BetProgress({ hash, market, onRetry }: { hash: string; market: M
   const ticket = Array.isArray(tickets) ? tickets.find((candidate) => candidate.hash === hash) : undefined;
   if (!ticket) return null;
   const bundle = data.status === "ready" ? data.bundle : null;
-  const view = viewTicket(ticket, bundle, now);
+  const view = viewAppTicket(ticket, bundle, now);
   const counted = ["counted", "won", "lost", "refunded", "paid"].includes(view.status);
-  const nextBatch = data.status === "ready" ? nextBatchAt(data.latest) : null;
   const coin = NETWORK_COIN[ticket.network];
   const send = ticket.send;
 
@@ -82,7 +83,7 @@ export function BetProgress({ hash, market, onRetry }: { hash: string; market: M
       subtitle={`${SIDE_SIGN[ticket.side]} ${sideWord(ticket.side)} · ${coinAmount(BigInt(ticket.sizeZat), coin)} · ${market.rules.question}`}
     >
       <Plate>
-        <TxSteps steps={stepsFor(ticket, counted, nextBatch)} />
+        <TxSteps steps={stepsFor(ticket, counted)} />
       </Plate>
       {send?.state === "failed" ? (
         <Plate raised>
@@ -112,8 +113,8 @@ export function BetProgress({ hash, market, onRetry }: { hash: string; market: M
         <Button label="Done" variant="secondary" size="md" onPress={() => router.back()} />
       </View>
       <Txt variant="meta" tone="text3">
-        Ticket {hash.slice(0, HASH_SHORT.line)}… is saved on this phone. It counts once its hash appears in a signed
-        batch.
+        Ticket #{folioOf(ticket)} is saved on this phone, encrypted.
+        {view.status === "waiting" && send?.state === "sent" ? ` ${WAITING_COPY}` : ""}
       </Txt>
     </SheetBody>
   );

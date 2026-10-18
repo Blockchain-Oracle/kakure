@@ -1,7 +1,7 @@
 "use client";
 
-import type { Bundle } from "@kakure/domain";
-import { encodeReceipt, type Ticket, type TicketView } from "@kakure/query";
+import { type Bundle, MIN_NEW_TICKETS_PER_RELEASE } from "@kakure/domain";
+import { encodeReceipt, isFinal, type Ticket, type TicketView } from "@kakure/query";
 import { Button, SegmentedControl, Sheet, TicketStub } from "@kakure/ui-web";
 import { DottedQr } from "@kakure/ui-web/qr";
 import { Download, Link2, Mail, Search } from "lucide-react";
@@ -13,13 +13,15 @@ import { useAmounts } from "@/features/portfolio/amounts";
 import { BrandMark } from "@/features/shell/brand";
 import { downloadBlob } from "@/features/tickets/export";
 import { STATUS_DETAIL, STATUS_LABEL } from "@/features/tickets/status";
+import { copySecret } from "@/lib/clipboard";
 import { drawReceipt } from "./draw-receipt";
 
 /**
  * One ticket as Kawase's perforated slip (C4, C8), with Find my ticket and the receipt actions. Receipts are made
  * on this device from the ticket plus the signed bundle and are redacted by default (plan §3): no payout address,
- * no txid, no bet time. "Provable" adds the nonce so anyone can recompute the leaf; "Outcome slip" shows the result
- * without proving it, and reveals nothing that links back to the payment.
+ * no txid, no bet time. "Provable" adds the nonce so anyone can recompute the leaf, and only then is any part of the
+ * ticket hash shown (its folio). "Outcome slip" shows the result without proving it and carries nothing derived from
+ * the hash (O3): a hash prefix would find the leaf in the signed list, and so the batch the bet arrived in.
  */
 type Mode = "outcome" | "provable";
 
@@ -30,8 +32,7 @@ const STAMP: Partial<Record<TicketView["status"], { word: string; tone: "up" | "
   refunded: { word: "Refund", tone: "warn" },
   counted: { word: "Counted", tone: "neutral" },
 };
-const FOLIO_START = 2;
-const FOLIO_END = 8;
+const FOLIO_LENGTH = 6;
 const SHORT_HEAD = 8;
 const SHORT_TAIL = 6;
 
@@ -56,7 +57,9 @@ export function TicketSheet({
   const coin = NETWORK_COIN[ticket.network];
   const { format, hidden } = useAmounts(coin);
   const asset = assetFor({ kind: ticket.kind, subject: ticket.subject });
-  const folio = ticket.hash.slice(FOLIO_START, FOLIO_END).toUpperCase();
+  const provable = mode === "provable";
+  const folio = provable ? ticket.hash.slice(0, FOLIO_LENGTH).toUpperCase() : null;
+  const tag = folio ? `Ticket ${folio}` : "Outcome slip";
   const won = view.status === "won" || view.status === "paid";
   const figureZat = won && view.payoutZat !== null ? view.payoutZat : BigInt(ticket.sizeZat);
   const receipt = encodeReceipt(ticket, mode, view.seq ?? undefined);
@@ -74,7 +77,7 @@ export function TicketSheet({
     ["Ticket", format(BigInt(ticket.sizeZat))],
     ["Network", NETWORK_LABEL[ticket.network]],
     ["Status", `${STATUS_LABEL[view.status]}${view.seq === null ? "" : ` · batch ${view.seq}`}`],
-    ...(mode === "provable" ? ([["Ticket hash", short(ticket.hash)]] as Array<[string, string]>) : []),
+    ...(provable ? ([["Ticket hash", short(ticket.hash)]] as Array<[string, string]>) : []),
   ];
 
   const findTicket = () => {
@@ -88,14 +91,16 @@ export function TicketSheet({
       where
         ? `Found in batch ${bundle.seq}'s signed list for ${where.id}. Searched on this device; nothing was sent.`
         : market
-          ? `Not in batch ${bundle.seq}'s list for this market yet (${ticketsWord(market.leaves.length)} listed). Searched on this device.`
+          ? isFinal(market)
+            ? `Not in this market's final list (batch ${bundle.seq}, ${ticketsWord(market.leaves.length)}). If you paid, it's refunded in full. Searched on this device.`
+            : `Not listed yet in batch ${bundle.seq} (${ticketsWord(market.leaves.length)} listed). Waiting for its batch: counted once ${MIN_NEW_TICKETS_PER_RELEASE} new tickets arrive; refunded in full if the market closes first. Searched on this device.`
           : `This market isn't in batch ${bundle.seq}, so its list can't be searched here.`,
     );
   };
 
   const savePng = async () => {
     const blob = await drawReceipt({
-      folio,
+      tag,
       eyebrow,
       figure: hidden ? "Hidden" : format(figureZat),
       caption,
@@ -104,13 +109,13 @@ export function TicketSheet({
       verifyUrl,
       footer: `Kakure · ${NETWORK_LABEL[ticket.network]}`,
     });
-    downloadBlob(blob, `kakure-ticket-${folio}.png`);
+    downloadBlob(blob, folio ? `kakure-ticket-${folio}.png` : "kakure-outcome-slip.png");
   };
 
   const email = async () => {
     await savePng();
     const body = [
-      `Kakure ticket ${folio}`,
+      `Kakure · ${tag}`,
       `${caption}`,
       ...facts.map(([label, value]) => `${label}: ${value}`),
       "",
@@ -118,7 +123,7 @@ export function TicketSheet({
       "",
       "The ticket image was saved to your downloads; attach it if you like.",
     ].join("\n");
-    window.location.href = `mailto:?subject=${encodeURIComponent(`Kakure ticket ${folio}`)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(`Kakure · ${tag}`)}&body=${encodeURIComponent(body)}`;
   };
 
   return (
@@ -133,7 +138,7 @@ export function TicketSheet({
               <span className="font-display text-row-title font-black">Kakure</span>
             </span>
           }
-          folio={folio}
+          tag={tag}
           eyebrow={eyebrow}
           figure={format(figureZat)}
           caption={caption}
@@ -194,7 +199,11 @@ export function TicketSheet({
             <Button variant="secondary" size="sm" onClick={() => void email()}>
               <Mail aria-hidden className="size-4" /> Email it
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => void navigator.clipboard.writeText(verifyUrl)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void (provable ? copySecret(verifyUrl) : navigator.clipboard.writeText(verifyUrl))}
+            >
               <Link2 aria-hidden className="size-4" /> Link
             </Button>
           </div>

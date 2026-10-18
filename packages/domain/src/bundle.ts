@@ -54,17 +54,21 @@ export const marketSchema = z.object({
   /** Opening reference (close markets): the per-venue values the direction vote compares against. */
   opening: z.record(z.string(), z.string()).optional(),
   state: marketStateSchema,
-  /** Odds stay sealed until each side has the minimum (D3); only the total count moves meanwhile. */
+  /** Odds stay sealed until each side has the minimum among the released tickets (D3). */
   sealed: z.boolean(),
+  /**
+   * Released tickets only (PD28): it changes only in releases of at least MIN_NEW_TICKETS_PER_RELEASE new tickets,
+   * so no release singles out one bet. `leaves` and `released` describe the same set.
+   */
   ticketCount: z.number().int().nonnegative(),
-  /** Totals as of the last release (only once unsealed, and only on min-new-ticket releases). */
+  /** Totals of the released tickets and the bundle that last changed them (only once unsealed). */
   released: z.object({ seq: z.number().int().nonnegative(), sides: z.partialRecord(side, poolSideSchema) }).optional(),
   /** First block at or after the cutoff time, once it has the finality confirmations (plan §13.4). */
   cutoffHeight: z.number().int().positive().optional(),
   outcome: z.union([side, z.literal("refund")]).optional(),
   /** File name of the archived resolution evidence (raw venue responses or the chain read). */
   resolution: z.string().optional(),
-  /** One merged, sorted list of ticket hashes; side and size live inside each hash (PD15). */
+  /** The released tickets' hashes, merged and sorted; side and size live inside each hash (PD15, PD28). */
   leaves: z.array(z.string().regex(HEX_HASH)),
 });
 

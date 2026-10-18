@@ -1,7 +1,7 @@
 "use client";
 
-import { type Bundle, fromBase64Url, type Network, ticketHashHex } from "@kakure/domain";
-import { decodeReceipt, OPERATOR_PUBLIC_KEYS, type Receipt, winningPayout } from "@kakure/query";
+import { type Bundle, fromBase64Url, MIN_NEW_TICKETS_PER_RELEASE, type Network, ticketHashHex } from "@kakure/domain";
+import { decodeReceipt, isFinal, OPERATOR_PUBLIC_KEYS, type Receipt, winningPayout } from "@kakure/query";
 import { EmptyState, Pill, SearchField, Skeleton } from "@kakure/ui-web";
 import { CheckCircle2, CircleDashed, ShieldCheck, XCircle } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -124,7 +124,7 @@ function HashCard({ hash, bundle }: { hash: string; bundle: Bundle }) {
         <Check ok={Boolean(market)}>
           {market
             ? `Listed in batch ${bundle.seq} for ${market.id}: this ticket is counted.`
-            : `Not in any market's list in batch ${bundle.seq}. It may not be mined yet, may be late, or its market may be archived.`}
+            : `Not in any market's list in batch ${bundle.seq}. Tickets are listed in groups of at least ${MIN_NEW_TICKETS_PER_RELEASE} new ones, so a paid ticket may still be waiting for its batch (refunded in full if its market closes first); it may also be unpaid, late, or in an archived market.`}
         </Check>
       </ul>
     </section>
@@ -168,7 +168,9 @@ function ReceiptCard({ receipt, bundle, network }: { receipt: Receipt; bundle: B
               <Check ok={market.leaves.includes(leaf)}>
                 {market.leaves.includes(leaf)
                   ? `Its hash, recomputed here from the receipt's nonce, is in batch ${bundle.seq}'s signed list.`
-                  : `Its recomputed hash isn't in batch ${bundle.seq}'s list (${market.leaves.length} tickets listed).`}
+                  : isFinal(market)
+                    ? `Its recomputed hash isn't in this market's final list (batch ${bundle.seq}, ${market.leaves.length} tickets). If it was paid, it was refunded in full.`
+                    : `Its recomputed hash isn't listed yet in batch ${bundle.seq} (${market.leaves.length} tickets listed). Waiting for its batch: counted once ${MIN_NEW_TICKETS_PER_RELEASE} new tickets arrive; refunded in full if the market closes first.`}
               </Check>
             ) : (
               <Check ok={null}>An outcome slip carries no nonce, so it can't be matched to the signed list.</Check>
@@ -181,8 +183,9 @@ function ReceiptCard({ receipt, bundle, network }: { receipt: Receipt; bundle: B
                 : "Not resolved yet."}
             </Check>
             <Check ok={null}>
-              Re-verifying the result from the venues' own candles arrives with the operator's resolution records
-              {market.resolution ? ` (${market.resolution})` : ""}. It isn't built yet, so nothing is re-checked here.
+              {market.resolution
+                ? "Its signed resolution evidence (each source's vote and raw response) is on the Proof page."
+                : "Its resolution evidence is published when it resolves."}
             </Check>
           </>
         )}

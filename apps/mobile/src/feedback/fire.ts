@@ -1,8 +1,14 @@
+import { toHex, utf8 } from "@kakure/domain";
 import { CUES, type CueName, type HapticWord, LADDER_SEMITONES } from "@kakure/sounds";
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { type AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import { getRandomBytes } from "expo-crypto";
 import * as Haptics from "expo-haptics";
+import * as SecureStore from "expo-secure-store";
 import { AppState, Platform } from "react-native";
-import { readText, writeText } from "@/lib/kv";
+import { STORAGE_KEYS } from "@/constants";
+import { readText, removeKey, writeText } from "@/lib/kv";
 import { prefsStore } from "@/settings/prefs";
 import { CUE_SOURCES, type CueSourceKey } from "./generated/cue-sources";
 
@@ -15,8 +21,14 @@ import { CUE_SOURCES, type CueSourceKey } from "./generated/cue-sources";
 /** Hot cues get two players so a quick repeat overlaps instead of waiting for a rewind (Kawase's pool). */
 const POOL_SIZE = 2;
 const HOT: ReadonlySet<CueSourceKey> = new Set(["toggle", "adverse", "batch"]);
-const IDENTITY_KEY = "kakure.cues.v1";
+const IDENTITY_KEY = "kakure.cues.v2";
+/** v1 kept identities in the clear (ticket hashes, txids): migrated to digests once, then removed. */
+const LEGACY_IDENTITY_KEY = "kakure.cues.v1";
 const IDENTITY_LIMIT = 500;
+const KEY_BYTES = 32;
+/** 128-bit digests: collisions are out of reach for a few hundred cues. */
+const DIGEST_BYTES = 16;
+const HEX_RADIX = 16;
 
 const players = new Map<CueSourceKey, AudioPlayer[]>();
 const next = new Map<CueSourceKey, number>();
@@ -50,6 +62,8 @@ export function warmSounds(): void {
   } catch {
     // Sounds are a courtesy.
   }
+  // Read (and migrate) the cue memory now, so an older build's clear-text list is gone at launch (audit O4).
+  played ??= readPlayed();
   AppState.addEventListener("change", (state) => {
     foreground = state === "active";
   });
@@ -115,18 +129,72 @@ export function haptic(word: HapticWord): void {
   run().catch(() => undefined);
 }
 
-function seen(identity: string): boolean {
-  if (!played) {
-    try {
-      played = new Set(JSON.parse(readText(IDENTITY_KEY) ?? "[]") as string[]);
-    } catch {
-      played = new Set();
+let cueKey: Uint8Array | null | undefined;
+
+/** The device-only key for cue digests, made on first use (secure-store, this device, while unlocked). */
+function digestKey(): Uint8Array | null {
+  if (cueKey !== undefined) return cueKey;
+  const options = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
+  try {
+    let hex = SecureStore.getItem(STORAGE_KEYS.cueKey, options);
+    if (!hex) {
+      hex = toHex(getRandomBytes(KEY_BYTES));
+      SecureStore.setItem(STORAGE_KEYS.cueKey, hex, options);
     }
+    cueKey = Uint8Array.from(hex.match(/../g) ?? [], (pair) => Number.parseInt(pair, HEX_RADIX));
+  } catch {
+    // No keystore: identities are then remembered for this session only, never written in the clear.
+    cueKey = null;
   }
-  if (played.has(identity)) return true;
-  played.add(identity);
-  writeText(IDENTITY_KEY, JSON.stringify([...played].slice(-IDENTITY_LIMIT)));
+  return cueKey;
+}
+
+/** An identity ("won:<ticket hash>", "send:<txid>") as an opaque digest; null without a key. */
+function digest(identity: string): string | null {
+  const key = digestKey();
+  return key ? toHex(hmac(sha256, key, utf8.encode(identity)).slice(0, DIGEST_BYTES)) : null;
+}
+
+function readPlayed(): Set<string> {
+  try {
+    const stored = new Set(JSON.parse(readText(IDENTITY_KEY) ?? "[]") as string[]);
+    const legacy = readText(LEGACY_IDENTITY_KEY);
+    if (legacy !== null) {
+      for (const identity of JSON.parse(legacy) as string[]) {
+        const opaque = digest(identity);
+        if (opaque) stored.add(opaque);
+      }
+      removeKey(LEGACY_IDENTITY_KEY);
+      writeText(IDENTITY_KEY, JSON.stringify([...stored].slice(-IDENTITY_LIMIT)));
+    }
+    return stored;
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Whether this identity's cue already played. The kv-store is plain SQLite, so it holds only HMAC digests under a
+ * device-only key: no ticket hash, outcome or txid is readable from it (audit O4).
+ */
+function seen(identity: string): boolean {
+  played ??= readPlayed();
+  const opaque = digest(identity);
+  const entry = opaque ?? identity;
+  if (played.has(entry)) return true;
+  played.add(entry);
+  if (opaque)
+    writeText(IDENTITY_KEY, JSON.stringify([...played].filter((item) => !item.includes(":")).slice(-IDENTITY_LIMIT)));
   return false;
+}
+
+/** Forget this device: the digest key goes too, so old digests can't be tested against known hashes. */
+export function forgetCueMemory(): void {
+  played = null;
+  cueKey = undefined;
+  removeKey(IDENTITY_KEY);
+  removeKey(LEGACY_IDENTITY_KEY);
+  SecureStore.deleteItemAsync(STORAGE_KEYS.cueKey).catch(() => undefined);
 }
 
 /**

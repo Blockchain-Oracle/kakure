@@ -21,7 +21,7 @@ sequenceDiagram
   You->>Wallet: Scan the QR<br/>(ZIP 321, with memo)
   Wallet->>Chain: Shielded payment,<br/>memo encrypted
   Op->>Chain: Scan each block,<br/>decrypt its own notes
-  Op->>Host: Next signed batch<br/>lists the ticket hash
+  Op->>Host: A batch lists it once<br/>3 new tickets arrive
   You->>Host: GET latest.json<br/>(on the clock)
   Host-->>You: Ticket hash in the list:<br/>counted
   Op->>Chain: After resolution, a payout<br/>at a random time (2 to 6 h)
@@ -72,7 +72,8 @@ flowchart LR
   bet((Your bet))
   bet -->|"amount, side, payout address"| op[Operator]
   bet -->|"a shielded transaction, nothing else"| chain[Chain observers]
-  bet -->|"your IP, unless you use Tor"| wallet[Your wallet's server]
+  bet -->|"your IP, sync and send times, unless you use Tor"| wallet[Your wallet's server]
   visit((Your visit)) -->|"IP, time, pages"| host[Website host]
-  op -->|"batched odds, the result"| public[Everyone]
+  visit -->|"IP, while prices show"| relay[Price relay]
+  op -->|"counts, hashes and odds in groups of 3+, the result"| public[Everyone]
 ```

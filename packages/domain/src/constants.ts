@@ -40,7 +40,11 @@ export const REFUND_MIN_ZAT = 100_000n;
 
 /** Odds stay sealed until each side has this many tickets; the same count is needed to settle (D3, PD20). */
 export const MIN_TICKETS_PER_SIDE = 3;
-/** After unsealing, totals change only once this many new tickets have arrived (PD15). */
+/**
+ * A market's published `ticketCount`, `leaves` and totals change only in releases of at least this many new tickets,
+ * sealed or not, first release included (PD15, PD28). Tickets still unreleased when the cutoff block is final (fewer
+ * than this) are refunded in full and never counted.
+ */
 export const MIN_NEW_TICKETS_PER_RELEASE = 3;
 
 /** A signed bundle is published on this clock whether or not anything changed (PD14/PD15). */
@@ -61,8 +65,13 @@ export const PAYOUT_WINDOW_MAX_MS = 6 * 60 * 60_000;
  */
 export const NU7_PAUSE_MARGIN_BLOCKS = 150;
 
-/** Size of each published market-address list; used addresses are dropped each batch (plan §13.14). */
+/** Size of each published market-address list (plan §13.14). */
 export const ADDRESS_LIST_SIZE = 1024;
+/**
+ * Every batch retires the used addresses plus random unused ones, a multiple of this many in all (never fewer), so a
+ * paid address can't be told apart from the decoys retired with it (O9). Retired addresses still receive.
+ */
+export const ADDRESS_RETIRE_MIN = 8;
 
 /** Bet memo (plain text only; Zodl iOS drops non-text memos, Zingo caps at 511 bytes). */
 export const MEMO_PREFIX = "kakure:v1";

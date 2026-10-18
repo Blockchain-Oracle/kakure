@@ -117,7 +117,7 @@ export default function Backup() {
     );
   if (!words) {
     return (
-      <SheetBody title="Your recovery words">
+      <SheetBody title="Your recovery words" secret>
         <Skeleton style={{ height: 320, borderRadius: 20 }} />
       </SheetBody>
     );
@@ -126,6 +126,7 @@ export default function Backup() {
   if (step === "words") {
     return (
       <SheetBody
+        secret
         title="Your recovery words"
         subtitle="Write them down in order. Anyone with these words owns this wallet; nobody, Kakure included, can restore it without them."
       >
@@ -151,6 +152,7 @@ export default function Backup() {
     if (!current) return null;
     return (
       <SheetBody
+        secret
         title={`Word ${current.position + 1}?`}
         subtitle={`Check ${question + 1} of ${quiz.length}. Pick the word from your list.`}
       >

@@ -1,5 +1,6 @@
 import * as Zingo from "@zingo";
 import * as Notifications from "expo-notifications";
+import { forgetCueMemory } from "@/feedback/fire";
 import { clearAll } from "@/lib/kv";
 import { onboardedStore } from "@/onboarding/onboarded";
 import { eraseTickets } from "@/tickets/ticket-db";
@@ -17,6 +18,7 @@ export async function forgetThisDevice(): Promise<void> {
   await eraseTickets();
   resetTickets();
   await Notifications.cancelAllScheduledNotificationsAsync().catch(() => undefined);
+  forgetCueMemory();
   clearAll();
   walletStore.set({ ...walletStore.get(), phase: "absent", pools: null, address: null, activity: [] });
   onboardedStore.set(false);

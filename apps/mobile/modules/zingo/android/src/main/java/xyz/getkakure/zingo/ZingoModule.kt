@@ -98,6 +98,12 @@ class ZingoModule : Module() {
     AsyncFunction("excludeFromBackup") Coroutine { path: String ->
       mapOf("path" to path)
     }
+
+    // Android excludes the whole app from cloud backup and device transfer in the manifest
+    // (allowBackup="false" plus the data extraction rules from plugins/with-no-backup.js).
+    AsyncFunction("excludeAppDataFromBackup") Coroutine { ->
+      mapOf("excluded" to 0, "refused" to 0)
+    }
   }
 
   private fun reactContext(): Context = appContext.reactContext ?: throw Exceptions.ReactContextLost()

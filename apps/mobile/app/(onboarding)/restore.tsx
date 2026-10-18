@@ -67,6 +67,7 @@ export default function Restore() {
 
   return (
     <SheetBody
+      secret
       title="Restore a wallet"
       subtitle={`${NETWORK_LABEL[network]} · type your words in order, separated by spaces.`}
     >

@@ -19,11 +19,30 @@ export const DATA_SOURCE: DataSource = {
 export const PRICE_RELAY =
   process.env.EXPO_PUBLIC_PRICE_RELAY ?? "https://kakure-prices.kakure-price-relay.workers.dev";
 
-/** Light-wallet servers the in-app wallet syncs from (zcash-stack-and-feeds §4). */
-export const WALLET_SERVER: Readonly<Record<Network, string>> = {
-  mainnet: "https://zec.rocks:443",
-  testnet: "https://testnet.zec.rocks:443",
+export type WalletServerId = "zec.rocks" | "stardust";
+
+export interface WalletServer {
+  id: WalletServerId;
+  label: string;
+  uri: string;
+}
+
+/**
+ * Public light-wallet servers the in-app wallet can sync from, two operators on mainnet (zec.rocks, Stardust);
+ * testnet has one live server (context/05-node-and-infra/light-clients-and-indexers.md, zcash-stack-and-feeds §4).
+ * Sync reaches the server directly, not over Nym or Tor: the binding sends only transactions through the mixnet.
+ */
+export const WALLET_SERVERS: Readonly<Record<Network, readonly [WalletServer, ...WalletServer[]]>> = {
+  mainnet: [
+    { id: "zec.rocks", label: "zec.rocks", uri: "https://zec.rocks:443" },
+    { id: "stardust", label: "Stardust", uri: "https://us.zec.stardust.rest:443" },
+  ],
+  testnet: [{ id: "zec.rocks", label: "testnet.zec.rocks", uri: "https://testnet.zec.rocks:443" }],
 };
+
+/** What the wallet's server can and can't see (audit O5), said in Settings, on the Wallet tab and in first run. */
+export const WALLET_PRIVACY_LINE =
+  "Your wallet syncs from a public Zcash server, which can see your IP address; bets and sends travel through the Nym mixnet.";
 
 /** The public site: market links (`/m#<network>/<id>`) and receipt verify links (`/verify#<receipt>`). */
 export const SITE_ORIGIN = "https://getkakure.xyz";
@@ -61,8 +80,6 @@ export const SYNC_MAX_POLLS = 150;
 export const CLOCK_TICK_MS = 1_000;
 /** "Closing soon" lists open markets whose betting closes within this window. */
 export const CLOSING_SOON_MS = 60 * 60_000;
-/** A local notification is scheduled this long before a market with one of your tickets closes. */
-export const CLOSE_REMINDER_MS = 10 * 60_000;
 
 /** Persisted public data older than this is dropped (it is re-fetched and re-verified anyway). */
 export const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60_000;
@@ -75,6 +92,8 @@ export const EXPORT_MIN_PASSPHRASE = 8;
 /** Device storage keys (secure-store and the kv store). Forget this device clears every one. */
 export const STORAGE_KEYS = {
   ticketKey: "kakure.tickets.key.v1",
+  /** Secure-store key that turns cue identities into opaque digests (the kv-store never holds a ticket hash). */
+  cueKey: "kakure.cues.key.v1",
   prefs: "kakure.prefs.v1",
   network: "kakure.network.v1",
   onboarded: "kakure.onboarded.v1",
@@ -112,7 +131,7 @@ export const MIN_SEED_WORDS = 12;
 export const SHEET_DETENTS = { medium: 0.62, tall: 0.88, form: 0.95, full: 1 } as const;
 
 /** Short forms of hashes on screen: a folio and the leading/trailing characters. */
-export const HASH_SHORT = { head: 10, tail: 6, folioStart: 2, folioEnd: 8, file: 8, line: 12 } as const;
+export const HASH_SHORT = { head: 10, tail: 6, file: 8 } as const;
 
 export const MS_PER_SECOND = 1000;
 

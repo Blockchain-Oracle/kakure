@@ -35,12 +35,17 @@ pub const RULES_HASH_PERSONAL: &[u8; 16] = b"Kakure_Rules_v01";
 /// over the exact bytes of the published file, which is the canonical JSON of the signed document.
 pub const BUNDLE_HASH_ALGORITHM: &str = "SHA-256";
 pub const SCHEMA_VERSION: u32 = 1;
+/// A market's published count, leaves and totals change only once this many unpublished tickets
+/// are pending; fewer still pending when `H_c` is final are refunded in full, never counted (PD28).
 pub const MIN_NEW_TICKETS_PER_RELEASE: u32 = 3;
 pub const BATCH_INTERVAL_SECS: u64 = 10 * 60;
 pub const CUTOFF_BEFORE_CLOSE_SECS: i64 = 10 * 60;
 pub const FINALITY_CONFIRMATIONS: u32 = 10;
 pub const CLOSING_WARNING_BLOCKS: i64 = 3;
 pub const ADDRESS_LIST_SIZE: u32 = 1024;
+/// Every batch retires the used addresses plus random unused ones, a multiple of this many in all,
+/// so a retired address can't be told apart from the decoys retired with it.
+pub const ADDRESS_RETIRE_MIN: u32 = 8;
 /// Market address lists start at diversifier index 1: index 0 is the account's default
 /// Orchard + Sapling address (S00 finding).
 pub const ADDRESS_FIRST_INDEX: u32 = 1;

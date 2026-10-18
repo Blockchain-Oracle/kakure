@@ -1,13 +1,13 @@
 import { cx } from "./cx";
 
 /**
- * A real asset mark, never a stand-in logo (kawase.md §4.7, R4). Marks are vendored SVG files served from the
- * site itself, so showing one makes no third-party request. Without a mark it falls back to a labelled neutral
- * disc. Marks keep their own colours: nothing is tinted.
+ * A real asset mark, never a stand-in logo (kawase.md §4.7, R4). Marks come from an inline SVG sprite the page
+ * carries for every visitor (`<symbol id="mark-…">`), so showing one makes no request at all, not even one that
+ * would name the asset (O7). Without a mark it falls back to a labelled neutral disc. Marks keep their own colours.
  */
 export interface MarkProps {
-  /** Same-origin URL of the vendored SVG, or null for the labelled disc. */
-  src: string | null;
+  /** Id of the mark's `<symbol>` in the page's sprite, or null for the labelled disc. */
+  mark: string | null;
   /** Ticker or short name, used for the fallback disc. */
   label: string;
   size?: "inline" | "token" | "row" | "detail";
@@ -23,16 +23,12 @@ const SIZE = {
 
 const MONOGRAM_LENGTH = 4;
 
-export function Mark({ src, label, size = "row", className }: MarkProps) {
-  if (src) {
+export function Mark({ mark, label, size = "row", className }: MarkProps) {
+  if (mark) {
     return (
-      <img
-        src={src}
-        alt=""
-        aria-hidden
-        className={cx("shrink-0 rounded-full", SIZE[size], className)}
-        decoding="async"
-      />
+      <svg viewBox="0 0 24 24" aria-hidden className={cx("shrink-0 rounded-full", SIZE[size], className)}>
+        <use href={`#${mark}`} />
+      </svg>
     );
   }
   return (

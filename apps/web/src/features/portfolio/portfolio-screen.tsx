@@ -14,6 +14,7 @@ import { sideWord, WINDOW_LABEL } from "@/features/markets/market-view";
 import { TicketSheet } from "@/features/receipts/ticket-sheet";
 import { setPrefs, usePrefs } from "@/features/settings/prefs-store";
 import { STATUS_LABEL, STATUS_TONE } from "@/features/tickets/status";
+import { UnlockForm } from "@/features/tickets/unlock-form";
 import { addTicket, useTickets } from "@/features/tickets/use-tickets";
 import { formatShortWhen, useNow } from "@/lib/time";
 import { useAmounts } from "./amounts";
@@ -23,7 +24,7 @@ import { SoundLadder } from "./sound-ladder";
 /**
  * The portfolio (C9, surfaces.md): this device's tickets only. Open and settled lists, P&L in ZEC with fiat as
  * secondary (mainnet only: TAZ has no value), the privacy eye, the sound ladder while a position is open, and an
- * honest Replay state until archived price history exists.
+ * honest Replay state until the web reads the signed price history.
  */
 type Tab = "open" | "settled";
 const ZEC_STREAM: StreamSymbol = "ZEC-USD";
@@ -99,6 +100,17 @@ export function PortfolioScreen() {
 
       {tickets === null ? (
         <Skeleton className="h-40 rounded-group" />
+      ) : tickets === "locked" ? (
+        <section className="flex flex-col gap-3 rounded-group bg-card p-5" aria-labelledby="locked-title">
+          <h2 id="locked-title" className="text-title text-foreground">
+            Your tickets are locked
+          </h2>
+          <p className="text-row-detail text-muted-foreground">
+            You set a passphrase for this device's ticket store. Enter it to open your tickets in this tab; they lock
+            again when the tab closes.
+          </p>
+          <UnlockForm />
+        </section>
       ) : tickets === "unavailable" ? (
         <EmptyState
           icon={<TicketIcon />}
@@ -230,7 +242,7 @@ function Row({ position, now, onOpen }: { position: Position; now: number; onOpe
         onClick={onOpen}
         className="kk-press flex w-full items-center gap-3 rounded-group bg-card p-4 text-left outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Mark src={asset.mark} label={asset.symbol} />
+        <Mark mark={asset.mark} label={asset.symbol} />
         <span className="min-w-0 flex-1">
           <span className="block text-row-strong text-foreground">
             {sideWord(ticket.side)} · {asset.symbol} {WINDOW_LABEL[ticket.window]}
@@ -245,7 +257,10 @@ function Row({ position, now, onOpen }: { position: Position; now: number; onOpe
   );
 }
 
-/** Replay and Recap are rendered from archived price snapshots, which don't exist yet (plan §13.15). */
+/**
+ * Replay and Recap will be rendered from the signed `history-<yyyymmdd>.json` files (plan §13.15, C9), which the web
+ * app doesn't read yet; until then this card says so instead of faking a film.
+ */
 function ReplayCard() {
   return (
     <section className="flex items-start gap-4 rounded-group bg-card p-5">
@@ -255,8 +270,8 @@ function ReplayCard() {
       <div>
         <h2 className="text-title text-foreground">Replay arrives with price history</h2>
         <p className="mt-1 text-row-detail text-muted-foreground">
-          Replay and Recap films are drawn from the relay's archived one-minute prices, which aren't being recorded yet.
-          No film is faked from a guess; they'll appear here once the archive exists.
+          Replay and Recap films will be drawn from the operator's signed daily price history, which this site doesn't
+          read yet. No film is faked from a guess; they'll appear here once it does.
         </p>
       </div>
     </section>

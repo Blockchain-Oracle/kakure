@@ -8,7 +8,7 @@
 
 use std::{convert::Infallible, str::FromStr};
 
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Result, anyhow, bail, ensure};
 use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use secrecy::ExposeSecret;
 use zcash_address::ZcashAddress;
@@ -42,7 +42,7 @@ use zcash_protocol::{
 use zip321::{Payment, TransactionRequest};
 
 use crate::{
-    remote::Tor,
+    remote::{Lwd, Tor},
     wallet::{self, Db, Wallet},
 };
 
@@ -152,6 +152,7 @@ pub fn build_merge(
     wallet: &Wallet,
     pool: ShieldedPool,
     marginal_fee: Option<u64>,
+    expiry_delta: Option<u32>,
 ) -> Result<Built> {
     let params = wallet.net.params();
     let mut db = wallet.open()?;
@@ -179,7 +180,7 @@ pub fn build_merge(
         None,
     )
     .map_err(|e| anyhow!("merge proposal: {e}"))?;
-    create(wallet, &mut db, &proposal, None)
+    create(wallet, &mut db, &proposal, expiry_delta)
 }
 
 fn create(
@@ -262,9 +263,15 @@ fn create(
     })
 }
 
-/// Broadcasts over a fresh isolated Tor circuit to the public server.
+/// Broadcasts over a fresh isolated Tor circuit to the broadcast server (not the sync server,
+/// where the network has a second one: O6).
 pub async fn broadcast(tor: &Tor, raw: &[u8]) -> Result<()> {
-    let mut lwd = tor.circuit().await.context("broadcast circuit")?;
+    let mut lwd = tor.broadcast_circuit().await?;
+    broadcast_on(&mut lwd, raw).await
+}
+
+/// Broadcasts on a circuit the caller opened (to read the tip first, as a light wallet does).
+pub async fn broadcast_on(lwd: &mut Lwd, raw: &[u8]) -> Result<()> {
     let resp = lwd
         .send_transaction(RawTransaction {
             data: raw.to_vec(),

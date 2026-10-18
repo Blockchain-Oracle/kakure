@@ -1,6 +1,6 @@
 "use client";
 
-import { type Market, MIN_TICKETS_PER_SIDE } from "@kakure/domain";
+import { type Market, MIN_NEW_TICKETS_PER_RELEASE } from "@kakure/domain";
 import type { Ticket } from "@kakure/query";
 import { Button, buttonClass, cx } from "@kakure/ui-web";
 import { DottedQr } from "@kakure/ui-web/qr";
@@ -8,6 +8,7 @@ import { Copy, Eye, ShieldAlert, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NETWORK_COIN, SITE_ORIGIN } from "@/constants";
 import { coinAmount, sideWord } from "@/features/markets/market-view";
+import { copySecret } from "@/lib/clipboard";
 
 /**
  * The QR sheet (C2, surfaces.md): the ZIP 321 request as a dotted code on a white plate (error correction M, no
@@ -48,7 +49,7 @@ export function QrStep({
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(uri);
+      await copySecret(uri);
       setCopied(true);
       setTimeout(() => setCopied(false), COPIED_MS);
     } catch {
@@ -103,8 +104,9 @@ export function QrStep({
 
       <p className="flex gap-2.5 rounded-row bg-warn-surface px-4 py-3 text-row-detail text-warn">
         <ShieldAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-        This code holds your bet and your payout address. Don't screenshot or share it: anyone who sees it learns your
-        side and where you're paid. It hides itself when this window isn't in front.
+        This code and its link hold your bet and your payout address: whoever has them learns your side and where you're
+        paid. Don't screenshot, share or paste them anywhere else. The code hides itself when this window isn't in
+        front, and a copied link is wiped from your clipboard after a minute where your browser allows it.
       </p>
 
       <div className="flex items-center gap-4 rounded-group bg-raised-2 p-4">
@@ -118,11 +120,11 @@ export function QrStep({
       </div>
 
       <div className="rounded-group bg-raised-2 p-4 text-row-detail text-muted-foreground">
-        <p className="font-semibold text-foreground">Waiting for the chain</p>
+        <p className="font-semibold text-foreground">Waiting for its batch</p>
         <p className="mt-1">
-          Your ticket is saved on this device. Once your wallet's payment is mined, the next signed batch lists it as
-          counted. Odds stay sealed until each side has {MIN_TICKETS_PER_SIDE} tickets. Don't pay twice: if you're
-          unsure, check your wallet first.
+          Your ticket is saved on this device. Once your payment is mined it's counted when{" "}
+          {MIN_NEW_TICKETS_PER_RELEASE} new tickets have arrived, so no single bet shows; if the market closes first,
+          it's refunded in full. Don't pay twice: if you're unsure, check your wallet first.
         </p>
       </div>
 

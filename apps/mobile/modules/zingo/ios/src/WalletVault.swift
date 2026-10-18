@@ -68,6 +68,37 @@ struct WalletVault {
     try url.setResourceValues(values)
   }
 
+  /// Keeps every app data file out of iCloud and computer backups (plan §2 Device storage; audit O4).
+  ///
+  /// iOS backs up Documents and Library (all but Library/Caches) by default. A directory flagged
+  /// `isExcludedFromBackup` is skipped together with everything in it, including files created later
+  /// (SQLite's -wal/-shm files, atomic rewrites of wallet.dat, new preferences). Every existing item is
+  /// flagged as well. Items the system owns may refuse the flag; those are counted, not fatal.
+  static func excludeAppDataFromBackup() -> [String: Any] {
+    let files = FileManager.default
+    let roots = [FileManager.SearchPathDirectory.documentDirectory, .libraryDirectory]
+      .compactMap { files.urls(for: $0, in: .userDomainMask).first }
+    let caches = files.urls(for: .cachesDirectory, in: .userDomainMask).first?.standardizedFileURL.path
+    var excluded = 0
+    var refused = 0
+    let flag = { (url: URL) in
+      if (try? WalletVault.excludeFromBackup(path: url.path)) != nil { excluded += 1 } else { refused += 1 }
+    }
+    for root in roots {
+      flag(root)
+      guard let items = files.enumerator(at: root, includingPropertiesForKeys: nil) else { continue }
+      for case let item as URL in items {
+        // Caches are never backed up, and they can hold many files.
+        if item.standardizedFileURL.path == caches {
+          items.skipDescendants()
+          continue
+        }
+        flag(item)
+      }
+    }
+    return ["excluded": excluded, "refused": refused]
+  }
+
   // MARK: Recovery info (Keychain)
 
   func hasRecoveryInfo() -> Bool {

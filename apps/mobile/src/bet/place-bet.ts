@@ -12,7 +12,7 @@ import * as Zingo from "@zingo";
 import { BET_POOLS, FEE_RESERVE_ZAT, HASH_SHORT } from "@/constants";
 import { fire } from "@/feedback/fire";
 import { devLog } from "@/lib/dev-log";
-import type { AppTicket } from "@/tickets/ticket-db";
+import { type AppTicket, payoutAddressUsed } from "@/tickets/ticket-db";
 import { putTicket, updateTicket } from "@/tickets/use-tickets";
 import { errorOf, refreshWallet, walletStore, warmMixnet } from "@/wallet/wallet-store";
 
@@ -27,7 +27,7 @@ import { errorOf, refreshWallet, walletStore, warmMixnet } from "@/wallet/wallet
 export class BetError extends Error {
   override name = "BetError";
   constructor(
-    readonly kind: "no-wallet" | "not-enough-ironwood" | "no-addresses" | "closed",
+    readonly kind: "no-wallet" | "not-enough-ironwood" | "no-addresses" | "closed" | "address-reused",
     message: string,
   ) {
     super(message);
@@ -47,6 +47,22 @@ export function pickAddress(list: AddressList): string | undefined {
     const [word = 0] = crypto.getRandomValues(new Uint32Array(RANDOM_WORDS));
     if (word < limit) return list.addresses[word % count];
   }
+}
+
+/**
+ * A fresh Orchard-only payout address for one ticket (D8). Two tickets paying out to one address would let the
+ * operator link them, so a repeat is a fault: nothing is saved or sent (audit O21).
+ */
+export async function freshPayoutAddress(): Promise<string> {
+  const payout = await Zingo.newPayoutAddress();
+  if (await payoutAddressUsed(payout.address)) {
+    devLog("payout address reuse detected; bet stopped");
+    throw new BetError(
+      "address-reused",
+      "The wallet gave a payout address an earlier ticket already uses, so this bet was stopped and nothing was sent. Try again: each try asks the wallet for a new address.",
+    );
+  }
+  return payout.address;
 }
 
 /** Whether the Ironwood pool can pay this ticket now (confirmed notes only). */
@@ -82,16 +98,16 @@ export async function placeBet(
     throw new BetError("no-addresses", "The signed address list hasn't loaded yet.");
   }
 
-  const payout = await Zingo.newPayoutAddress();
+  const payoutAddress = await freshPayoutAddress();
   const nonce = newNonce();
-  const memo = encodeBetMemo({ network, marketId: market.id, side, sizeZat, nonce, payoutAddress: payout.address });
+  const memo = encodeBetMemo({ network, marketId: market.id, side, sizeZat, nonce, payoutAddress });
   const draft = {
     network,
     marketId: market.id,
     side,
     sizeZat: sizeZat.toString(),
     nonce: toBase64Url(nonce),
-    payoutAddress: payout.address,
+    payoutAddress,
     marketAddress,
     createdAt: Date.now(),
     question: market.rules.question,

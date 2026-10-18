@@ -10,8 +10,10 @@ use serde_json::{Value, json};
 
 use crate::{
     domain::{
-        CUTOFF_BEFORE_CLOSE_SECS, FINALITY_CONFIRMATIONS, MIN_TICKETS_PER_SIDE, is_market_id,
+        CUTOFF_BEFORE_CLOSE_SECS, FINALITY_CONFIRMATIONS, MIN_NEW_TICKETS_PER_RELEASE,
+        MIN_TICKETS_PER_SIDE, is_market_id,
     },
+    payouts::Window,
     signing::{canonical_json, rules_hash},
     venues::{Venue, VenuePair},
     wallet::Net,
@@ -149,6 +151,8 @@ pub struct NewMarket {
     pub target_height: Option<u32>,
     /// Bets must also be mined below this height (a height event's outcome is known at H).
     pub bet_height_cap: Option<u32>,
+    /// The payout window the rules state; payouts for this market use exactly this window (O2).
+    pub payout_window: Window,
 }
 
 pub fn iso(ts: i64) -> String {
@@ -182,7 +186,11 @@ pub fn next_window_start(now: i64, length: i64) -> i64 {
 
 fn shared_cancellation(extra: &str) -> String {
     format!(
-        "Every ticket is refunded if either side has fewer than {MIN_TICKETS_PER_SIDE} tickets at the cutoff{extra}. \
+        "Ticket counts, ticket hashes and side totals are published only in releases of at least \
+         {MIN_NEW_TICKETS_PER_RELEASE} new tickets, so no release singles out one bet. Tickets still unreleased when \
+         the cutoff block H_c is final (fewer than {MIN_NEW_TICKETS_PER_RELEASE}) are refunded in full and never \
+         counted. Every counted ticket is refunded if either side has fewer than {MIN_TICKETS_PER_SIDE} counted \
+         tickets at the cutoff{extra}. \
          Refunds to the memo's payout address: bets mined at or after the cutoff block H_c, bets mined before betting \
          opened, wrong amounts of 0.001 ZEC or more (smaller amounts are kept as dust), a side this market does not have, \
          and a repeated nonce (the first by block height and transaction index counts). A missing or malformed memo, a \
@@ -201,12 +209,29 @@ fn betting_window(opens_at: i64, cutoff_at: i64) -> String {
     )
 }
 
-const PAYOUT_FORMULA: &str = "A winning ticket of size s receives s + round(s × L × (10000 − 200) / (W × 10000)) \
-     zatoshi, rounded to the nearest 100000 zatoshi (0.001 ZEC, half up), where W and L are the winning and losing \
-     pools at the cutoff. The 2% fee comes from the losing side only; the house absorbs the rounding either way. Each \
-     payout is split into canonical 1, 2 or 5 × 10^k zatoshi notes, each sent as its own transaction at a random time \
-     2 to 6 hours after resolution.";
+/// "2 to 6 hours" (or minutes or seconds, whichever unit divides both ends).
+fn span(window: Window) -> String {
+    for (unit, name) in [(HOUR_SECS, "hours"), (60, "minutes"), (1, "seconds")] {
+        if window.min % unit == 0 && window.max % unit == 0 {
+            return format!("{} to {} {name}", window.min / unit, window.max / unit);
+        }
+    }
+    unreachable!("every window is whole seconds")
+}
 
+/// The payout sentence, written from the same window the scheduler uses for this market (O2).
+fn payout_formula(window: Window) -> String {
+    format!(
+        "A winning ticket of size s receives s + round(s × L × (10000 − 200) / (W × 10000)) zatoshi, rounded to the \
+         nearest 100000 zatoshi (0.001 ZEC, half up), where W and L are the winning and losing pools at the cutoff. \
+         The 2% fee comes from the losing side only; the house absorbs the rounding either way. Each payout is split \
+         into canonical 1, 2 or 5 × 10^k zatoshi notes, each sent as its own transaction at a random time {} after \
+         resolution.",
+        span(window)
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 fn finish(
     subject: &str,
     window: &'static str,
@@ -215,6 +240,7 @@ fn finish(
     closes_at: i64,
     rules: &Value,
     target_height: Option<u32>,
+    payout_window: Window,
 ) -> Result<NewMarket> {
     Ok(NewMarket {
         id: market_id(&subject.to_lowercase(), window, closes_at),
@@ -228,11 +254,17 @@ fn finish(
         rules_hash: rules_hash(rules)?,
         target_height,
         bet_height_cap: target_height,
+        payout_window,
     })
 }
 
 /// An Up/Down market on `asset` for the window `[opens_at, closes_at)`.
-pub fn close_market(asset: &Asset, opens_at: i64, closes_at: i64) -> Result<NewMarket> {
+pub fn close_market(
+    asset: &Asset,
+    opens_at: i64,
+    closes_at: i64,
+    payout: Window,
+) -> Result<NewMarket> {
     let window = if closes_at - opens_at == HOUR_SECS {
         "1h"
     } else {
@@ -261,7 +293,7 @@ pub fn close_market(asset: &Asset, opens_at: i64, closes_at: i64) -> Result<NewM
         "cancellation": shared_cancellation(
             ", if no direction gets 2 of the 3 venue votes, or if fewer than 2 venues give an opening reference"
         ),
-        "payoutFormula": PAYOUT_FORMULA,
+        "payoutFormula": payout_formula(payout),
     });
     finish(
         ticker,
@@ -271,11 +303,17 @@ pub fn close_market(asset: &Asset, opens_at: i64, closes_at: i64) -> Result<NewM
         closes_at,
         &rules,
         None,
+        payout,
     )
 }
 
 /// Testnet: "Zcash testnet reaches height H before T", resolved from chain data in S03.
-pub fn testnet_height_market(opens_at: i64, closes_at: i64, height: u32) -> Result<NewMarket> {
+pub fn testnet_height_market(
+    opens_at: i64,
+    closes_at: i64,
+    height: u32,
+    payout: Window,
+) -> Result<NewMarket> {
     let cutoff_at = closes_at - CUTOFF_BEFORE_CLOSE_SECS;
     let rules = json!({
         "question": format!("Will Zcash testnet reach block height {height} before {}?", iso(closes_at)),
@@ -293,7 +331,7 @@ pub fn testnet_height_market(opens_at: i64, closes_at: i64, height: u32) -> Resu
             "Browser re-verify, gRPC-web: https://zjs.zec.rocks/testnet",
         ],
         "cancellation": shared_cancellation(", or if the light-wallet servers disagree on the best chain at resolution"),
-        "payoutFormula": PAYOUT_FORMULA,
+        "payoutFormula": payout_formula(payout),
     });
     finish(
         TESTNET_EVENT_SUBJECT,
@@ -303,12 +341,13 @@ pub fn testnet_height_market(opens_at: i64, closes_at: i64, height: u32) -> Resu
         closes_at,
         &rules,
         Some(height),
+        payout,
     )
 }
 
 /// Mainnet: "NU7 activates on mainnet before the deadline" (plan §13.6). Never created on testnet,
 /// where NU7 activated at 4,465,026.
-pub fn nu7_market(opens_at: i64) -> Result<NewMarket> {
+pub fn nu7_market(opens_at: i64, payout: Window) -> Result<NewMarket> {
     let cutoff_at = NU7_DEADLINE - CUTOFF_BEFORE_CLOSE_SECS;
     let deadline = iso(NU7_DEADLINE);
     let rules = json!({
@@ -330,7 +369,7 @@ pub fn nu7_market(opens_at: i64) -> Result<NewMarket> {
         "cancellation": shared_cancellation(
             ", or if the two light-wallet servers disagree at resolution on whether a qualifying block exists"
         ),
-        "payoutFormula": PAYOUT_FORMULA,
+        "payoutFormula": payout_formula(payout),
     });
     finish(
         NU7_SUBJECT,
@@ -340,11 +379,12 @@ pub fn nu7_market(opens_at: i64) -> Result<NewMarket> {
         NU7_DEADLINE,
         &rules,
         None,
+        payout,
     )
 }
 
 /// The close markets that should exist at `now`: the next hourly and the next daily window.
-pub fn due_close_markets(now: i64) -> Result<Vec<NewMarket>> {
+pub fn due_close_markets(now: i64, payout: Window) -> Result<Vec<NewMarket>> {
     let mut out = vec![];
     let hour = next_window_start(now, HOUR_SECS);
     for key in HOURLY {
@@ -352,6 +392,7 @@ pub fn due_close_markets(now: i64) -> Result<Vec<NewMarket>> {
             asset(key).expect("catalog asset"),
             hour,
             hour + HOUR_SECS,
+            payout,
         )?);
     }
     let day = next_window_start(now, DAY_SECS);
@@ -360,21 +401,34 @@ pub fn due_close_markets(now: i64) -> Result<Vec<NewMarket>> {
             asset(key).expect("catalog asset"),
             day,
             day + DAY_SECS,
+            payout,
         )?);
     }
     Ok(out)
 }
 
 /// The event market to create when none is pending on this network.
-pub fn due_event_market(net: Net, now: i64, tick_secs: i64, tip: u32) -> Result<Option<NewMarket>> {
+pub fn due_event_market(
+    net: Net,
+    now: i64,
+    tick_secs: i64,
+    tip: u32,
+    payout: Window,
+) -> Result<Option<NewMarket>> {
     let opens_at = next_window_start(now, tick_secs);
     match net {
         Net::Testnet => {
             let closes_at = next_window_start(now + TESTNET_EVENT_DURATION_SECS, tick_secs);
-            testnet_height_market(opens_at, closes_at, tip + TESTNET_EVENT_BLOCKS_AHEAD).map(Some)
+            testnet_height_market(
+                opens_at,
+                closes_at,
+                tip + TESTNET_EVENT_BLOCKS_AHEAD,
+                payout,
+            )
+            .map(Some)
         }
         Net::Mainnet if opens_at < NU7_DEADLINE - CUTOFF_BEFORE_CLOSE_SECS => {
-            nu7_market(opens_at).map(Some)
+            nu7_market(opens_at, payout).map(Some)
         }
         Net::Mainnet => Ok(None),
     }
@@ -388,7 +442,7 @@ mod tests {
     fn ids_and_windows() {
         // 2026-10-17T18:20:00Z
         let now = 1_792_261_200;
-        let markets = due_close_markets(now).expect("markets");
+        let markets = due_close_markets(now, Window::default()).expect("markets");
         assert_eq!(markets[0].id, "btc-1h-2610172000");
         assert_eq!(iso(markets[0].opens_at), "2026-10-17T19:00:00Z");
         assert_eq!(iso(markets[0].cutoff_at), "2026-10-17T19:50:00Z");
@@ -399,11 +453,23 @@ mod tests {
         assert_eq!(daily.id, "doge-1d-2610190000");
         assert_eq!(iso(daily.opens_at), "2026-10-18T00:00:00Z");
         assert!(markets.iter().all(|m| is_market_id(&m.id)));
-        let event = nu7_market(now).expect("nu7");
+        let event = nu7_market(now, Window::default()).expect("nu7");
         assert_eq!(event.id, "nu7-event-2611120000");
         assert_eq!(iso(NU7_DEADLINE), "2026-11-12T00:00:00Z");
         // Rules are stored canonically and hashed once.
         let rules: Value = serde_json::from_str(&markets[0].rules).expect("rules");
         assert_eq!(rules_hash(&rules).expect("hash"), markets[0].rules_hash);
+        // The payout sentence comes from the market's own window (O2), and PD28 is in the rules.
+        let formula = rules["payoutFormula"].as_str().expect("formula");
+        assert!(formula.ends_with("at a random time 2 to 6 hours after resolution."));
+        let quick = Window { min: 120, max: 900 };
+        assert_eq!(span(quick), "2 to 15 minutes");
+        assert_eq!(span(Window { min: 90, max: 900 }), "90 to 900 seconds");
+        assert!(
+            rules["cancellation"]
+                .as_str()
+                .expect("cancellation")
+                .contains("refunded in full and never counted")
+        );
     }
 }

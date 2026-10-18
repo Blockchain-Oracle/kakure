@@ -10,13 +10,14 @@ import {
   Lock,
   MonitorSmartphone,
   RefreshCw,
+  Server,
   ShieldCheck,
   Trash2,
   Upload,
 } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Switch, View } from "react-native";
-import { NETWORK_LABEL } from "@/constants";
+import { NETWORK_LABEL, WALLET_PRIVACY_LINE, WALLET_SERVERS, type WalletServerId } from "@/constants";
 import { Segmented } from "@/kit/controls";
 import { Screen } from "@/kit/screen";
 import { Strip } from "@/kit/states";
@@ -26,6 +27,7 @@ import { useNetwork } from "@/network/network-store";
 import { forgetThisDevice } from "@/settings/forget";
 import { type Prefs, setPrefs, usePrefs } from "@/settings/prefs";
 import { useTheme } from "@/theme/theme-provider";
+import { switchWalletServer, walletServerFor } from "@/wallet/wallet-store";
 
 /**
  * Settings (surfaces.md Mobile → Settings): sound, haptics, motion, privacy eye, appearance, the lock, network,
@@ -119,6 +121,8 @@ export default function SettingsTab() {
     );
 
   const set = (patch: Partial<Prefs>) => setPrefs(patch);
+  const servers = WALLET_SERVERS[network];
+  const server = walletServerFor(network);
 
   return (
     <Screen title="Settings">
@@ -136,6 +140,32 @@ export default function SettingsTab() {
           value={prefs.motion === "reduce"}
           onChange={(reduce) => set({ motion: reduce ? "reduce" : "system" })}
         />
+      </Section>
+
+      <Section label="Privacy">
+        <Row
+          icon={MonitorSmartphone}
+          title="What servers see"
+          detail={`${WALLET_PRIVACY_LINE} That server also learns when this wallet was made and which transactions it fetches. Kakure itself only downloads signed public files, the same for everyone. For Tor on the whole phone, use Orbot's VPN mode.`}
+        />
+        {servers.length > 1 ? (
+          <View style={{ gap: theme.space.sm }}>
+            <Txt variant="label" tone="muted">
+              {NETWORK_LABEL[network]} wallet server
+            </Txt>
+            <Segmented<WalletServerId>
+              label={`${NETWORK_LABEL[network]} wallet server`}
+              value={server.id}
+              onChange={(id) => void switchWalletServer(network, id)}
+              options={servers.map((option) => ({ value: option.id, label: option.label }))}
+            />
+            <Txt variant="meta" tone="muted">
+              Two operators. Switching re-opens the wallet on the new server, which then sees your IP instead.
+            </Txt>
+          </View>
+        ) : (
+          <Row icon={Server} title={server.label} detail={`The only public ${NETWORK_LABEL[network]} wallet server`} />
+        )}
         <Toggle
           label="Hide amounts"
           detail="The privacy eye"
@@ -184,11 +214,6 @@ export default function SettingsTab() {
           title={NETWORK_LABEL[network]}
           detail="Change network"
           onPress={() => router.push("/network")}
-        />
-        <Row
-          icon={MonitorSmartphone}
-          title="Connection"
-          detail="Bets and sends go out over the Nym mixnet. Kakure only downloads signed public files, the same for everyone. For Tor on the whole phone, use Orbot's VPN mode."
         />
       </Section>
 

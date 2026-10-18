@@ -1,6 +1,6 @@
 import { MIN_NEW_TICKETS_PER_RELEASE, MIN_TICKETS_PER_SIDE, TICKET_SIZES_ZAT, zatToZec } from "@kakure/domain";
 import { buttonClass, cx } from "@kakure/ui-web";
-import { Clock, Lock, LockOpen, Repeat } from "lucide-react";
+import { Clock, Lock, Undo2, Users } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PARTIES } from "@/features/privacy/words";
@@ -165,17 +165,17 @@ const LIFECYCLE = [
   {
     icon: <Lock />,
     title: "Sealed",
-    body: `Until each side has ${MIN_TICKETS_PER_SIDE} tickets, only the ticket count moves.`,
+    body: `Until each side has ${MIN_TICKETS_PER_SIDE} tickets, the odds stay hidden and only the ticket count is published.`,
   },
   {
-    icon: <LockOpen />,
-    title: "Released together",
-    body: "Once both sides have enough, the totals appear in the next signed batch, all at once.",
+    icon: <Users />,
+    title: "In groups, never one by one",
+    body: `The count, the ticket list and the totals change only when at least ${MIN_NEW_TICKETS_PER_RELEASE} new tickets have arrived, so no single bet shows.`,
   },
   {
-    icon: <Repeat />,
-    title: "Moved in steps",
-    body: `After that the totals change only when ${MIN_NEW_TICKETS_PER_RELEASE} new tickets have arrived, so no single bet shows.`,
+    icon: <Undo2 />,
+    title: "No group, no publish",
+    body: `If fewer than ${MIN_NEW_TICKETS_PER_RELEASE} tickets are still waiting when betting closes for good, they're refunded in full and never published.`,
   },
   {
     icon: <Clock />,

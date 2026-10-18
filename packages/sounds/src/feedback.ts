@@ -10,29 +10,23 @@ export interface FeedbackPreferences {
 }
 
 let preferences: FeedbackPreferences = { sound: true, volume: 1, haptics: true };
+/**
+ * Identities already played, in memory for this visit only. Nothing is written to localStorage: an identity names a
+ * ticket and its outcome, which must never sit on the device in the clear (O4). A cue that must survive a reload
+ * keeps its "already played" mark inside the app's encrypted ticket record instead.
+ */
 const played = new Set<string>();
-const IDENTITY_KEY = "kakure.cues.v1";
-const IDENTITY_LIMIT = 500;
 
-function loadIdentities() {
+/** The pre-O4 cue memory key; removed on start so old plaintext ticket hashes don't linger. */
+const LEGACY_IDENTITY_KEY = "kakure.cues.v1";
+
+export function clearLegacyCueMemory(): void {
   try {
-    const stored = JSON.parse(localStorage.getItem(IDENTITY_KEY) ?? "[]") as string[];
-    for (const identity of stored) played.add(identity);
+    localStorage.removeItem(LEGACY_IDENTITY_KEY);
   } catch {
-    // Nothing remembered yet.
+    // No storage here.
   }
 }
-
-function rememberIdentity(identity: string) {
-  played.add(identity);
-  try {
-    localStorage.setItem(IDENTITY_KEY, JSON.stringify([...played].slice(-IDENTITY_LIMIT)));
-  } catch {
-    // Storage blocked: dedupe lasts this visit.
-  }
-}
-
-let identitiesLoaded = false;
 
 export function setFeedbackPreferences(next: FeedbackPreferences): void {
   preferences = next;
@@ -40,18 +34,13 @@ export function setFeedbackPreferences(next: FeedbackPreferences): void {
 }
 
 /**
- * The one call site for sound and haptics (Kawase's `fire`). An outcome cue carries an `identity` (a ticket hash
- * plus its state) and plays once per identity, remembered on this device so a reload never replays a win.
- * Haptics follow their own switch; sounds follow the sound switch and volume.
+ * The one call site for sound and haptics (Kawase's `fire`). A cue with an `identity` plays once per identity for
+ * this visit. Haptics follow their own switch; sounds follow the sound switch and volume.
  */
 export function fire(cue: CueName, options: { identity?: string; step?: number; haptic?: HapticWord | false } = {}) {
   if (options.identity) {
-    if (!identitiesLoaded) {
-      loadIdentities();
-      identitiesLoaded = true;
-    }
     if (played.has(options.identity)) return;
-    rememberIdentity(options.identity);
+    played.add(options.identity);
   }
   if (preferences.sound && preferences.volume > 0) playCue(cue, options.step);
   const haptic = options.haptic === false ? undefined : (options.haptic ?? CUES[cue].haptic);

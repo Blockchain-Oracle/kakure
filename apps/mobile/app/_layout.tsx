@@ -11,6 +11,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SHEET_DETENTS } from "@/constants";
 import { DataProvider } from "@/data/data-provider";
 import { warmSounds } from "@/feedback/fire";
+import { keepAppDataOutOfBackups } from "@/lib/no-backup";
 import { FloodProvider } from "@/network/flood";
 import { useNotificationsForTickets } from "@/notifications/schedule";
 import { onboardedStore } from "@/onboarding/onboarded";
@@ -87,6 +88,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    keepAppDataOutOfBackups();
     warmSounds();
     // The wallet opens only after first run made (or found) one; onboarding starts it itself.
     if (onboardedStore.get()) return startWallet();
