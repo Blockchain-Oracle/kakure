@@ -41,6 +41,9 @@ function withBindingRepository(config) {
 }
 
 const SIZE_PROPERTIES = {
+  // Compressing the large native libraries in packageRelease ran out of Gradle's default 2 GB heap
+  // (java.lang.OutOfMemoryError on CI); GitHub's ubuntu runners have 16 GB.
+  "org.gradle.jvmargs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError",
   reactNativeArchitectures: "arm64-v8a",
   "android.packagingOptions.excludes": "lib/armeabi-v7a/**,lib/x86/**,lib/x86_64/**",
   "expo.useLegacyPackaging": "true",
