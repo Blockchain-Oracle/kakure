@@ -76,8 +76,9 @@ export function EvidenceDetails({ resolution }: { resolution: Resolution }) {
           ? "none"
           : totals
               .map(
+                // A refunded market's evidence has counts only (no payout depends on the sizes).
                 ([side, pool]) =>
-                  `${sideWord(side)} ${ticketsWord(pool?.tickets ?? 0)}, ${coinAmount(BigInt(pool?.zat ?? "0"), coin)}`,
+                  `${sideWord(side)} ${ticketsWord(pool?.tickets ?? 0)}${pool?.zat === undefined ? "" : `, ${coinAmount(BigInt(pool.zat), coin)}`}`,
               )
               .join(" · ")}
         .

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { CLOSE_SIDES, EVENT_SIDES, MARKET_ID_PATTERN, NETWORKS, TICKET_HASH_BYTES } from "./constants";
 
 /**
- * The public files the operator signs and pushes to R2, and every client downloads the same way (PD14).
+ * The public files the operator signs and pushes to the data worker, and every client downloads the same way (PD14).
  * Version 1 is frozen in S01: the operator (Rust) writes exactly these shapes.
  * Amounts are decimal strings of zatoshi so JSON never carries floats or unsafe integers.
  */
@@ -18,6 +18,8 @@ const zat = z.string().regex(ZAT);
 const side = z.enum([...CLOSE_SIDES, ...EVENT_SIDES]);
 
 export const poolSideSchema = z.object({ tickets: z.number().int().nonnegative(), zat });
+/** A side of a resolution's final counts. A refunded market has no payout to verify, so it omits `zat` (N3). */
+export const resolutionSideSchema = z.object({ tickets: z.number().int().nonnegative(), zat: zat.optional() });
 
 export const marketRulesSchema = z.object({
   /** Exact wording, the resolver, the sources and the cancellation cases, fixed before betting opens (D13). */
@@ -153,9 +155,9 @@ export const resolutionSchema = z.object({
   kind: z.enum(["close", "event"]),
   rulesHash: z.string().regex(HEX_HASH),
   resolvedAt: isoTime,
-  /** H_c, frozen at FINALITY_CONFIRMATIONS; the totals are the signed final counts below it. */
+  /** H_c, frozen at FINALITY_CONFIRMATIONS; the totals are the signed final counts below it (released tickets only). */
   cutoffHeight: z.number().int().positive(),
-  totals: z.partialRecord(side, poolSideSchema),
+  totals: z.partialRecord(side, resolutionSideSchema),
   /** What the sources say, or "none" (split, flat or missing votes) / "disagree" (chain servers differ). */
   direction: z.union([side, z.literal("none"), z.literal("disagree")]),
   /** What happens to the money: the winning side, or "refund". */

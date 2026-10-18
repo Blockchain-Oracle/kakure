@@ -102,7 +102,9 @@ pub fn majority(votes: &[Vote]) -> Option<&'static str> {
 #[serde(rename_all = "camelCase")]
 pub struct PoolSide {
     pub tickets: u32,
-    pub zat: String,
+    /// Absent for a refunded market (N3): nothing is paid by size, so sizes stay private.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zat: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -365,6 +367,26 @@ pub async fn nu7_event(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refunded_totals_have_counts_only() {
+        let refunded = PoolSide {
+            tickets: 1,
+            zat: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&refunded).expect("json"),
+            r#"{"tickets":1}"#
+        );
+        let settled = PoolSide {
+            tickets: 3,
+            zat: Some("3000000".into()),
+        };
+        assert_eq!(
+            serde_json::to_string(&settled).expect("json"),
+            r#"{"tickets":3,"zat":"3000000"}"#
+        );
+    }
 
     #[test]
     fn vote_rule() {

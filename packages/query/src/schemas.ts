@@ -39,6 +39,7 @@ const count = z.int().check(z.nonnegative());
 const text = z.string().check(z.minLength(1));
 
 const poolSide = z.object({ tickets: count, zat });
+const resolutionSide = z.object({ tickets: count, zat: z.optional(zat) });
 
 const marketRules = z.object({
   question: text,
@@ -142,7 +143,7 @@ export const resolutionSchema = z.object({
   rulesHash: hexHash,
   resolvedAt: isoTime,
   cutoffHeight: z.int().check(z.positive()),
-  totals: z.partialRecord(side, poolSide),
+  totals: z.partialRecord(side, resolutionSide),
   direction: z.union([side, z.literal("none"), z.literal("disagree")]),
   outcome: z.union([side, z.literal("refund")]),
   reason: z.enum(["majority", "chain", "thin-pool", "no-majority", "cancelled", "servers-disagree"]),

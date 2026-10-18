@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS payouts (
     resolved_at INTEGER NOT NULL,
     window_end INTEGER NOT NULL,
     due_at INTEGER NOT NULL,
-    -- scheduled | broadcast | mined
+    -- scheduled | built (waiting for its first broadcast) | broadcast | mined
     status TEXT NOT NULL,
     owner BLOB NOT NULL,
     txid TEXT,
@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS payouts (
     mined_height INTEGER,
     attempts INTEGER NOT NULL DEFAULT 0,
     last_error TEXT,
+    -- 1 for a released (published) ticket's settlement; only these drive public state (N1).
+    counted INTEGER NOT NULL DEFAULT 0,
     UNIQUE (receipt_txid, receipt_pool, receipt_index, note_index)
 );
 CREATE INDEX IF NOT EXISTS payouts_due ON payouts (status, due_at);
@@ -293,6 +295,20 @@ impl Store {
             if !exists {
                 conn.execute_batch(&format!("ALTER TABLE markets ADD COLUMN {column} {ty}"))?;
             }
+        }
+        // N1: mark which payouts settle released tickets (wins, and refunds of a refunded market's
+        // counted tickets); unreleased, late and invalid bets' refunds never touch public state.
+        let has_counted: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('payouts') WHERE name = 'counted'",
+            [],
+            |r| r.get(0),
+        )?;
+        if !has_counted {
+            conn.execute_batch(
+                "ALTER TABLE payouts ADD COLUMN counted INTEGER NOT NULL DEFAULT 0;
+                 UPDATE payouts SET counted = 1 WHERE kind = 'win' OR reason LIKE 'thin-pool%'
+                     OR reason LIKE 'no-majority%' OR reason LIKE 'servers-disagree%';",
+            )?;
         }
         // Before PD28 every ticket was published in the next bundle, so all known tickets are public.
         conn.execute_batch(

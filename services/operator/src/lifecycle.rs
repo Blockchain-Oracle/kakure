@@ -196,7 +196,7 @@ impl Engine {
                             s.clone(),
                             PoolSide {
                                 tickets: u32::try_from(v["tickets"].as_u64().context("tickets")?)?,
-                                zat: v["zat"].as_str().context("zat")?.to_string(),
+                                zat: Some(v["zat"].as_str().context("zat")?.to_string()),
                             },
                         ))
                     })
@@ -242,6 +242,17 @@ impl Engine {
                 "{}: ticket set changed after the freeze",
                 m.id
             );
+            // N3: a refund has no payout to verify, so a refunded market's evidence carries ticket
+            // counts per side (enough to check a thin pool) but not their sizes, which a side with
+            // one ticket would give away.
+            let totals = if outcome == "refund" {
+                final_sides
+                    .into_iter()
+                    .map(|(side, pool)| (side, PoolSide { zat: None, ..pool }))
+                    .collect()
+            } else {
+                final_sides
+            };
             let doc = ResolutionDoc {
                 v: SCHEMA_VERSION,
                 network: self.wallet.net.name().to_string(),
@@ -250,7 +261,7 @@ impl Engine {
                 rules_hash: m.rules_hash.clone(),
                 resolved_at: catalog::iso(now),
                 cutoff_height,
-                totals: final_sides,
+                totals,
                 direction,
                 outcome: outcome.clone(),
                 reason: reason.to_string(),
@@ -264,9 +275,14 @@ impl Engine {
 
             // The window this market's signed rules state (O2).
             let window = Window::of_market(&m);
-            let mut owed = payouts::settle(&outcome, reason, &tickets)?;
+            // Released tickets' settlement is `counted` (public state follows it); PD28 refunds of
+            // unreleased tickets go out silently (N1).
+            let mut owed: Vec<_> = payouts::settle(&outcome, reason, &tickets)?
+                .into_iter()
+                .map(|(t, kind, why, zat)| (t, kind, why, zat, true))
+                .collect();
             for t in &unreleased {
-                owed.push((t, "refund", UNRELEASED.to_string(), t.value_zat));
+                owed.push((t, "refund", UNRELEASED.to_string(), t.value_zat, false));
             }
             let tx = self.store.conn.transaction()?;
             tx.execute(
@@ -275,9 +291,18 @@ impl Engine {
                 params![m.id, outcome, reason, name, now],
             )?;
             let mut notes = 0;
-            for (receipt, kind, why, zat) in &owed {
-                notes +=
-                    payouts::schedule(&tx, Some(&m.id), receipt, kind, why, *zat, now, window)?;
+            for (receipt, kind, why, zat, counted) in &owed {
+                notes += payouts::schedule(
+                    &tx,
+                    Some(&m.id),
+                    receipt,
+                    kind,
+                    why,
+                    *zat,
+                    now,
+                    window,
+                    *counted,
+                )?;
             }
             tx.commit()?;
             eprintln!(
@@ -439,6 +464,7 @@ impl Engine {
                 r.value_zat,
                 start,
                 window,
+                false,
             )?;
         }
         tx.commit()?;

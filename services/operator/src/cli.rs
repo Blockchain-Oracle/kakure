@@ -388,33 +388,49 @@ impl Cli {
                 let mut last_wake = 0;
                 loop {
                     if !once {
-                        // Bundles only ever go out on the aligned clock, after a restart too (O10).
-                        let now = chrono::Utc::now().timestamp();
-                        let mut next = catalog::next_window_start(now, interval) + offset;
-                        if next - interval > now {
-                            next -= interval;
-                        }
-                        // Payouts go out at their own random times, never right after a sync (O6),
-                        // and only once a tick of this run has synced the wallet.
+                        // Bundles only ever go out on the aligned clock: after a restart, a host
+                        // sleep or a wake that ran long, the loop waits for the next aligned slot
+                        // rather than publish late (O10).
+                        let aligned =
+                            |now: i64| catalog::next_window_start(now - offset, interval) + offset;
+                        let mut next = aligned(chrono::Utc::now().timestamp());
                         loop {
                             let now = chrono::Utc::now().timestamp();
+                            if now > next + engine::LATE_TICK_SLACK_SECS {
+                                eprintln!(
+                                    "run: woke too late for the {} tick; waiting for the next aligned one",
+                                    catalog::iso(next)
+                                );
+                                next = aligned(now);
+                                continue;
+                            }
+                            if now >= next {
+                                break;
+                            }
+                            // Sends go out at their own random times, never right after a sync (O6),
+                            // only once a tick of this run has synced the wallet, and never in the
+                            // last moments before a tick.
                             let due = match &tor {
-                                Some(_) if synced => engine.next_send(now)?.filter(|d| *d < next),
+                                Some(_) if synced => engine
+                                    .next_send(now)?
+                                    .filter(|d| *d < next - engine::SEND_GUARD_SECS),
                                 _ => None,
                             };
                             let wake = due.map_or(next, |d| {
-                                d.max(now).max(last_wake + engine::MIN_WAKE_GAP_SECS)
+                                d.max(now)
+                                    .max(last_wake + engine::MIN_WAKE_GAP_SECS)
+                                    .min(next)
                             });
                             tokio::time::sleep(Duration::from_secs(u64::try_from(
                                 (wake - now).max(0),
                             )?))
                             .await;
                             if wake >= next {
-                                break;
+                                continue;
                             }
                             last_wake = chrono::Utc::now().timestamp();
                             if let Some(tor) = &tor {
-                                match engine.payout_wake(tor).await {
+                                match engine.payout_wake(tor, &opts, next).await {
                                     Ok(n) if n > 0 => eprintln!("payouts: sent {n} transaction(s)"),
                                     Ok(_) => {}
                                     Err(e) => eprintln!("payouts: wake failed: {e:#}"),

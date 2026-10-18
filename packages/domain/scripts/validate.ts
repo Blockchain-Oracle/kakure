@@ -88,6 +88,9 @@ for (const file of resolutionFiles) {
   }
   const thin = Object.values(doc.totals).some((side) => side.tickets < 3);
   if (thin && doc.outcome !== "refund") fail(file, "a thin pool must refund");
+  if (doc.outcome !== "refund" && Object.values(doc.totals).some((side) => side.zat === undefined)) {
+    fail(file, "a settled market's totals need each side's zatoshi");
+  }
   resolutions.set(file, { outcome: doc.outcome, rulesHash: doc.rulesHash });
 }
 
@@ -199,6 +202,13 @@ for (const [position, file] of bundleFiles.entries()) {
         fail(file, `${market.id}: released.seq ${market.released.seq} is not this release's bundle`);
       }
       lastSeen.set(market.id, { count: market.ticketCount, leaves: new Set(market.leaves) });
+      // N1/N3: a refunded market ends `resolved` like any other, with counts only, hidden tickets or not.
+      if (market.outcome === "refund" && market.resolution !== undefined) {
+        if (market.state !== "resolved") {
+          fail(file, `${market.id}: a refunded market ends "resolved", not ${market.state}`);
+        }
+        if (market.released) fail(file, `${market.id}: a refunded market publishes no released totals`);
+      }
     }
     if (market.kind === "close" && market.state === "open" && Object.keys(market.opening ?? {}).length < 2) {
       fail(file, `${market.id}: open without an opening reference from 2 venues`);

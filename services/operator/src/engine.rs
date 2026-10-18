@@ -52,6 +52,20 @@ const POST_NU7_SPACING_SECS: i64 = 25;
 const MIN_OPENING_VENUES: usize = 2;
 /// The run loop never wakes for sends more often than this (a send that keeps failing).
 pub const MIN_WAKE_GAP_SECS: i64 = 20;
+/// No send starts this close before a tick (it could delay it); such sends wait for the tick
+/// and are then given fresh random times.
+pub const SEND_GUARD_SECS: i64 = 60;
+/// A tick this late (host sleep, a long wake) is skipped for the next aligned one (O10).
+pub const LATE_TICK_SLACK_SECS: i64 = 30;
+/// A tick's sync stops after this long and the bundle goes out from what is scanned, so a slow or
+/// failing sync never pushes a publication far off the clock (O10); the next tick continues.
+const TICK_SYNC_BUDGET_SECS: u64 = 90;
+/// A payout's pre-build sync gets at most this long.
+const PAYOUT_SYNC_BUDGET_SECS: i64 = 120;
+/// A build starts only if its sync, the build and the broadcast delay all fit before the next tick.
+const PRE_TICK_GUARD_SECS: i64 = payouts::BROADCAST_DELAY_MAX_SECS + 30;
+/// Below this sync budget a build waits until after the tick instead.
+const MIN_SYNC_BUDGET_SECS: i64 = 30;
 
 pub struct Engine {
     pub wallet: Wallet,
@@ -116,12 +130,17 @@ impl Engine {
 
     pub async fn tick(&mut self, tor: Option<&Tor>, sync: &SyncOpts) -> Result<TickReport> {
         if let Some(tor) = tor {
-            match scan::sync(&self.wallet, tor, sync).await {
-                Ok(report) => self.store_samples(&report.samples)?,
-                // Publish on the clock anyway, from what the wallet already has.
-                Err(e) => {
+            let budget = std::time::Duration::from_secs(TICK_SYNC_BUDGET_SECS);
+            match tokio::time::timeout(budget, scan::sync(&self.wallet, tor, sync)).await {
+                Ok(Ok(report)) => self.store_samples(&report.samples)?,
+                // Publish on the clock anyway, from what the wallet already has. A batch is only
+                // written after it is fully fetched, so stopping mid-sync leaves nothing half done.
+                Ok(Err(e)) => {
                     eprintln!("tick: sync failed, publishing from the last scanned state: {e:#}")
                 }
+                Err(_) => eprintln!(
+                    "tick: sync ran past {TICK_SYNC_BUDGET_SECS} s, publishing from the last scanned state"
+                ),
             }
         }
         let now = Utc::now().timestamp();
@@ -186,18 +205,57 @@ impl Engine {
         payouts::next_due(&self.store, now)
     }
 
-    /// Between ticks, at a send's own random time: one broadcast (a rebroadcast, a payout or the
-    /// note merge), from the wallet as the last tick synced it. Never a sync here (O6).
-    pub async fn payout_wake(&mut self, tor: &Tor) -> Result<usize> {
+    /// Between ticks, at a send's own random time, one step:
+    /// - a stored transaction whose time has come is broadcast on a fresh circuit to the broadcast
+    ///   server (no sync), or else
+    /// - a due payout (or the merge) is built: first a sync to the tip on the sync server's own
+    ///   circuits, so the anchor sits at the standard depth (N2), then the build, whose broadcast
+    ///   follows a short random delay later. Never part of a tick (O6), and never so close to the
+    ///   next tick that it would delay it (O10).
+    pub async fn payout_wake(
+        &mut self,
+        tor: &Tor,
+        sync: &SyncOpts,
+        next_tick: i64,
+    ) -> Result<usize> {
+        let now = Utc::now().timestamp();
+        if let Some(sent) = payouts::broadcast_due(&self.store, &self.wallet, tor, now).await? {
+            return Ok(sent);
+        }
+        let payout = payouts::has_due(&self.store, now)?;
+        if !payout && !payouts::merge_due(&self.store, now)? {
+            return Ok(0);
+        }
+        let budget = (next_tick - now - PRE_TICK_GUARD_SECS).min(PAYOUT_SYNC_BUDGET_SECS);
+        if budget < MIN_SYNC_BUDGET_SECS {
+            payouts::defer_past(&self.store, now, next_tick)?;
+            return Ok(0);
+        }
+        let synced = tokio::time::timeout(
+            std::time::Duration::from_secs(u64::try_from(budget)?),
+            scan::sync(&self.wallet, tor, sync),
+        )
+        .await;
+        match synced {
+            Ok(Ok(report)) => self.store_samples(&report.samples)?,
+            Ok(Err(e)) => {
+                eprintln!("payouts: sync before a build failed; retrying at a random time: {e:#}");
+                payouts::postpone_builds(&self.store, now, &format!("sync failed: {e:#}"))?;
+                return Ok(0);
+            }
+            Err(_) => {
+                eprintln!(
+                    "payouts: sync before a build ran past {budget} s; retrying at a random time"
+                );
+                payouts::postpone_builds(&self.store, now, "sync too slow")?;
+                return Ok(0);
+            }
+        }
         let tip = BlockTimes::load(&self.wallet)?.tip().unwrap_or(0);
         let now = Utc::now().timestamp();
-        if let Some(sent) = payouts::rebroadcast_due(&self.store, &self.wallet, tor, now).await? {
-            return Ok(sent);
-        }
-        if let Some(sent) = payouts::send_due(&self.store, &self.wallet, tor, tip, now).await? {
-            return Ok(sent);
-        }
-        if let Err(e) = payouts::maybe_merge(&self.store, &self.wallet, tor, tip, now).await {
+        if payout {
+            payouts::build_due(&self.store, &self.wallet, tip, now)?;
+        } else if let Err(e) = payouts::maybe_merge(&self.store, &self.wallet, tip, now) {
             eprintln!("payouts: merge failed, retrying at a random time: {e:#}");
             payouts::replan_merge(&self.store, now)?;
         }
@@ -533,7 +591,8 @@ impl Engine {
         for m in self.store.markets()? {
             let market = self.market_json(&m, now, closing_warning, &progress)?;
             let state = market["state"].as_str().unwrap_or_default();
-            let settled = state == "paid" || (state == "resolved" && !progress.contains_key(&m.id));
+            // Refunded markets leave on the same schedule whatever their (hidden) refunds (N1).
+            let settled = state == "paid" || m.outcome.as_deref() == Some("refund");
             if settled && m.closes_at < now - BUNDLE_RETENTION_SECS {
                 continue;
             }
@@ -629,10 +688,16 @@ impl Engine {
             Some((seq, sides_json))
         };
 
+        // N1: every market that ends without settlement (no released tickets, thin, flat, split,
+        // cancelled) ends `resolved` with outcome `refund`, whether or not hidden tickets were
+        // refunded; `paid` follows only the payouts of released winning tickets.
         let state = if let Some(outcome) = &m.outcome {
             match progress.get(&m.id) {
-                Some((rows, mined, window_end)) if rows == mined && now >= *window_end => "paid",
-                Some(_) if outcome == "refund" => "refunding",
+                Some((rows, mined, window_end))
+                    if outcome != "refund" && rows == mined && now >= *window_end =>
+                {
+                    "paid"
+                }
                 _ => "resolved",
             }
         } else if m.cancelled {
@@ -668,7 +733,10 @@ impl Engine {
         if let Some(opening) = &m.opening {
             object.insert("opening".into(), serde_json::from_str(opening)?);
         }
-        if let Some((s, sides_json)) = released {
+        // N3: a refunded market has no payout to verify, so its final state shows counts only.
+        if let Some((s, sides_json)) = released
+            && m.outcome.as_deref() != Some("refund")
+        {
             object.insert("released".into(), json!({ "seq": s, "sides": sides_json }));
         }
         if let Some(h) = m.cutoff_height {
