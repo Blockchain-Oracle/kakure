@@ -5,7 +5,8 @@
  * services/operator/operator-data/<network>/public/<network>/ (the data worker's key layout). This tiny static server exposes them as
  * /data/<network>/<file> on 127.0.0.1, and next.config.ts proxies /data/* to it in development only,
  * so the app reads exactly what production will serve from the data worker. A missing file is a 404,
- * which the app shows as "No markets published yet".
+ * which the app shows as "No markets published yet". A network with no local operator files (its operator runs on
+ * the server, as testnet does since 2026-10-18) is served from the live data worker instead: the same signed files.
  *
  * KAKURE_DATA_DIR=<dir> serves `<dir>/<network>/<file>` instead (e.g. files you signed yourself; pair it with
  * NEXT_PUBLIC_DEV_OPERATOR_KEY_TESTNET so this dev build verifies them).
@@ -14,7 +15,7 @@
  * Origin http://localhost:3000 and :3001.
  */
 import { spawn } from "node:child_process";
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 
@@ -25,8 +26,9 @@ const OPERATOR_DATA = fileURLToPath(new URL("../../../services/operator/operator
 const KEY = /^\/data\/(mainnet|testnet)\/([a-z0-9][a-z0-9._-]{0,127}\.json)$/;
 const LATEST_CACHE = "public, max-age=20, stale-while-revalidate=40";
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
+const LIVE_DATA = "https://kakure-web.kakure-price-relay.workers.dev/data";
 
-const server = createServer((request, response) => {
+const server = createServer(async (request, response) => {
   const match = KEY.exec(new URL(request.url ?? "/", "http://localhost").pathname);
   if (!match || (request.method !== "GET" && request.method !== "HEAD")) {
     response.writeHead(404).end("Not found");
@@ -35,6 +37,16 @@ const server = createServer((request, response) => {
   const [, network, file] = match;
   const root = process.env.KAKURE_DATA_DIR ?? `${OPERATOR_DATA}${network}/public`;
   const path = `${root}/${network}/${file}`;
+  if (!process.env.KAKURE_DATA_DIR && !existsSync(`${OPERATOR_DATA}${network}`)) {
+    const live = await fetch(`${LIVE_DATA}/${network}/${file}`).catch(() => null);
+    if (!live?.ok) {
+      response.writeHead(live?.status ?? 502).end("Not found");
+      return;
+    }
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-cache" });
+    response.end(request.method === "HEAD" ? undefined : Buffer.from(await live.arrayBuffer()));
+    return;
+  }
   try {
     const stat = statSync(path);
     response.writeHead(200, {
