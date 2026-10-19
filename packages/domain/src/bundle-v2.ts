@@ -69,6 +69,29 @@ export const pricingSchema = z.object({
   sigmaAt: isoTime,
 });
 
+const BASE64URL = /^[A-Za-z0-9_-]+$/;
+const HEX_POINT = /^0[23][0-9a-f]{64}$/;
+const KEYSET_ID = /^01[0-9a-f]{64}$/;
+const DEPOSIT_PREFIX = /^kakure:d1;$/;
+
+/** What a client needs to trade (plan §00): the chip keyset, the gateway's key, the deposit address and rules. */
+export const tradingSchema = z.object({
+  /** NUT-01/02: amounts in zatoshi → compressed public keys; the id is NUT-02 v2, which wallets recompute. */
+  keyset: z.object({
+    id: z.string().regex(KEYSET_ID),
+    unit: z.literal("zat"),
+    keys: z.record(z.string().regex(/^\d+$/), z.string().regex(HEX_POINT)),
+  }),
+  /** `application/ohttp-keys` as unpadded base64url: every client encrypts to this one key (RFC 9458 §6.1). */
+  gatewayKeys: z.string().regex(BASE64URL),
+  /** Absent until the operator's wallet runs (deposits off). */
+  depositAddress: z.string().min(1).optional(),
+  depositMemoPrefix: z.string().regex(DEPOSIT_PREFIX),
+  depositConfirmations: z.number().int().positive(),
+  minWithdrawZat: z.string().regex(/^\d+$/),
+  withdrawWithinSecs: z.number().int().positive(),
+});
+
 export const bundleV2Schema = z.object({
   v: z.literal(SCHEMA_VERSION_V2),
   network,
@@ -80,6 +103,8 @@ export const bundleV2Schema = z.object({
   windows: z.array(windowStateSchema),
   /** The hourly prints files published in the last 24 h, oldest first. */
   prints: z.array(z.string().regex(PRINTS_FILE)),
+  /** Absent while the operator's trading side is off. */
+  trading: tradingSchema.optional(),
   sig: signature,
 });
 
@@ -113,3 +138,4 @@ export type Pricing = z.infer<typeof pricingSchema>;
 export type BundleV2 = z.infer<typeof bundleV2Schema>;
 export type LatestV2 = z.infer<typeof latestV2Schema>;
 export type Prints = z.infer<typeof printsSchema>;
+export type Trading = z.infer<typeof tradingSchema>;

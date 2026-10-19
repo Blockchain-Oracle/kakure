@@ -31,6 +31,7 @@ use axum::{
 use cashu::BlindedMessage;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::{Digest as _, Sha256};
 
 use crate::{
     deposits::DEPOSIT_ID_HEX,
@@ -118,16 +119,42 @@ fn refuse(code: u32, detail: impl Into<String>) -> Refusal {
     Refusal(code, detail.into())
 }
 
+/// The NUT-19 cache key of a request: SHA-256 over its method, path and exact body.
+fn cache_key(inner: &Inner) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(inner.method.as_bytes());
+    hasher.update(b" ");
+    hasher.update(inner.path.as_bytes());
+    hasher.update(b"\n");
+    hasher.update(&inner.body);
+    hex::encode(hasher.finalize())
+}
+
+/// Requests whose success is cached (NUT-19): resending one returns the first answer.
+const CACHED: [&str; 3] = ["/v1/mint/zcash", "/v1/swap", "/v1/melt/zcash"];
+
 fn route(api: &Api, inner: Inner) -> Reply {
+    let key = (inner.method == "POST" && CACHED.contains(&inner.path.as_str()))
+        .then(|| cache_key(&inner));
+    if let Some(key) = &key
+        && let Ok(store) = api.store.lock()
+        && let Ok(Some(body)) = rt_store::cached_response(&store.conn, key)
+    {
+        return Reply {
+            status: 200,
+            body: body.into_bytes(),
+        };
+    }
+    let key = key.as_deref();
     let path = inner.path.as_str();
     let answer = match (inner.method.as_str(), path) {
         ("GET", "/v1/ping") => Ok(json!({ "ok": true, "network": api.network_name })),
         ("GET", "/v1/keys") => Ok(json!({ "keysets": [api.mint.keyset_json()] })),
         ("GET", p) if p.starts_with("/v1/deposit/") => deposit(api, &p["/v1/deposit/".len()..]),
-        ("POST", "/v1/mint/zcash") => body(&inner.body).and_then(|r| mint_chips(api, r)),
-        ("POST", "/v1/swap") => body(&inner.body).and_then(|r| swap(api, r)),
+        ("POST", "/v1/mint/zcash") => body(&inner.body).and_then(|r| mint_chips(api, r, key)),
+        ("POST", "/v1/swap") => body(&inner.body).and_then(|r| swap(api, r, key)),
         ("POST", "/v1/checkstate") => body(&inner.body).and_then(|r| check_state(api, r)),
-        ("POST", "/v1/melt/zcash") => body(&inner.body).and_then(|r| withdraw(api, r)),
+        ("POST", "/v1/melt/zcash") => body(&inner.body).and_then(|r| withdraw(api, r, key)),
         _ => {
             return Reply {
                 status: 404,
@@ -198,7 +225,7 @@ struct MintRequest {
     outputs: Vec<BlindedMessage>,
 }
 
-fn mint_chips(api: &Api, request: MintRequest) -> Answer {
+fn mint_chips(api: &Api, request: MintRequest, cache: Option<&str>) -> Answer {
     if !valid_deposit_id(&request.deposit) {
         return Err(refuse(KAKURE_BAD_REQUEST, "bad deposit id"));
     }
@@ -221,8 +248,18 @@ fn mint_chips(api: &Api, request: MintRequest) -> Answer {
         ));
     }
     rt_store::add_issued(&tx, &request.deposit, wanted).map_err(internal)?;
+    let answer = json!({ "signatures": signatures });
+    if let Some(key) = cache {
+        rt_store::cache_response(
+            &tx,
+            key,
+            &answer.to_string(),
+            chrono::Utc::now().timestamp(),
+        )
+        .map_err(internal)?;
+    }
     tx.commit().map_err(internal)?;
-    Ok(json!({ "signatures": signatures }))
+    Ok(answer)
 }
 
 #[derive(Deserialize)]
@@ -231,7 +268,7 @@ struct SwapRequest {
     outputs: Vec<BlindedMessage>,
 }
 
-fn swap(api: &Api, request: SwapRequest) -> Answer {
+fn swap(api: &Api, request: SwapRequest, cache: Option<&str>) -> Answer {
     let ys = api
         .mint
         .verify(&request.inputs)
@@ -248,8 +285,9 @@ fn swap(api: &Api, request: SwapRequest) -> Answer {
         .mint
         .sign(&request.outputs)
         .map_err(|e| refuse(NUT_KEYSET_UNKNOWN, e.to_string()))?;
-    spend_and(api, &ys, |_| Ok(()))?;
-    Ok(json!({ "signatures": signatures }))
+    let answer = json!({ "signatures": signatures });
+    spend_and(api, &ys, cache.map(|k| (k, &answer)), |_| Ok(()))?;
+    Ok(answer)
 }
 
 #[derive(Deserialize)]
@@ -280,7 +318,7 @@ struct MeltRequest {
     address: String,
 }
 
-fn withdraw(api: &Api, request: MeltRequest) -> Answer {
+fn withdraw(api: &Api, request: MeltRequest, cache: Option<&str>) -> Answer {
     check_payout_address(&request.address, api.network)
         .map_err(|e| refuse(KAKURE_BAD_ADDRESS, e.to_string()))?;
     let ys = api
@@ -295,22 +333,25 @@ fn withdraw(api: &Api, request: MeltRequest) -> Answer {
         ));
     }
     let now = chrono::Utc::now().timestamp();
-    spend_and(api, &ys, |tx| {
+    let answer = json!({
+        "state": "scheduled",
+        "amountZat": zat.to_string(),
+        "withinSecs": WITHDRAW_WINDOW.max,
+    });
+    spend_and(api, &ys, cache.map(|k| (k, &answer)), |tx| {
         let id = rt_store::new_withdrawal(tx, zat, now)?;
         payouts::schedule_withdrawal(tx, id, &request.address, zat, now, WITHDRAW_WINDOW)?;
         Ok(())
     })?;
-    Ok(json!({
-        "state": "scheduled",
-        "amountZat": zat.to_string(),
-        "withinSecs": WITHDRAW_WINDOW.max,
-    }))
+    Ok(answer)
 }
 
-/// Marks the chips spent and runs `effect`, all in one transaction (or neither).
+/// Marks the chips spent, runs `effect` and caches the answer (NUT-19), all in one transaction
+/// (or none of it).
 fn spend_and(
     api: &Api,
     ys: &[String],
+    cache: Option<(&str, &Value)>,
     effect: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<()>,
 ) -> std::result::Result<(), Refusal> {
     let now = chrono::Utc::now().timestamp();
@@ -318,6 +359,9 @@ fn spend_and(
     let tx = store.conn.transaction().map_err(internal)?;
     rt_store::spend(&tx, ys, now).map_err(|e| refuse(NUT_TOKEN_ALREADY_SPENT, e.to_string()))?;
     effect(&tx).map_err(internal)?;
+    if let Some((key, answer)) = cache {
+        rt_store::cache_response(&tx, key, &answer.to_string(), now).map_err(internal)?;
+    }
     tx.commit().map_err(internal)?;
     Ok(())
 }

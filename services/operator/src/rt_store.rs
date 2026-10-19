@@ -67,6 +67,15 @@ CREATE TABLE IF NOT EXISTS withdrawals (
     created_at INTEGER NOT NULL
 );
 
+-- NUT-19 cached responses: a successful mint, swap or withdrawal keyed by a hash of the exact
+-- request, written in the same transaction as its spend, so resending the same request after a
+-- lost answer returns the same signatures instead of losing the chips.
+CREATE TABLE IF NOT EXISTS responses (
+    key TEXT PRIMARY KEY,
+    body TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
 -- Hourly prints files (write-once, pushed like bundles).
 CREATE TABLE IF NOT EXISTS prints_files (
     hour INTEGER PRIMARY KEY,
@@ -75,6 +84,8 @@ CREATE TABLE IF NOT EXISTS prints_files (
 );
 ";
 
+/// Cached responses are kept this long (a client resends within seconds or minutes).
+const RESPONSES_KEEP_SECS: i64 = 2 * 86_400;
 /// Minute closes are kept this long (the hourly prints files keep them for good).
 const MINUTES_KEEP_SECS: i64 = 48 * 3_600;
 /// Window rows are kept this long (positions refer to them until they settle and redeem).
@@ -288,6 +299,10 @@ pub fn prune(conn: &Connection, now: i64) -> Result<()> {
         "DELETE FROM rt_windows WHERE expiry < ?1 AND outcome IS NOT NULL",
         [now - WINDOWS_KEEP_SECS],
     )?;
+    conn.execute(
+        "DELETE FROM responses WHERE created_at < ?1",
+        [now - RESPONSES_KEEP_SECS],
+    )?;
     Ok(())
 }
 
@@ -421,4 +436,25 @@ pub fn new_withdrawal(tx: &rusqlite::Transaction<'_>, zat: u64, now: i64) -> Res
         params![zat, now],
     )?;
     Ok(u32::try_from(tx.last_insert_rowid())?)
+}
+
+pub fn cached_response(conn: &Connection, key: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row("SELECT body FROM responses WHERE key = ?1", [key], |r| {
+            r.get(0)
+        })
+        .optional()?)
+}
+
+pub fn cache_response(
+    tx: &rusqlite::Transaction<'_>,
+    key: &str,
+    body: &str,
+    now: i64,
+) -> Result<()> {
+    tx.execute(
+        "INSERT OR IGNORE INTO responses (key, body, created_at) VALUES (?1, ?2, ?3)",
+        params![key, body, now],
+    )?;
+    Ok(())
 }

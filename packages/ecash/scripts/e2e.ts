@@ -51,6 +51,11 @@ let chips: Proof[] = finishOutputs(keyset, pending, minted.json.signatures);
 assert.equal(total(chips), mintable);
 step(`minted ${chips.length} chips worth ${total(chips)} zat, every DLEQ checked`);
 
+const resent = await call("POST", "/v1/mint/zcash", { deposit, outputs: pending.outputs });
+assert.equal(resent.status, 200);
+assert.deepEqual(resent.json.signatures, minted.json.signatures);
+step("resending the same mint request returns the same signatures (NUT-19): a lost answer loses nothing");
+
 const again = await call("POST", "/v1/mint/zcash", { deposit, outputs: prepareOutputs(keyset, 100_000).outputs });
 assert.equal(again.status, 400);
 step("the same deposit can't mint twice");
