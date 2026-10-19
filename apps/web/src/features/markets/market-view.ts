@@ -128,3 +128,18 @@ export function shortTitle(market: Market, symbol: string): string {
 export function sealedLine(market: Market): string {
   return `Sealed · ${ticketsWord(market.ticketCount)} · odds open at ${MIN_TICKETS_PER_SIDE} a side`;
 }
+
+/**
+ * The price a close market is judged against: its strike, or the opening print (Coinbase's, else the venues'
+ * median). `null` until the opening is fixed. Event markets have none.
+ */
+export function referencePrice(market: Market): number | null {
+  if (market.strike) return Number(market.strike);
+  const opening = market.opening ?? {};
+  if (opening.coinbase) return Number(opening.coinbase);
+  const values = Object.values(opening)
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+  return values[Math.floor(values.length / 2)] ?? null;
+}

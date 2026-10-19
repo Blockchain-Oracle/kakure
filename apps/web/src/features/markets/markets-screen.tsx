@@ -1,93 +1,123 @@
 "use client";
 
-import type { Bundle, Network } from "@kakure/domain";
+import type { Bundle, Market, Network } from "@kakure/domain";
 import { nextBatchAt } from "@kakure/query";
-import { Button, Chip, ChipGroup, EmptyState, SearchField, Tabs } from "@kakure/ui-web";
+import { Button, Chip, EmptyState, SearchField, Tabs } from "@kakure/ui-web";
 import { ChartLine, Hourglass, RefreshCw, SearchX, Timer } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NETWORK_LABEL } from "@/constants";
 import { DataErrorState, FreshnessStrip } from "@/features/data/data-states";
 import { useMarkets } from "@/features/data/use-markets";
+import { Terminal } from "@/features/market/terminal";
 import { switchNetwork } from "@/features/network/network-store";
 import { formatClock, formatCountdown, useNow } from "@/lib/time";
-import { assetFor } from "./assets";
-import { type Category, setCategory, useCategory } from "./category-store";
-import { filterMarkets, openCounts, type WindowFilter } from "./filters";
+import { isLane, LANE_LABEL, LANES, type Lane, laneMarkets } from "./filters";
 import { MarketCard } from "./market-card";
+import { isBettable } from "./market-view";
 import { MarketsSkeleton } from "./markets-skeleton";
 
-const TAB_LABEL: Record<Category, string> = { crypto: "Crypto", stocks: "Stocks", zcash: "Zcash" };
-const WINDOWS: ReadonlyArray<{ value: WindowFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "1h", label: "Hourly" },
-  { value: "1d", label: "Daily" },
-];
 const GRID_ID = "market-grid";
+const DEFAULT_LANE: Lane = "hourly";
+/** The hero shows this asset's open hourly window when it has one. */
+const FEATURED_SUBJECT = "BTC";
 
-/** Markets (C1, surfaces.md): tabs, window chips, Closing soon, search, and cards from the signed bundle. */
+/** The lane lives in the fragment (`/markets#daily`), which browsers never send to the host. */
+function useLane(): [Lane, (next: Lane) => void] {
+  const [lane, setLane] = useState<Lane>(DEFAULT_LANE);
+  useEffect(() => {
+    const read = () => {
+      const hash = location.hash.slice(1);
+      setLane(isLane(hash) ? hash : DEFAULT_LANE);
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+  return [
+    lane,
+    (next) => {
+      history.replaceState(null, "", `#${next}`);
+      setLane(next);
+    },
+  ];
+}
+
+function featured(markets: readonly Market[], now: number): Market | undefined {
+  const open = markets.filter((m) => isBettable(m, now) && m.kind === "close" && !m.strike);
+  return (
+    open.find((m) => m.subject === FEATURED_SUBJECT && m.window === "1h") ??
+    open.find((m) => m.window === "1h") ??
+    open[0]
+  );
+}
+
+/**
+ * Markets (Mitoshi's markets page, mitoshi-code-study §3.1; plan §0 R2): a live terminal hero to bet from right here,
+ * then the lanes (Hourly · Daily · Range · Stocks · Zcash · Resolved, by cadence, never by date), search, Closing
+ * soon, and short cards with live prices, sparklines and what each side pays.
+ */
 export function MarketsScreen() {
   const data = useMarkets();
-  const category = useCategory();
   const now = useNow();
-  const [windowFilter, setWindowFilter] = useState<WindowFilter>("all");
+  const [lane, setLane] = useLane();
   const [closingSoon, setClosingSoon] = useState(false);
   const [query, setQuery] = useState("");
   const markets = data.status === "ready" ? data.bundle.markets : [];
-  const counts = openCounts(markets, now);
+  const hero = data.status === "ready" ? featured(markets, now) : undefined;
 
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
+    <div className="flex w-full flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-page-title text-foreground">Markets</h1>
         {data.status === "ready" ? <BatchMeta bundle={data.bundle} now={now} /> : null}
       </div>
 
-      <Tabs
-        label="Market type"
-        controls={GRID_ID}
-        value={category}
-        onChange={(next) => setCategory(next)}
-        items={(Object.keys(TAB_LABEL) as Category[]).map((value) => ({
-          value,
-          label: TAB_LABEL[value],
-          ...(data.status === "ready" ? { count: counts[value] } : {}),
-        }))}
-      />
+      {data.status === "ready" && hero ? (
+        <Terminal
+          hero
+          market={hero}
+          bundle={data.bundle}
+          addresses={data.addresses}
+          network={data.network}
+          now={now}
+          freshness={
+            <FreshnessStrip
+              publishedAt={data.latest.publishedAt}
+              checkedAt={data.checkedAt}
+              refreshError={data.refreshError}
+              onRetry={data.refetch}
+            />
+          }
+        />
+      ) : null}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <ChipGroup label="Window">
-            {WINDOWS.map((option) => (
-              <Chip
-                key={option.value}
-                selected={windowFilter === option.value}
-                onClick={() => setWindowFilter(option.value)}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </ChipGroup>
+        <Tabs
+          label="Lane"
+          controls={GRID_ID}
+          value={lane}
+          onChange={(next) => setLane(next)}
+          items={LANES.map((value) => ({
+            value,
+            label: LANE_LABEL[value],
+            ...(data.status === "ready" && value !== "resolved"
+              ? { count: laneMarkets(markets, value, "", false, now).filter((m) => isBettable(m, now)).length }
+              : {}),
+          }))}
+        />
+        <div className="flex items-center gap-2">
           <Chip kind="toggle" selected={closingSoon} onClick={() => setClosingSoon(!closingSoon)} icon={<Timer />}>
             Closing soon
           </Chip>
+          <SearchField
+            label="Search markets"
+            placeholder="Search BTC, Zcash…"
+            value={query}
+            onChange={setQuery}
+            className="md:w-56"
+          />
         </div>
-        <SearchField
-          label="Search markets"
-          placeholder="Search BTC, Zcash…"
-          value={query}
-          onChange={setQuery}
-          className="md:w-64"
-        />
       </div>
-
-      {data.status === "ready" ? (
-        <FreshnessStrip
-          publishedAt={data.latest.publishedAt}
-          checkedAt={data.checkedAt}
-          refreshError={data.refreshError}
-          onRetry={data.refetch}
-        />
-      ) : null}
 
       <section id={GRID_ID} aria-live="polite">
         {data.status === "loading" ? <MarketsSkeleton /> : null}
@@ -100,13 +130,14 @@ export function MarketsScreen() {
             bundle={data.bundle}
             network={data.network}
             now={now}
-            category={category}
-            filters={{ window: windowFilter, closingSoon, query }}
+            lane={lane}
+            query={query}
+            closingSoon={closingSoon}
             onClear={() => {
-              setWindowFilter("all");
               setClosingSoon(false);
               setQuery("");
             }}
+            onLane={setLane}
           />
         ) : null}
       </section>
@@ -155,31 +186,35 @@ function MarketGrid({
   bundle,
   network,
   now,
-  category,
-  filters,
+  lane,
+  query,
+  closingSoon,
   onClear,
+  onLane,
 }: {
   bundle: Bundle;
   network: Network;
   now: number;
-  category: Category;
-  filters: { window: WindowFilter; closingSoon: boolean; query: string };
+  lane: Lane;
+  query: string;
+  closingSoon: boolean;
   onClear: () => void;
+  onLane: (lane: Lane) => void;
 }) {
-  const inTab = bundle.markets.filter((market) => assetFor(market).category === category);
-  const shown = filterMarkets(bundle.markets, { category, ...filters }, now);
+  const inLane = laneMarkets(bundle.markets, lane, "", false, now);
+  const shown = laneMarkets(bundle.markets, lane, query, closingSoon, now);
   const nextBatch = formatClock(nextBatchAt(bundle));
 
-  if (inTab.length === 0) {
-    if (category === "stocks") {
+  if (inLane.length === 0) {
+    if (lane === "stocks") {
       return (
         <EmptyState
           icon={<ChartLine />}
           title="Stock markets open once the price feed is connected"
-          reason="Stocks settle only when two keyed sources, Pyth and Alpaca, agree on the close. Until that feed is live, no stock market opens here. Crypto and Zcash markets are open now."
+          reason="Stocks settle only when two keyed sources, Pyth and Alpaca, agree on the close."
           action={
-            <Button variant="secondary" size="sm" onClick={() => setCategory("crypto")}>
-              See crypto markets
+            <Button variant="secondary" size="sm" onClick={() => onLane("hourly")}>
+              See hourly markets
             </Button>
           }
         />
@@ -188,11 +223,15 @@ function MarketGrid({
     return (
       <EmptyState
         icon={<Hourglass />}
-        title={`No ${TAB_LABEL[category]} markets in this batch`}
-        reason={`Batch ${bundle.seq} has none. The next batch is at ${nextBatch}.`}
+        title={`No ${LANE_LABEL[lane].toLowerCase()} markets right now`}
+        reason={
+          lane === "range"
+            ? "Tomorrow's strike ladder is created two hours before the day opens."
+            : `The next batch is at ${nextBatch}.`
+        }
         action={
-          <Button variant="secondary" size="sm" onClick={() => setCategory(category === "crypto" ? "zcash" : "crypto")}>
-            See {category === "crypto" ? "Zcash" : "crypto"} markets
+          <Button variant="secondary" size="sm" onClick={() => onLane(lane === "hourly" ? "daily" : "hourly")}>
+            See {lane === "hourly" ? "daily" : "hourly"} markets
           </Button>
         }
       />
@@ -202,13 +241,9 @@ function MarketGrid({
   if (shown.length === 0) {
     return (
       <EmptyState
-        icon={filters.closingSoon ? <Timer /> : <SearchX />}
-        title={filters.closingSoon ? "Nothing closes in the next hour" : "No market matches"}
-        reason={
-          filters.query
-            ? `No ${TAB_LABEL[category]} market matches "${filters.query}" with these filters.`
-            : "These filters hide every market in this tab."
-        }
+        icon={closingSoon ? <Timer /> : <SearchX />}
+        title={closingSoon ? "Nothing closes in the next hour" : "No market matches"}
+        reason={query ? `Nothing in ${LANE_LABEL[lane]} matches "${query}".` : "These filters hide every market here."}
         action={
           <Button variant="secondary" size="sm" onClick={onClear}>
             Clear filters
@@ -219,7 +254,7 @@ function MarketGrid({
   }
 
   return (
-    <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 wide:grid-cols-3">
       {shown.map((market) => (
         <li key={market.id}>
           <MarketCard market={market} network={network} now={now} />

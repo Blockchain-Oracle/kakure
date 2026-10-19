@@ -10,7 +10,7 @@ import { type ReactNode, useCallback, useState } from "react";
 import { NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { LiveWindowChart } from "@/features/chart/live-window-chart";
 import { assetFor } from "@/features/markets/assets";
-import { sidesOf, statePill } from "@/features/markets/market-view";
+import { referencePrice, sidesOf, statePill } from "@/features/markets/market-view";
 import { BetTicket, type TicketChoice } from "@/features/ticket/bet-ticket";
 import { formatCountdown } from "@/lib/time";
 import { BatchHistory } from "./batch-history";
@@ -36,6 +36,7 @@ export function Terminal({
   network,
   now,
   freshness,
+  hero = false,
 }: {
   market: Market;
   bundle: Bundle;
@@ -43,6 +44,8 @@ export function Terminal({
   network: Network;
   now: number;
   freshness: ReactNode;
+  /** On the markets page: a shorter chart and a link to the full terminal instead of the lanes. */
+  hero?: boolean;
 }) {
   const asset = assetFor(market);
   const [choice, setChoice] = useState<TicketChoice>({
@@ -74,7 +77,16 @@ export function Terminal({
             <Mark mark={asset.mark} label={asset.symbol} size="row" />
             {asset.stream ? <AssetPrice stream={asset.stream} reference={reference.value} /> : null}
           </div>
-          <Lanes market={market} bundle={bundle} network={network} />
+          {hero ? (
+            <Link
+              href={`/m#${network}/${market.id}`}
+              className="text-chip-label text-muted-foreground hover:text-foreground"
+            >
+              Open terminal →
+            </Link>
+          ) : (
+            <Lanes market={market} bundle={bundle} network={network} />
+          )}
           <button
             type="button"
             onClick={() => setRules(true)}
@@ -90,7 +102,7 @@ export function Terminal({
           <LiveWindowChart
             symbol={asset.stream}
             label={`${asset.symbol} price since the window opened`}
-            className="h-[300px] w-full wide:h-[440px]"
+            className={hero ? "h-[260px] w-full wide:h-[340px]" : "h-[300px] w-full wide:h-[440px]"}
             spec={{
               opensAt: Date.parse(market.opensAt),
               closesAt: closes,
@@ -222,16 +234,10 @@ function laneLabel(m: Market): string {
   return "Session";
 }
 
-/** The line a close is judged against: the strike, or the opening print (Coinbase's, else the venues' median). */
+/** The line a close is judged against, with its label for the chart. */
 function referenceOf(market: Market): { value: number | null; label: string } {
-  if (market.strike)
-    return { value: Number(market.strike), label: `Strike $${Number(market.strike).toLocaleString("en-US")}` };
-  const opening = market.opening ?? {};
-  const values = Object.values(opening)
-    .map(Number)
-    .filter(Number.isFinite)
-    .sort((a, b) => a - b);
-  const value = opening.coinbase ? Number(opening.coinbase) : (values[Math.floor(values.length / 2)] ?? null);
+  const value = referencePrice(market);
+  if (market.strike) return { value, label: `Strike $${Number(market.strike).toLocaleString("en-US")}` };
   return { value, label: value === null ? "Open" : `Open ${formatUsd(String(value))}` };
 }
 

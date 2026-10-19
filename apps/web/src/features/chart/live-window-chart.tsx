@@ -2,18 +2,9 @@
 
 import { WindowChart, type WindowSpec } from "@kakure/chart";
 import { sharedPrices } from "@kakure/feeds";
-import { fetchBars } from "@kakure/feeds/client";
-import type { BarsResponse, StreamSymbol } from "@kakure/feeds/protocol";
+import type { StreamSymbol } from "@kakure/feeds/protocol";
 import { useEffect, useRef } from "react";
-import { PRICE_RELAY } from "@/constants";
-
-/** One bars request per page load, shared by every chart (all symbols in one file: PD19). */
-const BARS_TTL_MS = 30_000;
-let bars: { at: number; promise: Promise<BarsResponse> } | null = null;
-function loadBars(): Promise<BarsResponse> {
-  if (!bars || Date.now() - bars.at > BARS_TTL_MS) bars = { at: Date.now(), promise: fetchBars(PRICE_RELAY) };
-  return bars.promise;
-}
+import { loadBars } from "./bars";
 
 /**
  * The live Window chart for one market: history from the relay's bars, then every tick drawn as it arrives.
