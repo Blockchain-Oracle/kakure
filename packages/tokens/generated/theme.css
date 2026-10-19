@@ -74,6 +74,15 @@
   --color-paper: var(--paper);
   --color-paper-ink: var(--paper-ink);
   --color-paper-rule: var(--paper-rule);
+  --color-plate: var(--plate);
+  --color-plate-edge: var(--plate-edge);
+  --color-plate-ink: var(--plate-ink);
+  --color-plate-ink-soft: var(--plate-ink-soft);
+  --color-plate-ink-muted: var(--plate-ink-muted);
+  --color-plate-rule: var(--plate-rule);
+  --color-leg-chips: var(--leg-chips);
+  --color-leg-positions: var(--leg-positions);
+  --color-leg-collect: var(--leg-collect);
   --font-sans: var(--kakure-font-sans, var(--font-family-sans));
   --font-display: var(--kakure-font-display, var(--font-family-display));
   --font-mono: var(--kakure-font-mono, var(--font-family-mono));

@@ -29,19 +29,22 @@ export class ObliviousError extends Error {
   }
 }
 
-/** One API call through the relay: `GET /v1/…` or `POST /v1/…` with a JSON body. Returns the inner response. */
+/**
+ * One API call through the relay: `GET /v1/…` or `POST /v1/…` with a JSON body, sent as the exact text given (a retry
+ * resends the same bytes, which the mint's cached responses key on). Returns the inner response.
+ */
 export async function obliviousFetch(
   oblivious: Oblivious,
   method: "GET" | "POST",
   path: string,
-  body?: unknown,
+  body?: string,
   fetcher: typeof fetch = fetch,
 ): Promise<Response> {
   const config = KeyConfig.select(SUITE, KeyConfig.parseMultiple(oblivious.keyConfig));
   const client = new OHTTPClient(SUITE, config);
   const inner = new Request(`${ORIGIN}${path}`, {
     method,
-    ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { "content-type": "application/json" } }),
+    ...(body === undefined ? {} : { body, headers: { "content-type": "application/json" } }),
   });
   const { init, context } = await client.encapsulateRequest(inner);
   const outer = await fetcher(oblivious.relay, {

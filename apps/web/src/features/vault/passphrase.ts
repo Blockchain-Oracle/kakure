@@ -4,7 +4,7 @@ import { EXPORT_KDF_ITERATIONS } from "@/constants";
 
 /**
  * The one passphrase KDF on the web (plan §2 Device storage, §13.17): PBKDF2-SHA-256 → AES-GCM-256, used for
- * export files and for the optional ticket-store lock.
+ * backup files and for the optional vault lock.
  */
 export const SALT_BYTES = 16;
 export const IV_BYTES = 12;

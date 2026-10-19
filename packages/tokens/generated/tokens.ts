@@ -83,7 +83,16 @@ export const tokens = {
       "sheet-handle": "#9A9080",
       "paper": "#F4EEE3",
       "paper-ink": "#141210",
-      "paper-rule": "#D9CBB0"
+      "paper-rule": "#D9CBB0",
+      "plate": "#141210",
+      "plate-edge": "#14121000",
+      "plate-ink": "#FFFFFF",
+      "plate-ink-soft": "#FFFFFFB3",
+      "plate-ink-muted": "#FFFFFF99",
+      "plate-rule": "#FFFFFF24",
+      "leg-chips": "#B83214",
+      "leg-positions": "#7DD3FC",
+      "leg-collect": "#BEF264"
     },
     "dark": {
       "background": "#050505",
@@ -159,7 +168,16 @@ export const tokens = {
       "sheet-handle": "#525252",
       "paper": "#F4EEE3",
       "paper-ink": "#141210",
-      "paper-rule": "#D9CBB0"
+      "paper-rule": "#D9CBB0",
+      "plate": "#171717",
+      "plate-edge": "#FFFFFF38",
+      "plate-ink": "#FFFFFF",
+      "plate-ink-soft": "#FFFFFFB3",
+      "plate-ink-muted": "#FFFFFF99",
+      "plate-rule": "#FFFFFF24",
+      "leg-chips": "#E04D26",
+      "leg-positions": "#7DD3FC",
+      "leg-collect": "#BEF264"
     },
     "testnet-light": {
       "background": "#F4EEE3",
@@ -235,7 +253,16 @@ export const tokens = {
       "sheet-handle": "#9A9080",
       "paper": "#F4EEE3",
       "paper-ink": "#141210",
-      "paper-rule": "#D9CBB0"
+      "paper-rule": "#D9CBB0",
+      "plate": "#141210",
+      "plate-edge": "#14121000",
+      "plate-ink": "#FFFFFF",
+      "plate-ink-soft": "#FFFFFFB3",
+      "plate-ink-muted": "#FFFFFF99",
+      "plate-rule": "#FFFFFF24",
+      "leg-chips": "#B83214",
+      "leg-positions": "#7DD3FC",
+      "leg-collect": "#BEF264"
     },
     "testnet-dark": {
       "background": "#050505",
@@ -311,7 +338,16 @@ export const tokens = {
       "sheet-handle": "#525252",
       "paper": "#F4EEE3",
       "paper-ink": "#141210",
-      "paper-rule": "#D9CBB0"
+      "paper-rule": "#D9CBB0",
+      "plate": "#171717",
+      "plate-edge": "#FFFFFF38",
+      "plate-ink": "#FFFFFF",
+      "plate-ink-soft": "#FFFFFFB3",
+      "plate-ink-muted": "#FFFFFF99",
+      "plate-rule": "#FFFFFF24",
+      "leg-chips": "#E04D26",
+      "leg-positions": "#7DD3FC",
+      "leg-collect": "#BEF264"
     }
   },
   "type": {

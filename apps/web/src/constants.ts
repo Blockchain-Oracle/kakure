@@ -33,8 +33,11 @@ export const STORAGE_KEYS = {
 /** Every device-storage key starts with this (Forget this device clears them all). */
 export const STORAGE_PREFIX = "kakure.";
 
-/** The encrypted ticket database (IndexedDB), one object store and one key per network (plan §13.16–17). */
-export const TICKET_DB = { name: "kakure-tickets", version: 1, keys: "keys", tickets: "tickets" } as const;
+/**
+ * The device vault (IndexedDB, features/vault/vault-db.ts): tickets, chips, deposits and spends, one key per network
+ * (plan §00, §13.16–17). The names are the ticket store's from before the vault, so existing tickets carry over.
+ */
+export const VAULT_DB = { name: "kakure-tickets", version: 1, keys: "keys", records: "tickets" } as const;
 
 /** Export files: PBKDF2-SHA-256 → AES-GCM-256 (plan §2 Device storage). */
 export const EXPORT_KDF_ITERATIONS = 310_000;

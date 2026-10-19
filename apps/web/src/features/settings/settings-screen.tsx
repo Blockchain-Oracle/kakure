@@ -1,26 +1,22 @@
 "use client";
 
+import { zatToZec } from "@kakure/domain";
 import { fire, hapticsAvailable } from "@kakure/sounds";
 import { Button, SegmentedControl, Sheet, SlideToConfirm, Switch } from "@kakure/ui-web";
 import { Download, Lock, Upload } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { NETWORK_LABEL } from "@/constants";
+import { NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { useNetwork } from "@/features/network/network-store";
 import { NetworkSwitch } from "@/features/network/network-switch";
 import { NAV_ICONS } from "@/features/shell/nav-icons";
 import { MORE_ITEMS } from "@/features/shell/places";
 import { ThemeControl } from "@/features/theme/theme-control";
-import { downloadBlob, exportTickets, ImportError, importTickets } from "@/features/tickets/export";
-import { TicketsLockedError } from "@/features/tickets/ticket-db";
-import { UnlockForm } from "@/features/tickets/unlock-form";
-import {
-  lockTickets,
-  lockTicketsNow,
-  reloadTickets,
-  removeTicketLock,
-  useLockState,
-} from "@/features/tickets/use-tickets";
+import { type BackupSummary, downloadBlob, exportVault, ImportError, importVault } from "@/features/vault/backup";
+import { UnlockForm } from "@/features/vault/unlock-form";
+import { useLockState } from "@/features/vault/use-lock";
+import { lockNow, removeLock, setLock, VaultLockedError } from "@/features/vault/vault-db";
+import { useWallet } from "@/features/wallet/wallet-store";
 import { forgetThisDevice } from "./forget";
 import { setPrefs, usePrefs } from "./prefs-store";
 
@@ -132,8 +128,8 @@ export function SettingsScreen() {
       </Group>
 
       <Backup network={network} />
-      <TicketLock />
-      <Forget />
+      <VaultLock />
+      <Forget network={network} />
 
       <Group title="About">
         {ABOUT.map((item) => {
@@ -175,42 +171,56 @@ function Row({ label, detail, children }: { label: string; detail?: string; chil
   );
 }
 
+/** "3 tickets and 0.35 TAZ in chips", or "nothing" for an empty vault. */
+function describe(summary: BackupSummary, coin: string): string {
+  const parts = [
+    summary.chips > 0 ? `${zatToZec(BigInt(summary.chipZat))} ${coin} in chips` : null,
+    summary.tickets > 0 ? `${summary.tickets} ticket${summary.tickets === 1 ? "" : "s"}` : null,
+    summary.inFlight > 0 ? `${summary.inFlight} deposit${summary.inFlight === 1 ? "" : "s"} or spends in flight` : null,
+  ].filter((part) => part !== null);
+  return parts.length === 0 ? "nothing" : parts.join(", ");
+}
+
 function Backup({ network }: { network: "mainnet" | "testnet" }) {
   const [passphrase, setPassphrase] = useState("");
   const [message, setMessage] = useState<{ text: string; bad: boolean } | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const ready = passphrase.length >= MIN_PASSPHRASE;
+  const coin = NETWORK_COIN[network];
+  const locked = "Your vault is locked. Unlock it below first.";
 
   const doExport = async () => {
     try {
-      const { file: blob, name, count } = await exportTickets(network, passphrase);
+      const { file: blob, name, summary } = await exportVault(network, passphrase);
       downloadBlob(blob, name);
       setMessage({
-        text: `Exported ${count} ${NETWORK_LABEL[network]} ticket${count === 1 ? "" : "s"}. Keep the passphrase: without it the file can't be opened.`,
+        text: `Exported ${describe(summary, coin)} on ${NETWORK_LABEL[network]}. Keep the passphrase: without it the file can't be opened.`,
         bad: false,
       });
     } catch (error) {
       setMessage({
-        text:
-          error instanceof TicketsLockedError
-            ? "Your tickets are locked. Unlock them below first."
-            : "This browser can't open the ticket store.",
+        text: error instanceof VaultLockedError ? locked : "This browser can't open the vault.",
         bad: true,
       });
     }
   };
   const doImport = async (chosen: File) => {
     try {
-      const count = await importTickets(network, await chosen.text(), passphrase);
-      reloadTickets();
-      setMessage({ text: `Imported ${count} ticket${count === 1 ? "" : "s"}.`, bad: false });
+      const summary = await importVault(network, await chosen.text(), passphrase);
+      setMessage({
+        text:
+          summary.chips > 0
+            ? `Imported ${describe(summary, coin)}. Chips join your balance once the mint confirms they weren't spent since.`
+            : `Imported ${describe(summary, coin)}.`,
+        bad: false,
+      });
     } catch (error) {
       setMessage({
         text:
           error instanceof ImportError
             ? error.message
-            : error instanceof TicketsLockedError
-              ? "Your tickets are locked. Unlock them below first."
+            : error instanceof VaultLockedError
+              ? locked
               : "That file couldn't be imported.",
         bad: true,
       });
@@ -221,8 +231,9 @@ function Backup({ network }: { network: "mainnet" | "testnet" }) {
     <Group title="Backup" id="backup">
       <div className="flex flex-col gap-3 p-4">
         <p className="text-row-detail text-muted-foreground">
-          Your tickets live only in this browser. Export them to an encrypted file to move them or keep a copy; it holds
-          this network's tickets only, including their payout addresses and nonces.
+          Your chips and tickets live only in this browser. Export them to an encrypted file to move them or keep a
+          copy: it holds this network's chips (they're money: whoever has the file and its passphrase can spend them),
+          deposits in flight and tickets with their payout addresses.
         </p>
         <label className="flex flex-col gap-1.5">
           <span className="text-label text-muted-foreground">Passphrase (at least {MIN_PASSPHRASE} characters)</span>
@@ -280,10 +291,10 @@ const INPUT =
   "h-11 rounded-row bg-input px-4 text-row text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
- * The optional passphrase lock for this device's ticket store (O23, plan §13.17). Off by default: the store is
- * encrypted either way, but without the lock its key sits beside the data in this browser.
+ * The optional passphrase lock for this device's vault (O23, plan §13.17): chips and tickets. Off by default: the
+ * vault is encrypted either way, but without the lock its key sits beside the data in this browser.
  */
-function TicketLock() {
+function VaultLock() {
   const state = useLockState();
   const [passphrase, setPassphrase] = useState("");
   const [busy, setBusy] = useState(false);
@@ -304,14 +315,14 @@ function TicketLock() {
   };
 
   return (
-    <Group title="Ticket lock" id="lock">
+    <Group title="Vault lock" id="lock">
       <div className="flex flex-col gap-3 p-4">
         <p className="text-row-detail text-muted-foreground">
           {state === "off"
-            ? "Your tickets are encrypted in this browser, but the key sits next to them. Add a passphrase and the key is kept only wrapped by it: you'll enter it once per tab to see or add tickets. Forget it and only an exported file brings the tickets back."
+            ? "Your chips and tickets are encrypted in this browser, but the key sits next to them. Add a passphrase and the key is kept only wrapped by it: you'll enter it once per tab to trade or see your tickets. Forget it and only an exported backup brings them back."
             : state === "locked"
-              ? "Your tickets are locked. Enter the passphrase to open them in this tab."
-              : "Your tickets are open in this tab and lock again when it closes."}
+              ? "Your vault is locked. Enter the passphrase to open it in this tab."
+              : "Your vault is open in this tab and locks again when it closes."}
         </p>
         {state === "locked" ? (
           <UnlockForm onUnlocked={() => setMessage({ text: "Unlocked for this tab.", bad: false })} />
@@ -337,7 +348,7 @@ function TicketLock() {
                 disabled={busy || !ready}
                 onClick={() =>
                   void run(
-                    () => lockTickets(passphrase),
+                    () => setLock(passphrase),
                     state === "off" ? "Locked. Keep the passphrase somewhere safe." : "Passphrase changed.",
                   )
                 }
@@ -351,7 +362,7 @@ function TicketLock() {
                     variant="secondary"
                     size="sm"
                     onClick={() => {
-                      lockTicketsNow();
+                      lockNow();
                       setMessage({ text: "Locked.", bad: false });
                     }}
                   >
@@ -361,7 +372,7 @@ function TicketLock() {
                     variant="secondary"
                     size="sm"
                     disabled={busy}
-                    onClick={() => void run(removeTicketLock, "The lock is off.")}
+                    onClick={() => void run(removeLock, "The lock is off.")}
                   >
                     Turn the lock off
                   </Button>
@@ -383,23 +394,31 @@ function TicketLock() {
   );
 }
 
-function Forget() {
+function Forget({ network }: { network: "mainnet" | "testnet" }) {
   const [open, setOpen] = useState(false);
+  const wallet = useWallet(network);
   const confirm = useCallback(() => void forgetThisDevice(), []);
+  const coin = NETWORK_COIN[network];
   return (
     <Group title="This device">
       <Row
         label="Forget this device"
-        detail="Deletes every ticket, key, cached file and setting Kakure stored in this browser."
+        detail="Deletes every chip, ticket, key, cached file and setting Kakure stored in this browser."
       >
         <Button variant="secondary" size="sm" className="text-destructive" onClick={() => setOpen(true)}>
           Forget
         </Button>
       </Row>
       <Sheet open={open} onClose={() => setOpen(false)} title="Forget this device">
+        {wallet.balanceZat > 0 ? (
+          <p className="mb-4 rounded-row bg-warn-surface p-3 text-body text-foreground">
+            You hold {zatToZec(BigInt(wallet.balanceZat))} {coin} in chips on {NETWORK_LABEL[network]}. Chips exist only
+            on this device: withdraw them or export a backup first, or they're gone for good.
+          </p>
+        ) : null}
         <p className="text-body text-foreground">
-          Tickets can't be recovered after this unless you exported them. Payouts still go to the addresses in your
-          bets; only this browser's records are erased.
+          Chips and tickets can't be recovered after this unless you exported a backup. Payouts already scheduled still
+          arrive; only this browser's records are erased.
         </p>
         <SlideToConfirm
           className="mt-6"

@@ -3,26 +3,26 @@
 import { type Network, ZATOSHI_PER_ZEC } from "@kakure/domain";
 import { usePrice } from "@kakure/feeds";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
-import { buttonClass, EmptyState, Mark, Pill, RollingNumber, Skeleton, Tabs } from "@kakure/ui-web";
-import { Clapperboard, Eye, EyeOff, Ticket as TicketIcon } from "lucide-react";
-import Link from "next/link";
+import { Mark, Pill, RollingNumber, Tabs } from "@kakure/ui-web";
+import { Clapperboard, Eye, EyeOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { NETWORK_COIN, NETWORK_LABEL } from "@/constants";
+import { NETWORK_COIN } from "@/constants";
 import { useMarkets } from "@/features/data/use-markets";
 import { assetFor } from "@/features/markets/assets";
 import { sideWord, WINDOW_LABEL } from "@/features/markets/market-view";
 import { TicketSheet } from "@/features/receipts/ticket-sheet";
 import { setPrefs, usePrefs } from "@/features/settings/prefs-store";
 import { STATUS_LABEL, STATUS_TONE } from "@/features/tickets/status";
-import { UnlockForm } from "@/features/tickets/unlock-form";
 import { addTicket, useTickets } from "@/features/tickets/use-tickets";
+import { WalletSection } from "@/features/wallet/wallet-section";
 import { formatShortWhen, useNow } from "@/lib/time";
 import { useAmounts } from "./amounts";
 import { type Position, positionsOf, totalsOf } from "./money";
 import { SoundLadder } from "./sound-ladder";
 
 /**
- * The portfolio (C9, surfaces.md): this device's tickets only. Open and settled lists, P&L in ZEC with fiat as
+ * The portfolio (C9, surfaces.md; plan §00 Portfolio): the chip wallet first (balance, deposit, withdraw), then this
+ * device's tickets. Open and settled lists, P&L in ZEC with fiat as
  * secondary (mainnet only: TAZ has no value), the privacy eye, the sound ladder while a position is open, and an
  * honest Replay state until the web reads the signed price history.
  */
@@ -98,46 +98,10 @@ export function PortfolioScreen() {
         </button>
       </div>
 
-      {tickets === null ? (
-        <Skeleton className="h-40 rounded-group" />
-      ) : tickets === "locked" ? (
-        <section
-          className="flex flex-col gap-3 rounded-group border border-border bg-card p-5"
-          aria-labelledby="locked-title"
-        >
-          <h2 id="locked-title" className="font-display text-title text-foreground">
-            Your tickets are locked
-          </h2>
-          <p className="text-row-detail text-muted-foreground">
-            You set a passphrase for this device's ticket store. Enter it to open your tickets in this tab; they lock
-            again when the tab closes.
-          </p>
-          <UnlockForm />
-        </section>
-      ) : tickets === "unavailable" ? (
-        <EmptyState
-          icon={<TicketIcon />}
-          tone="warn"
-          title="This browser can't open the ticket store"
-          reason="Private windows and blocked site data stop IndexedDB, where tickets are kept. Open Kakure in a normal window to see them."
-        />
-      ) : tickets.length === 0 ? (
-        <EmptyState
-          icon={<TicketIcon />}
-          title={`No ${NETWORK_LABEL[network]} tickets on this device`}
-          reason="Tickets you build here are kept only in this browser, encrypted. Bet on a market, or import a ticket file from another device in Settings."
-          action={
-            <>
-              <Link href="/markets" className={buttonClass("primary", "sm")}>
-                Browse markets
-              </Link>
-              <Link href="/settings#backup" className={buttonClass("secondary", "sm")}>
-                Import tickets
-              </Link>
-            </>
-          }
-        />
-      ) : (
+      <WalletSection />
+
+      {/* Tickets from the earlier per-bet design, while any are on this device; the wallet above speaks for the vault. */}
+      {!Array.isArray(tickets) || tickets.length === 0 ? null : (
         <>
           <Hero
             network={network}

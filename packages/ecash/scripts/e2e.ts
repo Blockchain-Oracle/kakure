@@ -21,7 +21,7 @@ const oblivious = {
 };
 
 async function call(method: "GET" | "POST", path: string, body?: unknown) {
-  const response = await obliviousFetch(oblivious, method, path, body);
+  const response = await obliviousFetch(oblivious, method, path, body === undefined ? undefined : JSON.stringify(body));
   return { status: response.status, json: await response.json() };
 }
 const step = (name: string) => console.log(`✓ ${name}`);

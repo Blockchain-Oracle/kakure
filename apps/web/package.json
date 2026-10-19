@@ -14,7 +14,9 @@
   "dependencies": {
     "@kakure/chart": "workspace:*",
     "@kakure/domain": "workspace:*",
+    "@kakure/ecash": "workspace:*",
     "@kakure/feeds": "workspace:*",
+    "@kakure/ohttp": "workspace:*",
     "@kakure/query": "workspace:*",
     "@kakure/signing": "workspace:*",
     "@kakure/sounds": "workspace:*",

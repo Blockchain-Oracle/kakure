@@ -19,8 +19,8 @@ import { NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { assetFor } from "@/features/markets/assets";
 import { coinAmount, isBettable, shortTitle, sideWord } from "@/features/markets/market-view";
 import { useNetwork } from "@/features/network/network-store";
-import { TicketsLockedError } from "@/features/tickets/ticket-db";
 import { addTicket } from "@/features/tickets/use-tickets";
+import { VaultLockedError } from "@/features/vault/vault-db";
 import { useNow } from "@/lib/time";
 import { PayoutAddressField, usePayoutAddress } from "./payout-address";
 import { QrStep } from "./qr-step";
@@ -133,7 +133,7 @@ export default function BetSheet({ market, addresses, network, side, size: chose
       fire("send");
     } catch (error) {
       setFailure(
-        error instanceof TicketsLockedError
+        error instanceof VaultLockedError
           ? "Your tickets are locked with a passphrase. Unlock them in Portfolio or Settings first: the QR is shown only once this ticket is saved."
           : "This browser can't store tickets (private window or storage blocked), so no QR is shown. Without the saved ticket you couldn't find or prove your bet.",
       );

@@ -6,7 +6,9 @@ import { DEV_DATA_PORT } from "./src/dev-constants";
 const WORKSPACE_PACKAGES = [
   "@kakure/chart",
   "@kakure/domain",
+  "@kakure/ecash",
   "@kakure/feeds",
+  "@kakure/ohttp",
   "@kakure/query",
   "@kakure/signing",
   "@kakure/sounds",
@@ -17,8 +19,9 @@ const WORKSPACE_PACKAGES = [
 
 /**
  * A static export (plan §2, D10): no server, no route handlers, no rewrites in production.
- * In `next dev` only, `/data/*` is proxied to the tiny static server in scripts/dev.mjs, which serves the
- * operator's real signed files from services/operator/operator-data/<network>/public/.
+ * In `next dev` only, `/data/*` and `/ohttp/*` are proxied to the tiny server in scripts/dev.mjs, which serves the
+ * operator's real signed files from services/operator/operator-data/<network>/public/ and relays trading calls to a
+ * local gateway, as the data worker does in production.
  */
 export default function config(phase: string): NextConfig {
   const base: NextConfig = {
@@ -33,7 +36,10 @@ export default function config(phase: string): NextConfig {
     return {
       ...base,
       async rewrites() {
-        return [{ source: "/data/:path*", destination: `http://127.0.0.1:${DEV_DATA_PORT}/data/:path*` }];
+        return [
+          { source: "/data/:path*", destination: `http://127.0.0.1:${DEV_DATA_PORT}/data/:path*` },
+          { source: "/ohttp/:network", destination: `http://127.0.0.1:${DEV_DATA_PORT}/ohttp/:network` },
+        ];
       },
     };
   }

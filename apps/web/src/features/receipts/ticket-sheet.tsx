@@ -11,8 +11,8 @@ import { assetFor } from "@/features/markets/assets";
 import { sideWord, ticketsWord, WINDOW_LABEL } from "@/features/markets/market-view";
 import { useAmounts } from "@/features/portfolio/amounts";
 import { KakureMark } from "@/features/shell/brand";
-import { downloadBlob } from "@/features/tickets/export";
 import { STATUS_DETAIL, STATUS_LABEL } from "@/features/tickets/status";
+import { downloadBlob } from "@/features/vault/backup";
 import { copySecret } from "@/lib/clipboard";
 import { drawReceipt } from "./draw-receipt";
 

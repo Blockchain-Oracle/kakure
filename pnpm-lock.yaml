@@ -459,9 +459,15 @@ importers:
       '@kakure/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@kakure/ecash':
+        specifier: workspace:*
+        version: link:../../packages/ecash
       '@kakure/feeds':
         specifier: workspace:*
         version: link:../../packages/feeds
+      '@kakure/ohttp':
+        specifier: workspace:*
+        version: link:../../packages/ohttp
       '@kakure/query':
         specifier: workspace:*
         version: link:../../packages/query

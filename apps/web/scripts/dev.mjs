@@ -28,7 +28,44 @@ const LATEST_CACHE = "public, max-age=20, stale-while-revalidate=40";
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 const LIVE_DATA = "https://kakure-web.kakure-price-relay.workers.dev/data";
 
+/** Trading calls (`POST /ohttp/<network>`) go to a local operator gateway, as the data worker relays them in production. */
+const OHTTP = /^\/ohttp\/(mainnet|testnet)$/;
+const GATEWAY = {
+  testnet: process.env.KAKURE_DEV_GATEWAY_TESTNET ?? "http://127.0.0.1:8790/gateway",
+  mainnet: process.env.KAKURE_DEV_GATEWAY_MAINNET,
+};
+
+async function relayOhttp(request, response, network) {
+  const gateway = GATEWAY[network];
+  if (request.method !== "POST" || !gateway) {
+    response.writeHead(gateway ? 405 : 503).end();
+    return;
+  }
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  // A fresh request with only the content type, like services/data-worker/src/relay.ts.
+  const upstream = await fetch(gateway, {
+    method: "POST",
+    headers: { "content-type": "message/ohttp-req" },
+    body: Buffer.concat(chunks),
+  }).catch(() => null);
+  if (!upstream) {
+    response.writeHead(502).end();
+    return;
+  }
+  response.writeHead(upstream.status, {
+    "content-type": upstream.headers.get("content-type") ?? "text/plain",
+    "cache-control": "no-store",
+  });
+  response.end(Buffer.from(await upstream.arrayBuffer()));
+}
+
 const server = createServer(async (request, response) => {
+  const ohttp = OHTTP.exec(new URL(request.url ?? "/", "http://localhost").pathname);
+  if (ohttp) {
+    await relayOhttp(request, response, ohttp[1]);
+    return;
+  }
   const match = KEY.exec(new URL(request.url ?? "/", "http://localhost").pathname);
   if (!match || (request.method !== "GET" && request.method !== "HEAD")) {
     response.writeHead(404).end("Not found");

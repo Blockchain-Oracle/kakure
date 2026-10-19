@@ -1,15 +1,15 @@
 "use client";
 
 import { STORAGE_PREFIX } from "@/constants";
-import { deleteTicketDatabase } from "@/features/tickets/ticket-db";
+import { deleteVault } from "@/features/vault/vault-db";
 
 /**
- * Forget this device (surfaces.md Settings): the encrypted ticket store and its keys, every `kakure.*` key in
+ * Forget this device (surfaces.md Settings): the vault (tickets, chips, deposits) and its keys, every `kakure.*` key in
  * localStorage (network, theme, preferences, the persisted public cache), the service worker's
  * caches and the worker itself. Then a fresh start.
  */
 export async function forgetThisDevice(): Promise<void> {
-  await deleteTicketDatabase();
+  await deleteVault();
   try {
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith(STORAGE_PREFIX)) localStorage.removeItem(key);

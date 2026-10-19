@@ -75,6 +75,15 @@
   --paper: #F4EEE3;
   --paper-ink: #141210;
   --paper-rule: #D9CBB0;
+  --plate: #141210;
+  --plate-edge: #14121000;
+  --plate-ink: #FFFFFF;
+  --plate-ink-soft: #FFFFFFB3;
+  --plate-ink-muted: #FFFFFF99;
+  --plate-rule: #FFFFFF24;
+  --leg-chips: #B83214;
+  --leg-positions: #7DD3FC;
+  --leg-collect: #BEF264;
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -349,6 +358,15 @@
   --paper: #F4EEE3;
   --paper-ink: #141210;
   --paper-rule: #D9CBB0;
+  --plate: #171717;
+  --plate-edge: #FFFFFF38;
+  --plate-ink: #FFFFFF;
+  --plate-ink-soft: #FFFFFFB3;
+  --plate-ink-muted: #FFFFFF99;
+  --plate-rule: #FFFFFF24;
+  --leg-chips: #E04D26;
+  --leg-positions: #7DD3FC;
+  --leg-collect: #BEF264;
 }
 :root[data-network="testnet"] {
   --canvas: #F2E2D5;

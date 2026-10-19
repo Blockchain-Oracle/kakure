@@ -11,9 +11,12 @@ import { useTickets } from "@/features/tickets/use-tickets";
 /**
  * The payout address, checked live in the browser with zcash_address compiled to WebAssembly (PD18): a Unified
  * Address for this network with an Orchard receiver and no transparent receiver. The module loads only here.
- * It must also be fresh (O21, D8): an address another saved ticket already uses, on either network, would let the
- * operator link the two bets, so the bet stops, as in the app (apps/mobile/src/bet/place-bet.ts).
+ * For a bet it must also be fresh (O21, D8): an address another saved ticket already uses, on either network, would
+ * let the operator link the two bets, so the bet stops, as in the app (apps/mobile/src/bet/place-bet.ts). A chip
+ * withdrawal (`purpose: "withdraw"`) is checked for format only.
  */
+export type AddressPurpose = "bet" | "withdraw";
+
 export type FieldVerdict = "empty" | "checking" | "unavailable" | "reused" | "locked" | PayoutAddressVerdict;
 
 export interface PayoutAddressState {
@@ -25,7 +28,7 @@ export interface PayoutAddressState {
   input: RefObject<HTMLTextAreaElement | null>;
 }
 
-export function usePayoutAddress(network: Network): PayoutAddressState {
+export function usePayoutAddress(network: Network, purpose: AddressPurpose = "bet"): PayoutAddressState {
   const [value, setValue] = useState("");
   const [check, setCheck] = useState<CheckPayoutAddress | null | "failed">(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -52,7 +55,7 @@ export function usePayoutAddress(network: Network): PayoutAddressState {
         : check === "failed"
           ? "unavailable"
           : check(trimmed, network);
-  const verdict: FieldVerdict = format === "ok" ? freshness(trimmed, [testnet, mainnet]) : format;
+  const verdict: FieldVerdict = format === "ok" && purpose === "bet" ? freshness(trimmed, [testnet, mainnet]) : format;
 
   return {
     value,
@@ -80,18 +83,28 @@ function freshness(address: string, stores: ReadonlyArray<ReturnType<typeof useT
   return used ? "reused" : "ok";
 }
 
-function message(verdict: FieldVerdict, network: Network): { text: string; tone: "ok" | "bad" | "quiet" } {
+function message(
+  verdict: FieldVerdict,
+  network: Network,
+  purpose: AddressPurpose,
+): { text: string; tone: "ok" | "bad" | "quiet" } {
   const other = NETWORK_LABEL[network === "mainnet" ? "testnet" : "mainnet"];
   switch (verdict) {
     case "empty":
-      return { text: "A fresh shielded address from your wallet's Receive screen. We pay here.", tone: "quiet" };
+      return {
+        text:
+          purpose === "bet"
+            ? "A fresh shielded address from your wallet's Receive screen. We pay here."
+            : "A fresh shielded address from your wallet's Receive screen. Your chips are paid out here.",
+        tone: "quiet",
+      };
     case "checking":
       return { text: "Checking the address on this device…", tone: "quiet" };
     case "unavailable":
       return { text: "The address checker didn't load. Reload the page to try again.", tone: "bad" };
     case "ok":
       return {
-        text: `Shielded, with an Orchard receiver, for ${NETWORK_LABEL[network]}. Payouts and refunds go here.`,
+        text: `Shielded, with an Orchard receiver, for ${NETWORK_LABEL[network]}. ${purpose === "bet" ? "Payouts and refunds go here." : "The withdrawal goes here."}`,
         tone: "ok",
       };
     case "not-unified":
@@ -126,14 +139,22 @@ function message(verdict: FieldVerdict, network: Network): { text: string; tone:
   }
 }
 
-export function PayoutAddressField({ state, network }: { state: PayoutAddressState; network: Network }) {
+export function PayoutAddressField({
+  state,
+  network,
+  purpose = "bet",
+}: {
+  state: PayoutAddressState;
+  network: Network;
+  purpose?: AddressPurpose;
+}) {
   const id = useId();
-  const help = message(state.verdict, network);
+  const help = message(state.verdict, network, purpose);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor={id} className="text-label text-muted-foreground">
-          Payout address
+          {purpose === "bet" ? "Payout address" : "Withdraw to"}
         </label>
         <button
           type="button"

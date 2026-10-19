@@ -14,7 +14,7 @@ const oblivious = { relay: relayArg ?? `${gateway}/gateway`, keyConfig };
 
 const get = await obliviousFetch(oblivious, "GET", "/v1/ping");
 console.log("GET  /v1/ping →", get.status, await get.text());
-const post = await obliviousFetch(oblivious, "POST", "/v1/ping", { hello: "zcash", n: 7 });
+const post = await obliviousFetch(oblivious, "POST", "/v1/ping", JSON.stringify({ hello: "zcash", n: 7 }));
 console.log("POST /v1/ping →", post.status, await post.text());
 const missing = await obliviousFetch(oblivious, "GET", "/v1/nothing");
 console.log("GET  /v1/nothing →", missing.status, await missing.text());

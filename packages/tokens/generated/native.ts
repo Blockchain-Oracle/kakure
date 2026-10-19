@@ -78,7 +78,16 @@ export const native = {
       "sheetHandle": "#9A9080",
       "paper": "#F4EEE3",
       "paperInk": "#141210",
-      "paperRule": "#D9CBB0"
+      "paperRule": "#D9CBB0",
+      "plate": "#141210",
+      "plateEdge": "#14121000",
+      "plateInk": "#FFFFFF",
+      "plateInkSoft": "#FFFFFFB3",
+      "plateInkMuted": "#FFFFFF99",
+      "plateRule": "#FFFFFF24",
+      "legChips": "#B83214",
+      "legPositions": "#7DD3FC",
+      "legCollect": "#BEF264"
     },
     "dark": {
       "background": "#050505",
@@ -154,7 +163,16 @@ export const native = {
       "sheetHandle": "#525252",
       "paper": "#F4EEE3",
       "paperInk": "#141210",
-      "paperRule": "#D9CBB0"
+      "paperRule": "#D9CBB0",
+      "plate": "#171717",
+      "plateEdge": "#FFFFFF38",
+      "plateInk": "#FFFFFF",
+      "plateInkSoft": "#FFFFFFB3",
+      "plateInkMuted": "#FFFFFF99",
+      "plateRule": "#FFFFFF24",
+      "legChips": "#E04D26",
+      "legPositions": "#7DD3FC",
+      "legCollect": "#BEF264"
     },
     "testnetLight": {
       "background": "#F4EEE3",
@@ -230,7 +248,16 @@ export const native = {
       "sheetHandle": "#9A9080",
       "paper": "#F4EEE3",
       "paperInk": "#141210",
-      "paperRule": "#D9CBB0"
+      "paperRule": "#D9CBB0",
+      "plate": "#141210",
+      "plateEdge": "#14121000",
+      "plateInk": "#FFFFFF",
+      "plateInkSoft": "#FFFFFFB3",
+      "plateInkMuted": "#FFFFFF99",
+      "plateRule": "#FFFFFF24",
+      "legChips": "#B83214",
+      "legPositions": "#7DD3FC",
+      "legCollect": "#BEF264"
     },
     "testnetDark": {
       "background": "#050505",
@@ -306,7 +333,16 @@ export const native = {
       "sheetHandle": "#525252",
       "paper": "#F4EEE3",
       "paperInk": "#141210",
-      "paperRule": "#D9CBB0"
+      "paperRule": "#D9CBB0",
+      "plate": "#171717",
+      "plateEdge": "#FFFFFF38",
+      "plateInk": "#FFFFFF",
+      "plateInkSoft": "#FFFFFFB3",
+      "plateInkMuted": "#FFFFFF99",
+      "plateRule": "#FFFFFF24",
+      "legChips": "#E04D26",
+      "legPositions": "#7DD3FC",
+      "legCollect": "#BEF264"
     }
   },
   "text": {
