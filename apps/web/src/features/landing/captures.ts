@@ -1,21 +1,19 @@
 /**
- * Real captures of the testnet web app at phone size (390 × 844), taken from the running static build with the
- * operator's signed testnet files and a test ticket built from the repo fixture address. Nothing in them can be
- * scanned or copied (O13): the payout address is blurred, the bet code is the app's own hidden state, and the
- * receipt's verify code is blurred.
+ * Real captures of the testnet web app at phone size (390 × 844 CSS px at 2×, dark theme), taken from the running app
+ * with the operator's signed testnet files. Nothing in them can be scanned or copied (O13): no payout address is
+ * shown in full and the payment QR is captured hidden, as the app shows it whenever the window isn't in front.
  */
-export const CAPTURED_ON = "18 Oct 2026";
-
 export const CAPTURES = {
-  betTicket: { src: "/captures/bet-ticket.jpg", alt: "The bet sheet: Up or Down and the fixed ticket sizes" },
-  betAddress: {
-    src: "/captures/bet-address.jpg",
-    alt: "The payout address field (blurred here), checked as shielded with an Orchard receiver",
+  trade: {
+    src: "/captures/trade.webp",
+    alt: "The trade terminal: BTC's live window chart, UP and DOWN with what each pays",
   },
-  betQr: { src: "/captures/bet-qr.jpg", alt: "The payment code, hidden while the window is in the background" },
-  portfolio: {
-    src: "/captures/portfolio.jpg",
-    alt: "The portfolio with one open testnet ticket waiting for its batch",
+  markets: {
+    src: "/captures/markets.webp",
+    alt: "Markets by cadence lane, each card with its live price and sparkline",
   },
-  ticket: { src: "/captures/ticket.jpg", alt: "An outcome slip as a perforated receipt, its verify code blurred" },
+  pay: { src: "/captures/pay.webp", alt: "The pay sheet: the ticket summary and the payment QR, built on the device" },
+  ticket: { src: "/captures/ticket.webp", alt: "Portfolio: a ticket waiting for its window to close" },
 } as const;
+
+export type CaptureName = keyof typeof CAPTURES;

@@ -1,29 +1,37 @@
-import { GetStarted, LandingFooter } from "@/features/landing/get-started";
+import { Arcade } from "@/features/landing/arcade";
+import { Bento } from "@/features/landing/bento";
+import { FinalCall, LandingFooter } from "@/features/landing/final";
 import { Hero } from "@/features/landing/hero";
-import { LandingHeader } from "@/features/landing/landing-header";
-import { LifecycleNow } from "@/features/landing/live-panels";
-import { MarketTape } from "@/features/landing/market-tape";
-import { RulesAndProof } from "@/features/landing/rules-section";
-import { Lifecycle, PlaceABet, PortfolioAndReceipts, WhoSeesWhat } from "@/features/landing/sections";
+import { How } from "@/features/landing/how";
+import { LandingNav } from "@/features/landing/landing-nav";
+import { PrivacyMatrix } from "@/features/landing/privacy-matrix";
+import { Proof } from "@/features/landing/proof";
+import { Stage } from "@/features/landing/stage";
+import { Tape } from "@/features/landing/tape";
+import "@/features/landing/landing.css";
+import "@/features/landing/styles/hero.css";
+import "@/features/landing/styles/middle.css";
+import "@/features/landing/styles/end.css";
 
 /**
- * The landing (refero-design-research §3, surfaces.md): hero with a live market, the live tape, betting in three
- * steps, who sees what, the sealed-odds lifecycle, portfolio and receipts, rules and proof, then docs, download and
- * the footer with the operator keys. Prerendered; only the live parts hydrate.
+ * The landing (plan §0 R3, Mitoshi's structure): nav, the black-hole hero with the live window, the phones, the live
+ * tape, the bento, how it works, who sees what, every close signed, the arcade, the final call and the footer. One
+ * dark world in both themes (`kk-dark`). Prerendered; only the live parts hydrate.
  */
 export default function Landing() {
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
-      <LandingHeader />
-      <main id="main" className="flex flex-col gap-16">
+    <div className="lp kk-dark">
+      <LandingNav />
+      <main id="main">
         <Hero />
-        <MarketTape />
-        <PlaceABet />
-        <WhoSeesWhat />
-        <Lifecycle now={<LifecycleNow />} />
-        <PortfolioAndReceipts />
-        <RulesAndProof />
-        <GetStarted />
+        <Tape />
+        <Stage />
+        <Bento />
+        <How />
+        <PrivacyMatrix />
+        <Proof />
+        <Arcade />
+        <FinalCall />
       </main>
       <LandingFooter />
     </div>

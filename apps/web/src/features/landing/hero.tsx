@@ -1,46 +1,40 @@
-import { buttonClass } from "@kakure/ui-web";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { HeroMarket } from "./hero-market";
+import { HeroLive } from "./hero-live";
+import { START, WORDS } from "./words";
 
 /**
- * The hero (refero-design-research §3.2, Mercury's split hero; Kawase §10 headline grammar): the claim and one
- * action on the left, a real live market on the right. The words are the promise from plan §1.
+ * The first screen (plan §0 R3; Mitoshi's hero, mitoshi-code-study §7): the "live on" chip, the silver headline with
+ * its one vermilion word, the line and two actions, over the black hole that is the product's own metaphor. The copy
+ * is a server component; the hole, the batch heartbeat and the live window hydrate around it.
  */
 export function Hero() {
+  const { hero } = WORDS;
   return (
-    <section
-      aria-labelledby="hero-title"
-      className="mx-auto grid w-full max-w-(--layout-content-max) grid-cols-1 items-center gap-10 px-5 pt-8 pb-4 rail:px-8 md:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] md:pt-16"
-    >
-      <div className="flex flex-col gap-6">
-        <Link
-          href="/markets"
-          className="flex w-fit items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-chip-label text-secondary-foreground outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span aria-hidden className="size-1.5 rounded-full bg-up motion-safe:animate-pulse" />
-          Live on Zcash testnet
-        </Link>
-        <h1
-          id="hero-title"
-          className="font-display text-[clamp(3.1rem,6vw,5.4rem)] leading-[0.95] font-extrabold tracking-[-0.035em] text-foreground"
-        >
-          Call it. Stay <span className="text-vermilion">hidden</span>.
-        </h1>
-        <p className="max-w-xl text-body text-muted-foreground">
-          Call the close on crypto and Zcash itself with shielded ZEC, from any Zcash wallet, in seconds. The odds are
-          public; who placed each bet isn't. No accounts, no tracking. US stocks open once their price feed is
-          connected.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/markets" className={buttonClass("primary", "lg")}>
-            See the open markets
+    <HeroLive
+      copy={
+        <>
+          <Link href="/markets" className="lp-chip">
+            <span className="lp-live-dot" aria-hidden />
+            {hero.kicker}
           </Link>
-          <Link href="/privacy" className={buttonClass("secondary", "lg")}>
-            How privacy works
-          </Link>
-        </div>
-      </div>
-      <HeroMarket />
-    </section>
+          <h1 id="lp-h1" className="lp-h1">
+            <span>{hero.title[0]}</span>
+            <span>
+              {hero.title[1]} <em>{hero.accent}</em>
+            </span>
+          </h1>
+          <p className="lp-line">{hero.line}</p>
+          <div className="lp-ctas">
+            <Link href={START} className="lp-btn lp-btn--accent lp-btn--lg">
+              {hero.start} <ArrowRight aria-hidden />
+            </Link>
+            <Link href="/privacy" className="lp-btn lp-btn--glass lp-btn--lg">
+              <ShieldCheck aria-hidden /> {hero.privacy}
+            </Link>
+          </div>
+        </>
+      }
+    />
   );
 }

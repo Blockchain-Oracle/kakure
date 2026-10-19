@@ -1,6 +1,7 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant, buttonClass } from "./button";
 export { Chip, ChipGroup, type ChipProps } from "./chips";
 export { cx } from "./cx";
+export { DecryptText } from "./decrypt-text";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { GlowToggle, type GlowToggleProps } from "./glow-toggle";
 export { Mark, type MarkProps } from "./mark";

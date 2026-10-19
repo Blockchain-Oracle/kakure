@@ -1,0 +1,223 @@
+/* The landing's end: how it works, the privacy matrix, proof, the arcade, the final call and the footer. */
+
+/* ── How it works ────────────────────────────────────────────────────────────────────────────────────────────── */
+.lp-steps {
+  display: grid;
+  gap: 16px;
+  margin-top: 40px;
+}
+@media (min-width: 900px) {
+  .lp-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.lp-step-shot {
+  position: relative;
+  height: 20rem;
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background:
+    radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--vermilion) 18%, transparent), transparent 70%),
+    var(--lp-card-2);
+}
+.lp-step-shot .lp-phone {
+  position: absolute;
+  left: 50%;
+  top: 28px;
+  translate: -50% 0;
+  --phone-w: 15rem;
+}
+.lp-step-n {
+  font: 600 13px / 1 var(--font-mono);
+  color: var(--vermilion);
+}
+
+/* ── Privacy matrix ──────────────────────────────────────────────────────────────────────────────────────────── */
+.lp-matrix {
+  width: 100%;
+  margin-top: 40px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--lp-card);
+  box-shadow: inset 0 0 0 1px var(--lp-line);
+}
+.lp-matrix th,
+.lp-matrix td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--lp-line);
+  text-align: center;
+  font: 500 15px / 1.35 var(--font-sans);
+}
+.lp-matrix th[scope="row"] {
+  text-align: left;
+  color: var(--lp-ink);
+}
+.lp-matrix thead th {
+  font: 700 12px / 1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lp-ink-3);
+}
+.lp-matrix tr:last-child > * {
+  border-bottom: 0;
+}
+.lp-yes,
+.lp-no {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: var(--radius-full);
+}
+.lp-yes {
+  color: var(--up);
+  background: color-mix(in srgb, var(--up) 14%, transparent);
+}
+.lp-no {
+  color: var(--lp-ink-3);
+  background: var(--lp-line);
+}
+.lp-yes svg,
+.lp-no svg {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 639px) {
+  .lp-matrix th,
+  .lp-matrix td {
+    padding: 12px 8px;
+    font-size: 13px;
+  }
+  .lp-matrix thead th {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* ── Proof ───────────────────────────────────────────────────────────────────────────────────────────────────── */
+.lp-figure {
+  font: 600 clamp(2.2rem, 4vw, 3rem) / 1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.lp-settled {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--lp-line);
+}
+
+/* ── Arcade strip ────────────────────────────────────────────────────────────────────────────────────────────── */
+.lp-cabinets {
+  display: grid;
+  gap: 12px;
+  margin-top: 32px;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.lp-cabinet {
+  position: relative;
+  display: flex;
+  min-height: 12rem;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background-color: var(--lp-card);
+  background-image:
+    linear-gradient(45deg, var(--lp-line) 25%, transparent 25%, transparent 75%, var(--lp-line) 75%),
+    linear-gradient(45deg, var(--lp-line) 25%, transparent 25%, transparent 75%, var(--lp-line) 75%);
+  background-size: 28px 28px;
+  background-position:
+    0 0,
+    14px 14px;
+  box-shadow: inset 0 0 0 1px var(--lp-line);
+}
+.lp-cabinet h3 {
+  font: 700 22px / 1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.lp-cabinet p {
+  font: 500 13px / 1.4 var(--font-sans);
+  color: var(--lp-ink-2);
+}
+.lp-cabinet-tag {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 6px 10px;
+  border-radius: var(--radius-xs);
+  font: 800 11px / 1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary-foreground);
+  background: var(--paper);
+  transform: rotate(-3deg);
+}
+
+/* ── Final call and footer ───────────────────────────────────────────────────────────────────────────────────── */
+.lp-final {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  text-align: center;
+}
+.lp-final::before {
+  content: "";
+  position: absolute;
+  inset: 20% 10% -20%;
+  z-index: -1;
+  background: radial-gradient(50% 50% at 50% 60%, var(--lp-glow), transparent 70%);
+  filter: blur(20px);
+}
+.lp-qr {
+  display: inline-flex;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+.lp-footer {
+  position: relative;
+  overflow: clip;
+  padding-top: 64px;
+  border-top: 1px solid var(--lp-line);
+}
+.lp-footer-cols {
+  display: grid;
+  gap: 32px;
+}
+@media (min-width: 768px) {
+  .lp-footer-cols {
+    grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  }
+}
+.lp-footer h4 {
+  font: 700 12px / 1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lp-ink-3);
+}
+.lp-link {
+  border-radius: var(--radius-xs);
+  font: 500 14px / 1.6 var(--font-sans);
+  color: var(--lp-ink-2);
+}
+.lp-link:hover {
+  color: var(--lp-ink);
+}
+.lp-watermark {
+  display: block;
+  margin-top: 40px;
+  margin-bottom: -0.18em;
+  text-align: center;
+  font: 700 clamp(8rem, 30vw, 24rem) / 1 var(--font-stamp);
+  letter-spacing: -0.02em;
+  color: transparent;
+  -webkit-text-stroke: 1.2px color-mix(in srgb, var(--paper) 16%, transparent);
+  user-select: none;
+}

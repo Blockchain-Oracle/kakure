@@ -143,3 +143,9 @@ export function referencePrice(market: Market): number | null {
     .sort((a, b) => a - b);
   return values[Math.floor(values.length / 2)] ?? null;
 }
+
+/** The window a hero shows: this asset's open hourly price window, else any open hourly one, else any open one. */
+export function featuredWindow(markets: readonly Market[], now: number, subject = "BTC"): Market | undefined {
+  const open = markets.filter((m) => isBettable(m, now) && m.kind === "close" && !m.strike);
+  return open.find((m) => m.subject === subject && m.window === "1h") ?? open.find((m) => m.window === "1h") ?? open[0];
+}

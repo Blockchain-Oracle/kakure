@@ -273,7 +273,7 @@
   --font-family-stamp: "Noto Serif JP", serif;
   --glow-live: 0 0 24px color-mix(in srgb, var(--vermilion) 16%, transparent);
 }
-:root.dark {
+:root.dark, .kk-dark {
   color-scheme: dark;
   --background: #050505;
   --foreground: #FFFFFF;

@@ -23,9 +23,13 @@ const springs = Object.fromEntries(
   ]),
 );
 
+/**
+ * `.kk-dark` scopes the dark set to one subtree whatever the theme: the landing is always a dark world, as Mitoshi's
+ * is (mitoshi-code-study §7, landing.css:1-16), so any app part placed in it reads dark tokens too.
+ */
 const SELECTORS = {
   light: ":root",
-  dark: ":root.dark",
+  dark: ":root.dark, .kk-dark",
   "testnet-light": ':root[data-network="testnet"]',
   "testnet-dark": ':root.dark[data-network="testnet"]',
 };

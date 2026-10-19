@@ -1,0 +1,374 @@
+/* The landing's first screen: the black hole, the copy, the live window and the batch drop (landing.css has the world). */
+
+/* ── Hero: the black hole as ground, the copy on the scrim edge, the live window at the rim ─────────────────── */
+.lp-hero {
+  --fx: 50%;
+  --fy: 72%;
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  margin-top: -72px;
+  padding-top: 72px;
+}
+@media (min-width: 1024px) {
+  .lp-hero {
+    --fx: 70%;
+    --fy: 46%;
+    min-height: 100svh;
+    display: grid;
+  }
+}
+/* The hole's frame: on phones the first screen (the window card follows it); on desktop the whole hero. Before
+   WebGL draws (or where it can't), a CSS ring stands in at the same focus. */
+.lp-hole {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 100svh;
+  z-index: -2;
+  background:
+    radial-gradient(
+      circle at var(--fx) var(--fy),
+      var(--background) 0 5.5rem,
+      color-mix(in srgb, var(--paper) 80%, var(--vermilion)) 5.7rem,
+      color-mix(in srgb, var(--vermilion) 55%, transparent) 6.6rem,
+      transparent 11rem
+    ),
+    radial-gradient(
+      ellipse 34rem 5rem at var(--fx) var(--fy),
+      color-mix(in srgb, var(--vermilion) 40%, transparent),
+      transparent 70%
+    ),
+    var(--background);
+}
+@media (min-width: 1024px) {
+  .lp-hole {
+    inset: 0;
+    height: auto;
+  }
+}
+.lp-hole-gl {
+  position: absolute;
+  inset: 0;
+}
+.lp-hole-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 1400ms var(--ease-out);
+}
+.lp-hole-gl[data-ready] .lp-hole-canvas {
+  opacity: 1;
+}
+/* Film grain (Mitoshi's feTurbulence), barely there. */
+.lp-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+/* The bottom edge melts into the ground so the next section reads as the same world. */
+.lp-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 8rem;
+  z-index: -1;
+  background: linear-gradient(to bottom, transparent, var(--background));
+  pointer-events: none;
+}
+.lp-hero-grid {
+  position: relative;
+  display: grid;
+  gap: 24px;
+  width: 100%;
+  max-width: var(--lp-max);
+  margin-inline: auto;
+  padding: 32px 16px 48px;
+}
+@media (min-width: 640px) {
+  .lp-hero-grid {
+    padding-inline: 32px;
+  }
+}
+@media (min-width: 1024px) {
+  .lp-hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    padding-block: 24px 40px;
+  }
+}
+.lp-hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 22px;
+  /* Phones: the copy holds the top of the first screen, the hole the rest, and the window card starts just
+     under the hole (5rem above the fold). */
+  min-height: calc(100svh - 128px - 5rem);
+}
+@media (max-width: 1023px) {
+  .lp-hero-copy {
+    align-items: center;
+    text-align: center;
+  }
+}
+@media (min-width: 1024px) {
+  .lp-hero-copy {
+    min-height: 0;
+  }
+}
+.lp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px 10px 14px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--paper) 10%, transparent),
+    color-mix(in srgb, var(--paper) 3%, transparent)
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--paper) 16%, transparent),
+    0 10px 30px -12px color-mix(in srgb, var(--background) 90%, transparent);
+  font: 600 15px / 1 var(--font-sans);
+  color: var(--lp-ink);
+}
+.lp-live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  background: var(--up);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--up) 22%, transparent),
+    0 0 12px var(--up);
+}
+.lp-h1 {
+  display: flex;
+  flex-direction: column;
+  font: 800 clamp(2.7rem, 9vw, 4.6rem) / 0.98 var(--font-display);
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+@media (min-width: 1024px) {
+  .lp-h1 {
+    font-size: clamp(3.4rem, 5vw, 5.2rem);
+  }
+}
+/* The silver-matte headline: cream fading to its own ghost, a soft lift under it. */
+.lp-silver,
+.lp-h1 > span {
+  background: linear-gradient(180deg, var(--paper) 0%, color-mix(in srgb, var(--paper) 64%, transparent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 12px 24px color-mix(in srgb, var(--background) 70%, transparent));
+}
+.lp-silver em,
+.lp-h1 em {
+  font-style: normal;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--vermilion) 72%, var(--paper)) 0%, var(--vermilion) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.lp-line {
+  max-width: 31rem;
+  font: 500 clamp(1.02rem, 1.4vw, 1.18rem) / 1.5 var(--font-sans);
+  color: var(--lp-ink-2);
+}
+.lp-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+@media (max-width: 1023px) {
+  .lp-ctas {
+    justify-content: center;
+  }
+}
+/* The heartbeat: the latest signed batch, stamped in when the browser has checked it. */
+.lp-beat {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  font: 500 13px / 1.2 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--lp-ink-3);
+}
+.lp-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-xs);
+  color: var(--vermilion);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--vermilion) 70%, transparent);
+  transform: rotate(-2deg);
+}
+.lp-stamp-kanji {
+  font: 700 14px / 1 var(--font-stamp);
+}
+
+/* The live window, floating at the rim of the hole. */
+.lp-window {
+  position: relative;
+  width: 100%;
+  max-width: 26rem;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--background) 58%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--lp-line),
+    0 40px 80px -30px color-mix(in srgb, var(--background) 95%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+@media (min-width: 1024px) {
+  .lp-window {
+    justify-self: end;
+    align-self: end;
+    margin-bottom: 2vh;
+  }
+}
+.lp-window-chart {
+  height: 150px;
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.lp-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lp-side {
+  display: flex;
+  min-height: 52px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: var(--radius-md);
+  font: 700 14px / 1 var(--font-sans);
+  transition: transform 160ms var(--ease-out);
+}
+.lp-side:hover {
+  transform: translateY(-1px);
+}
+.lp-side small {
+  font: 500 12px / 1 var(--font-mono);
+  opacity: 0.85;
+}
+.lp-side--up {
+  background: color-mix(in srgb, var(--up) 16%, transparent);
+  color: var(--up);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--up) 40%, transparent);
+}
+.lp-side--down {
+  background: color-mix(in srgb, var(--down) 16%, transparent);
+  color: var(--down);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--down) 40%, transparent);
+}
+
+/* The batch drop: a shock ring leaves the hole when a signed batch lands. */
+.lp-shock {
+  position: absolute;
+  left: var(--fx);
+  top: var(--fy);
+  width: 14rem;
+  height: 14rem;
+  margin: -7rem 0 0 -7rem;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--paper) 70%, var(--vermilion)),
+    0 0 40px color-mix(in srgb, var(--vermilion) 50%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+/* Tickets falling past the horizon: plain stubs, no amounts, no sides (nothing on them is anyone's bet). */
+.lp-fall {
+  position: absolute;
+  left: var(--fx);
+  top: var(--fy);
+  width: 16px;
+  height: 10px;
+  margin: -5px 0 0 -8px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1.25px color-mix(in srgb, var(--paper) 70%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+@media (max-width: 1023px) {
+  .lp-fall {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .lp-live-dot {
+    animation: lp-live 2s ease-in-out infinite;
+  }
+  :root:not([data-motion="reduce"]) .lp-shock {
+    animation: lp-shock 1800ms var(--ease-out) both;
+  }
+  :root:not([data-motion="reduce"]) .lp-stamp {
+    animation: lp-stamp var(--duration-stamp) var(--ease-overshoot) both;
+  }
+  :root:not([data-motion="reduce"]) .lp-fall {
+    animation: lp-fall 9s cubic-bezier(0.55, 0, 0.9, 0.4) infinite;
+  }
+}
+@keyframes lp-live {
+  50% {
+    box-shadow:
+      0 0 0 7px color-mix(in srgb, var(--up) 10%, transparent),
+      0 0 18px var(--up);
+  }
+}
+@keyframes lp-shock {
+  0% {
+    opacity: 0.9;
+    scale: 0.4;
+  }
+  100% {
+    opacity: 0;
+    scale: 7;
+  }
+}
+@keyframes lp-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(-2deg) scale(1.6);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-2deg) scale(1);
+  }
+}
+@keyframes lp-fall {
+  0% {
+    opacity: 0;
+    transform: translate(var(--sx), var(--sy)) rotate(var(--r)) scale(1);
+  }
+  12% {
+    opacity: 0.8;
+  }
+  70% {
+    opacity: 0.7;
+    transform: translate(var(--mx), var(--my)) rotate(calc(var(--r) * 3)) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(calc(var(--r) * 6)) scale(0.08);
+  }
+}

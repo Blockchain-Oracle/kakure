@@ -13,12 +13,10 @@ import { assetFor } from "@/features/markets/assets";
 import { referencePrice, sidesOf, statePill } from "@/features/markets/market-view";
 import { BetTicket, type TicketChoice } from "@/features/ticket/bet-ticket";
 import { formatCountdown } from "@/lib/time";
-import { BatchHistory } from "./batch-history";
 import { formatUsd, SOURCE_NAME } from "./live-price";
-import { MarketFacts } from "./market-facts";
-import { RulesPanel } from "./rules-panel";
 
 const BetSheet = dynamic(() => import("@/features/bet/bet-sheet"), { ssr: false });
+const RulesProof = dynamic(() => import("./rules-proof"), { ssr: false });
 
 const LIVE_STATES = new Set<Market["state"]>(["scheduled", "open", "closing"]);
 const PERCENT = 100;
@@ -155,12 +153,7 @@ export function Terminal({
         />
       ) : null}
       <Sheet open={rules} onClose={() => setRules(false)} title="Rules & proof">
-        <div className="flex flex-col gap-4">
-          <p className="text-body text-foreground">{market.rules.question}</p>
-          <MarketFacts market={market} now={now} />
-          <RulesPanel market={market} />
-          <BatchHistory market={market} bundle={bundle} now={now} />
-        </div>
+        {rules ? <RulesProof market={market} bundle={bundle} now={now} /> : null}
       </Sheet>
     </div>
   );

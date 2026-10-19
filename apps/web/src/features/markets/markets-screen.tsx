@@ -1,6 +1,6 @@
 "use client";
 
-import type { Bundle, Market, Network } from "@kakure/domain";
+import type { Bundle, Network } from "@kakure/domain";
 import { nextBatchAt } from "@kakure/query";
 import { Button, Chip, EmptyState, SearchField, Tabs } from "@kakure/ui-web";
 import { ChartLine, Hourglass, RefreshCw, SearchX, Timer } from "lucide-react";
@@ -13,13 +13,11 @@ import { switchNetwork } from "@/features/network/network-store";
 import { formatClock, formatCountdown, useNow } from "@/lib/time";
 import { isLane, LANE_LABEL, LANES, type Lane, laneMarkets } from "./filters";
 import { MarketCard } from "./market-card";
-import { isBettable } from "./market-view";
+import { featuredWindow, isBettable } from "./market-view";
 import { MarketsSkeleton } from "./markets-skeleton";
 
 const GRID_ID = "market-grid";
 const DEFAULT_LANE: Lane = "hourly";
-/** The hero shows this asset's open hourly window when it has one. */
-const FEATURED_SUBJECT = "BTC";
 
 /** The lane lives in the fragment (`/markets#daily`), which browsers never send to the host. */
 function useLane(): [Lane, (next: Lane) => void] {
@@ -42,15 +40,6 @@ function useLane(): [Lane, (next: Lane) => void] {
   ];
 }
 
-function featured(markets: readonly Market[], now: number): Market | undefined {
-  const open = markets.filter((m) => isBettable(m, now) && m.kind === "close" && !m.strike);
-  return (
-    open.find((m) => m.subject === FEATURED_SUBJECT && m.window === "1h") ??
-    open.find((m) => m.window === "1h") ??
-    open[0]
-  );
-}
-
 /**
  * Markets (Mitoshi's markets page, mitoshi-code-study §3.1; plan §0 R2): a live terminal hero to bet from right here,
  * then the lanes (Hourly · Daily · Range · Stocks · Zcash · Resolved, by cadence, never by date), search, Closing
@@ -63,7 +52,7 @@ export function MarketsScreen() {
   const [closingSoon, setClosingSoon] = useState(false);
   const [query, setQuery] = useState("");
   const markets = data.status === "ready" ? data.bundle.markets : [];
-  const hero = data.status === "ready" ? featured(markets, now) : undefined;
+  const hero = data.status === "ready" ? featuredWindow(markets, now) : undefined;
 
   return (
     <div className="flex w-full flex-col gap-5">
