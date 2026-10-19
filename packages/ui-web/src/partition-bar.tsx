@@ -3,8 +3,8 @@ import { cx } from "./cx";
 
 /**
  * Adapted from 21st.dev 8starlabs/partition-bar (#26545): proportional segments with a title and value under each.
- * Reskin per ui-components.md: two direction plates (`up-fill` / `down-fill`, each with its darker 3 px edge),
- * labels carry a sign and a word so colour is never the only signal; no cva, no outline variant.
+ * Reskin to Mitoshi's odds ramp: two direction fills (mint `up-fill`, rose `down-fill`, direction only); labels
+ * carry a sign and a word so colour is never the only signal; no cva, no outline variant.
  */
 export interface PartitionSegment {
   key: string;
@@ -15,8 +15,8 @@ export interface PartitionSegment {
 }
 
 const FILL: Record<PartitionSegment["tone"], string> = {
-  up: "bg-up-fill shadow-[inset_0_-3px_0_var(--up-fill-edge)]",
-  down: "bg-down-fill shadow-[inset_0_-3px_0_var(--down-fill-edge)]",
+  up: "bg-up-fill",
+  down: "bg-down-fill",
 };
 
 const PERCENT = 100;
@@ -33,7 +33,7 @@ export function PartitionBar({
   const total = segments.reduce((sum, segment) => sum + segment.value, 0);
   return (
     <figure className={cx("w-full", className)} aria-label={label}>
-      <div className="flex h-3 w-full gap-1">
+      <div className="flex h-2 w-full gap-1">
         {segments.map((segment) => (
           <div
             key={segment.key}

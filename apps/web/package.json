@@ -4,11 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "next build && node scripts/precache.mjs",
+    "build": "node scripts/reachability.mjs && next build && node scripts/precache.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "size": "node scripts/size.mjs",
     "marks": "node scripts/marks.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "reachability": "node scripts/reachability.mjs"
   },
   "dependencies": {
     "@kakure/domain": "workspace:*",

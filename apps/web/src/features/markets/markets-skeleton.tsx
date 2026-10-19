@@ -7,7 +7,7 @@ export function MarketsSkeleton() {
   return (
     <div role="status" aria-busy="true" aria-label="Loading markets" className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {CARDS.map((key) => (
-        <div key={key} className="flex flex-col gap-4 rounded-group bg-card p-5">
+        <div key={key} className="flex flex-col gap-4 rounded-group border border-border bg-card p-5">
           <div className="flex items-center gap-3">
             <Skeleton className="size-9 rounded-full" />
             <div className="flex flex-1 flex-col gap-2">

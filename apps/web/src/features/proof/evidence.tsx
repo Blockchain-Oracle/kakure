@@ -37,8 +37,11 @@ export function EvidenceLoader({
   onLoad: () => void;
 }) {
   return (
-    <section className="flex flex-col gap-3 rounded-group bg-card p-5" aria-labelledby="evidence-title">
-      <h2 id="evidence-title" className="text-title text-foreground">
+    <section
+      className="flex flex-col gap-3 rounded-group border border-border bg-card p-5"
+      aria-labelledby="evidence-title"
+    >
+      <h2 id="evidence-title" className="font-display text-title text-foreground">
         Resolution evidence
       </h2>
       <p className="text-row-detail text-muted-foreground">

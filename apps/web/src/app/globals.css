@@ -2,6 +2,11 @@
 @import "@kakure/tokens/tokens.css";
 @import "@kakure/tokens/theme.css";
 @import "@kakure/ui-web/kit.css" layer(components);
+@import "../styles/shell-frame.css" layer(components);
+@import "../styles/shell-top.css" layer(components);
+@import "../styles/shell-dock.css" layer(components);
+@import "../styles/shell-overlays.css" layer(components);
+@import "../styles/network.css" layer(components);
 
 @source "../../../../packages/ui-web/src";
 
@@ -25,18 +30,16 @@
 }
 
 /*
- * App-level CSS: the frame, the network flood and the capsule's glow. Values are tokens (packages/tokens).
+ * App-level CSS. Values are tokens (packages/tokens, Mitoshi's system). The shell lives in src/styles/.
  */
 
 :root {
-  --kk-stage: var(--background);
-  --kk-ground: var(--secondary);
   -webkit-text-size-adjust: 100%;
 }
 
 html,
 body {
-  background: var(--kk-stage);
+  background: var(--canvas);
   color: var(--foreground);
   /* Signed rules carry long tokens (ISO times, source URLs); they wrap instead of widening the page. */
   overflow-wrap: anywhere;
@@ -44,109 +47,21 @@ body {
   font-variant-numeric: lining-nums;
 }
 
-@media (min-width: 768px) {
-  html,
-  body {
-    background: var(--kk-ground);
-  }
+::selection {
+  background: var(--accent-dim);
+  color: var(--foreground);
 }
 
-/* Money is tabular with lining figures (kawase.md §4.4). */
-.tabular-nums {
+/* The numbers law (Mitoshi base.css:61-64): every figure in JetBrains Mono with tabular digits. */
+.tabular-nums,
+.numbers {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* ── The frame: phones have one stage; from 768 px the stage floats on the window ground (kawase.md §5). */
-.kk-frame {
-  background: var(--kk-stage);
-  transition: background-color var(--duration-flood-settle) var(--ease-default);
-}
-.kk-stage {
-  background: var(--kk-stage);
-  transition: background-color var(--duration-flood-settle) var(--ease-default);
-}
-@media (min-width: 768px) {
-  .kk-frame {
-    background: var(--kk-ground);
-  }
-}
-
-/* ── The flood (senryo.md §5.4, refero lock §2). While data-flood is set, the whole shell takes the new
- * network's surface at once; when it is removed the ground settles back to neutral over flood-settle.
- * The circle itself is a view transition (features/network/network-store.ts). */
-:root[data-flood] {
-  --kk-stage: var(--network-surface);
-  --kk-ground: color-mix(in oklab, var(--network) 18%, var(--secondary));
-}
-:root[data-flood] .kk-frame,
-:root[data-flood] .kk-stage {
-  transition: none;
-}
-:root[data-vt="flood"]::view-transition-old(root),
-:root[data-vt="flood"]::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-
-/* ── Network words and capsule parts follow <html data-network>, so prerendered HTML is never wrong. */
-.kk-when-mainnet {
-  display: none;
-}
-:root[data-network="mainnet"] .kk-when-mainnet {
-  display: inline;
-}
-:root[data-network="mainnet"] .kk-when-testnet,
-:root[data-network="mainnet"] .kk-when-testnet-block {
-  display: none;
-}
-
-/* Track 28 × 16, border 1.5, knob 9 (kawase.md §5): hollow on testnet, filled on mainnet. */
-.kk-mode-track {
-  box-shadow: inset 0 0 0 var(--size-mode-track-border) var(--network);
-  background: transparent;
-  transition: background-color var(--duration-selection) var(--ease-default);
-}
-.kk-mode-knob {
-  background: var(--network);
-  transform: translate(0, -50%);
-  transition:
-    transform var(--spring-mode-thumb-duration) var(--spring-mode-thumb),
-    background-color var(--duration-selection) var(--ease-default);
-}
-:root[data-network="mainnet"] .kk-mode-track {
-  background: var(--network);
-}
-:root[data-network="mainnet"] .kk-mode-knob {
-  background: var(--network-foreground);
-  transform: translate(calc(var(--size-mode-track-width) - var(--size-mode-knob) - 2 * var(--space-xxs)), -50%);
-}
-
-/* ── The one glow (plan §1, R10): only on the network capsule. It breathes on the 8 s ambient loop and
- * flares while the flood runs; it is magenta on mainnet and silver on testnet (the --glow tokens). */
-@keyframes kk-glow-breathe {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 1px var(--glow-soft),
-      0 0 10px 0 var(--glow-soft);
-  }
-  50% {
-    box-shadow:
-      0 0 0 1px var(--glow-soft),
-      0 0 18px 3px var(--glow);
-  }
-}
-.kk-network-capsule {
-  box-shadow:
-    0 0 0 1px var(--glow-soft),
-    0 0 14px 1px var(--glow);
-  animation: kk-glow-breathe var(--duration-ambient-loop) ease-in-out infinite;
-}
-:root[data-flood] .kk-network-capsule {
-  animation: none;
-  box-shadow:
-    0 0 0 2px var(--glow),
-    0 0 32px 8px var(--glow);
+/* Mitoshi's glow law: live urgency only, one per composition. */
+.glow-live {
+  box-shadow: var(--glow-live);
 }
 
 /* ── The landing tape: two copies sliding, paused on hover or focus, a plain scroll row when motion is reduced. */
@@ -171,24 +86,9 @@ body {
 :root[data-motion="reduce"] .kk-tape {
   overflow-x: auto;
 }
-:root[data-motion="reduce"] .kk-network-capsule {
-  animation: none;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .kk-tape-track {
     animation: none;
-  }
-  .kk-network-capsule,
-  :root[data-flood] .kk-network-capsule {
-    animation: none;
-    box-shadow:
-      0 0 0 1px var(--glow-soft),
-      0 0 14px 1px var(--glow);
-  }
-  .kk-mode-knob,
-  .kk-frame,
-  .kk-stage {
-    transition-duration: var(--duration-reduced-motion);
   }
 }

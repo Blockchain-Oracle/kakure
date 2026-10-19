@@ -83,8 +83,11 @@ export function BatchHistory({ market, bundle, now }: { market: Market; bundle: 
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-group bg-card p-5" aria-labelledby="history-title">
-      <h2 id="history-title" className="text-title text-foreground">
+    <section
+      className="flex flex-col gap-4 rounded-group border border-border bg-card p-5"
+      aria-labelledby="history-title"
+    >
+      <h2 id="history-title" className="font-display text-title text-foreground">
         Batch history
       </h2>
       <Timeline label="Batch history" items={items} />

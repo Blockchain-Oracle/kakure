@@ -1,13 +1,12 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant, buttonClass } from "./button";
 export { Chip, ChipGroup, type ChipProps } from "./chips";
 export { cx } from "./cx";
-export { Dock, type DockProps } from "./dock";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
+export { GlowToggle, type GlowToggleProps } from "./glow-toggle";
 export { Mark, type MarkProps } from "./mark";
-export type { NavItem, NavLink, NavLinkProps } from "./nav";
+export { Modal, type ModalProps } from "./modal";
 export { PartitionBar, type PartitionSegment } from "./partition-bar";
 export { Pill, type PillProps, type PillTone } from "./pill";
-export { Rail, type RailProps, type RailSection } from "./rail";
 export { RollingNumber } from "./rolling-number";
 export { SearchField, type SearchFieldProps } from "./search-field";
 export { SegmentedControl, type SegmentedControlProps, type SegmentedOption } from "./segmented-control";

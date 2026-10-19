@@ -2,7 +2,7 @@
   "name": "@kakure/tokens",
   "private": true,
   "type": "module",
-  "description": "Kakure design tokens: one tokens.json → CSS custom properties, a Tailwind v4 theme, a TS export and a React Native object. Four themes: light/dark × mainnet/testnet.",
+  "description": "Kakure design tokens (Mitoshi's values): one tokens.json → CSS custom properties, a Tailwind v4 theme, a TS export and a React Native object. Dark by default and cream light, each with a testnet tint layer.",
   "exports": {
     ".": "./generated/tokens.ts",
     "./native": "./generated/native.ts",

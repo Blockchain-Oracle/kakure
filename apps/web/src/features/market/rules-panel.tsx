@@ -5,8 +5,11 @@ import type { ReactNode } from "react";
 export function RulesPanel({ market }: { market: Market }) {
   const { rules } = market;
   return (
-    <section className="flex flex-col gap-4 rounded-group bg-card p-5" aria-labelledby="rules-title">
-      <h2 id="rules-title" className="text-title text-foreground">
+    <section
+      className="flex flex-col gap-4 rounded-group border border-border bg-card p-5"
+      aria-labelledby="rules-title"
+    >
+      <h2 id="rules-title" className="font-display text-title text-foreground">
         Rules
       </h2>
       <dl className="flex flex-col gap-4">

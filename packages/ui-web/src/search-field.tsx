@@ -21,7 +21,7 @@ export function SearchField({ value, onChange, label, placeholder, className }: 
   return (
     <div
       className={cx(
-        "relative flex h-11 items-center rounded-full bg-input text-foreground",
+        "relative flex h-11 items-center rounded-full bg-input text-foreground shadow-[inset_0_0_0_1px_var(--border)]",
         "focus-within:ring-2 focus-within:ring-ring",
         className,
       )}

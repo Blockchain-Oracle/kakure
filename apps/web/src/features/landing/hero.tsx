@@ -22,9 +22,9 @@ export function Hero() {
         </Link>
         <h1
           id="hero-title"
-          className="font-display text-[clamp(3.1rem,6vw,5.4rem)] leading-[0.95] font-black tracking-[-0.02em] text-foreground"
+          className="font-display text-[clamp(3.1rem,6vw,5.4rem)] leading-[0.95] font-extrabold tracking-[-0.035em] text-foreground"
         >
-          Call it. Stay <span className="text-accent">hidden</span>.
+          Call it. Stay <span className="text-vermilion">hidden</span>.
         </h1>
         <p className="max-w-xl text-body text-muted-foreground">
           Call the close on crypto and Zcash itself with shielded ZEC, from any Zcash wallet, in seconds. The odds are

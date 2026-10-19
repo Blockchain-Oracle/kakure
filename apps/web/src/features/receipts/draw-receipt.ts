@@ -39,7 +39,8 @@ function fontFamily(variable: string, fallback: string) {
 
 export async function drawReceipt(data: ReceiptImage): Promise<Blob> {
   await document.fonts.ready;
-  const display = fontFamily("--font-display", "Arial Narrow");
+  const display = fontFamily("--font-display", "system-ui");
+  const mono = fontFamily("--font-mono", "ui-monospace");
   const sans = fontFamily("--font-sans", "system-ui");
   const qr = encode(data.verifyUrl, { ecc: "M", border: 0 });
   const factsHeight = data.facts.length * L.line;
@@ -67,7 +68,7 @@ export async function drawReceipt(data: ReceiptImage): Promise<Blob> {
   let y = L.pad;
   ctx.textBaseline = "top";
   ctx.fillStyle = COLORS.ink;
-  ctx.font = `900 ${L.title}px ${display}`;
+  ctx.font = `800 ${L.title}px ${display}`;
   ctx.fillText("Kakure", L.pad, y);
   ctx.font = `600 ${L.meta}px ${sans}`;
   ctx.fillStyle = COLORS.text2;
@@ -80,7 +81,7 @@ export async function drawReceipt(data: ReceiptImage): Promise<Blob> {
   ctx.fillText(data.eyebrow, L.pad, y);
   y += L.eyebrowGap;
   ctx.fillStyle = COLORS.ink;
-  ctx.font = `900 ${L.figure}px ${display}`;
+  ctx.font = `600 ${L.figure}px ${mono}`;
   ctx.fillText(data.figure, L.pad, y);
   if (data.stamp) {
     ctx.save();
@@ -92,7 +93,7 @@ export async function drawReceipt(data: ReceiptImage): Promise<Blob> {
     ctx.arc(0, 0, L.stampRadius, 0, Math.PI * HALF);
     ctx.stroke();
     ctx.fillStyle = COLORS.accent;
-    ctx.font = `900 ${L.title}px ${display}`;
+    ctx.font = `800 ${L.title}px ${display}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(data.stamp, 0, 0);

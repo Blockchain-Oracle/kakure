@@ -14,8 +14,6 @@ of their respective authors and 21st Labs Inc."). Credit goes to the authors bel
 | Kakure file | 21st.dev component (author/slug, id) | What was kept |
 | --- | --- | --- |
 | `segmented-control.tsx` | ddoemonn/segmented-control (#23552) | Radio group, sliding thumb with masked labels, the 520/34/0.45 spring, arrow/Home/End keys |
-| `rail.tsx` | wensity/sidebar (#31454), unlumen/sidebar-001 (#21517) | Sections, badges, header/footer slots, icon rail when narrow, one measured active highlight |
-| `dock.tsx` | arunachalam/bottom-nav-bar (#8343) | Mobile navigation capsule with a sliding indicator, ARIA navigation |
 | `tabs.tsx` | chetanverma16/animated-tabs (#525) | One pill sliding to the active tab |
 | `chips.tsx` | ddoemonn/filter-grid (#23525), preetsuthar17/selector-chips (#1963) | Filter chips with per-filter counts |
 | `pill.tsx` | haydenbleasel/pill (#1600) | Capsule with a status indicator |
@@ -30,6 +28,16 @@ of their respective authors and 21st Labs Inc."). Credit goes to the authors bel
 | `dotted-qr.tsx` | tom_ui/qr-code (#12248) | Rounded finder patterns and dot modules (matrix from `uqr` instead of `qrcode`) |
 | `ticket-stub.tsx` | ravikatiyar162/ticket-confirmation-card (#6492) | Perforated stub with side notches in the ground colour |
 | `switch.tsx` | serafimcloud/switch (#21948) | A spring-eased switch thumb (native button instead of Base UI) |
+| `glow-toggle.tsx` | daiwiikharihar/cinematic-glow-toggle (#9705) | The labelled switch, inset track, glossy thumb, its 500 / 30 spring and the glowing ON label; recoloured to vermilion (the network switch, the app's one sanctioned glow) |
+
+**R1 revamp (2026-10-19).** `glow-toggle.tsx` was installed with `21st add daiwiikharihar/cinematic-glow-toggle`
+(signed-in paid plan; the CLI runs `npx shadcn@latest add` against the 21st registry, which wrote
+`components/ui/cinematic-glow-toggle.tsx` and added `framer-motion` in a scratch project), then reskinned into the kit
+with Mitoshi's tokens: `framer-motion` replaced by CSS transitions on the token spring, a native `role="switch"`
+button, the emerald glow made vermilion. The app shell's rail and dock are now written for Kakure in
+`apps/web/src/features/shell` after Mitoshi's shell (values and behaviour only; see "Design
+values"), so the kit's `rail.tsx` and `dock.tsx` (from wensity/sidebar #31454, unlumen/sidebar-001 #21517 and
+arunachalam/bottom-nav-bar #8343) were removed.
 
 The countdown on cards and the detail page uses plain tabular digits; reuno-ui/countdown-number (#4409) was the
 reference, but its NumberFlow/motion dependencies were left out to stay within the JS budget.
@@ -66,12 +74,18 @@ ETFs (SPY, QQQ) and any asset without a mark use a labelled neutral disc, never 
 
 ## Fonts
 
-Downloaded at build time by `next/font/google` and served from this site (no runtime request to Google).
+Sora, Inter and JetBrains Mono are downloaded at build time by `next/font/google` and served from this site (no
+runtime request to Google). Noto Serif JP ships as a subset of the four glyphs Kakure uses (隠れ試本, weights 500 and
+700, about 2.4 KB each), fetched once from Google Fonts' `css2?text=` endpoint and kept in
+`apps/web/src/fonts/noto-serif-jp/` with its `OFL.txt`.
 
-| Font | Licence |
-| --- | --- |
-| Inter (Rasmus Andersson) | SIL Open Font License 1.1 ([google/fonts `ofl/inter`](https://github.com/google/fonts/tree/main/ofl/inter)) |
-| Roboto Condensed (Google) | SIL Open Font License 1.1 ([google/fonts `ofl/robotocondensed`](https://github.com/google/fonts/tree/main/ofl/robotocondensed), `OFL.txt`) |
+| Font | Where | Licence |
+| --- | --- | --- |
+| Sora (Jonathan Barnbrook, Julián Moncada) | Web app display face | SIL Open Font License 1.1 ([google/fonts `ofl/sora`](https://github.com/google/fonts/tree/main/ofl/sora)) |
+| Inter (Rasmus Andersson) | Web app and docs interface | SIL Open Font License 1.1 ([google/fonts `ofl/inter`](https://github.com/google/fonts/tree/main/ofl/inter)) |
+| JetBrains Mono (JetBrains) | Every figure in the web app | SIL Open Font License 1.1 ([google/fonts `ofl/jetbrainsmono`](https://github.com/google/fonts/tree/main/ofl/jetbrainsmono)) |
+| Noto Serif JP (Adobe, © 2017-2024) | 隠れ and the network stamps, subset | SIL Open Font License 1.1 (`apps/web/src/fonts/noto-serif-jp/OFL.txt`) |
+| Roboto Condensed (Google) | Docs site only, until its restyle (R3) | SIL Open Font License 1.1 ([google/fonts `ofl/robotocondensed`](https://github.com/google/fonts/tree/main/ofl/robotocondensed), `OFL.txt`) |
 
 ## Icons
 
@@ -86,5 +100,7 @@ persister core (MIT), zod (MIT), @noble/ed25519 and @noble/hashes (MIT), Tailwin
 
 ## Design values
 
-The design tokens in `packages/tokens/tokens.json` are values re-typed from the author's own Kawase design system
-([Blockchain-Oracle/Kawase](https://github.com/Blockchain-Oracle/Kawase), MIT); no Kawase code is copied.
+The design tokens in `packages/tokens/tokens.json` (since the R1 revamp, 2026-10-19) and the app shell's geometry are
+values re-typed from Mitoshi's design system (`crypto-world-fair`, the reference product studied in
+`context/12-reference-products/mitoshi-code-study.md`); no Mitoshi file is copied. They replace the earlier values from
+the author's Kawase design system ([Blockchain-Oracle/Kawase](https://github.com/Blockchain-Oracle/Kawase), MIT).

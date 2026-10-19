@@ -3,8 +3,8 @@ import { cx } from "./cx";
 
 /**
  * Adapted from 21st.dev haydenbleasel/pill (#1600): a capsule with a status indicator.
- * Reskin: Kawase plates and tones, no border or gradient, sentence case; the indicator is a 6 px dot and
- * always sits next to a word, never colour alone (kawase.md §4.8 bans).
+ * Reskin to Mitoshi's tones: surface and wash plates, up/down with their ink hairline, sentence case; the indicator
+ * is a 6 px dot and always sits next to a word, never colour alone.
  */
 export type PillTone = "accent" | "neutral" | "warn" | "up" | "down" | "destructive" | "quiet";
 
@@ -12,10 +12,10 @@ const TONE: Record<PillTone, string> = {
   accent: "bg-accent text-accent-foreground",
   neutral: "bg-secondary text-secondary-foreground",
   warn: "bg-warn-surface text-warn",
-  up: "bg-up-surface text-up",
-  down: "bg-down-surface text-down",
+  up: "bg-up-surface text-up shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--up)_45%,transparent)]",
+  down: "bg-down-surface text-down shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--down)_45%,transparent)]",
   destructive: "bg-destructive-surface text-destructive",
-  quiet: "bg-card text-muted-foreground",
+  quiet: "bg-card text-muted-foreground shadow-[inset_0_0_0_1px_var(--border)]",
 };
 
 export interface PillProps {

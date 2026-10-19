@@ -1,0 +1,130 @@
+/*
+ * The phone dock below 768 px (Mitoshi MobileDock.tsx, app-shell.css:189-210, :318-323): a floating capsule on the
+ * rail colour, radius 32, 60 × 52 slots, one pill sliding by a transform, and the 48 px vermilion seal (Trade).
+ */
+
+.kk-dock {
+  position: fixed;
+  inset: auto 0 max(var(--layout-dock-min-bottom), env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--layout-dock-inset);
+  pointer-events: none;
+}
+@media (min-width: 768px) {
+  .kk-dock {
+    display: none;
+  }
+}
+.kk-dock-list {
+  --dock-w: var(--layout-dock-item-w);
+  --dock-gap: var(--space-xs);
+  position: relative;
+  display: flex;
+  gap: var(--dock-gap);
+  margin: 0;
+  padding: 6px var(--space-sm);
+  list-style: none;
+  border-radius: var(--radius-dock);
+  background: var(--rail);
+  box-shadow: var(--shadow-dock);
+  pointer-events: auto;
+  transition: background-color var(--duration-flood-settle) var(--ease-out);
+}
+@media (max-width: 360px) {
+  .kk-dock-list {
+    --dock-w: 52px;
+    --dock-gap: var(--space-xxs);
+    padding-inline: 6px;
+  }
+}
+.kk-dock-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  width: var(--dock-w);
+  height: var(--layout-dock-item-h);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--muted-foreground);
+  font: 600 12px / 1 var(--font-sans);
+  outline: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.kk-dock-item[aria-current="page"],
+.kk-dock-item[data-lit] {
+  color: var(--foreground);
+}
+.kk-dock-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+.kk-dock-icon {
+  width: var(--size-dock-icon);
+  height: var(--size-dock-icon);
+  stroke-width: 2;
+}
+.kk-dock-pill {
+  position: absolute;
+  top: 6px;
+  left: var(--space-sm);
+  width: var(--dock-w);
+  height: var(--layout-dock-item-h);
+  border-radius: var(--radius-lg);
+  background: var(--rail-active);
+  transform: translateX(calc(var(--dock-i, 0) * (var(--dock-w) + var(--dock-gap))));
+  opacity: 0;
+  transition:
+    transform var(--duration-pill) var(--ease-out),
+    opacity var(--duration-state) var(--ease-out);
+}
+@media (max-width: 360px) {
+  .kk-dock-pill {
+    left: 6px;
+  }
+}
+.kk-dock-pill[data-on] {
+  opacity: 1;
+}
+
+/* The seal is Trade: lit on /trade and it answers the finger (Mitoshi app-shell.css:318-323). */
+.kk-dock-seal {
+  justify-content: center;
+}
+.kk-dock-seal-disc {
+  width: var(--size-seal);
+  height: var(--size-seal);
+}
+.kk-dock-seal-disc .kk-disc-mark {
+  width: 28px;
+  height: 28px;
+}
+.kk-dock-seal[data-on] .kk-dock-seal-disc {
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--vermilion) 28%, transparent),
+    0 0 18px color-mix(in oklab, var(--vermilion) 55%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .kk-dock-seal-disc {
+    transition:
+      transform var(--duration-press-in) ease-out,
+      box-shadow var(--duration-state) ease-out;
+  }
+  .kk-dock-seal:active .kk-dock-seal-disc {
+    transform: scale(var(--scale-seal-press));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kk-dock-pill {
+    transition: none;
+  }
+}
+:root[data-motion="reduce"] .kk-dock-pill {
+  transition: none;
+}

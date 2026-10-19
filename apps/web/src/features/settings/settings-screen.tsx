@@ -6,9 +6,11 @@ import { Download, Lock, Upload } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { NETWORK_LABEL } from "@/constants";
-import { NetworkCapsule } from "@/features/network/network-capsule";
 import { useNetwork } from "@/features/network/network-store";
-import { ABOUT_LINKS } from "@/features/shell/nav-items";
+import { NetworkSwitch } from "@/features/network/network-switch";
+import { NAV_ICONS } from "@/features/shell/nav-icons";
+import { MORE_ITEMS } from "@/features/shell/places";
+import { ThemeControl } from "@/features/theme/theme-control";
 import { downloadBlob, exportTickets, ImportError, importTickets } from "@/features/tickets/export";
 import { TicketsLockedError } from "@/features/tickets/ticket-db";
 import { UnlockForm } from "@/features/tickets/unlock-form";
@@ -24,6 +26,7 @@ import { setPrefs, usePrefs } from "./prefs-store";
 
 /** Settings (surfaces.md): sound, haptics, motion, privacy eye, network, Tor guidance, backup, Forget this device. */
 const PERCENT = 100;
+const ABOUT = MORE_ITEMS.filter((item) => item.id === "proof" || item.id === "privacy" || item.id === "download");
 const MIN_PASSPHRASE = 8;
 const noSubscription = () => () => undefined;
 
@@ -37,7 +40,7 @@ export function SettingsScreen() {
   const network = useNetwork();
   const canVibrate = useHapticsAvailable();
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <h1 className="font-display text-page-title text-foreground">Settings</h1>
 
       <Group title="Sound and haptics">
@@ -79,6 +82,9 @@ export function SettingsScreen() {
       </Group>
 
       <Group title="Display">
+        <Row label="Theme" detail="Dark by default; cream light; or follow this device.">
+          <ThemeControl />
+        </Row>
         <Row label="Motion" detail="Reduced turns travel into short fades and stops the springs.">
           <SegmentedControl
             label="Motion"
@@ -108,7 +114,7 @@ export function SettingsScreen() {
           label={NETWORK_LABEL[network]}
           detail="Testnet uses TAZ, which has no value. Mainnet is real ZEC and asks for a slide first."
         >
-          <NetworkCapsule />
+          <NetworkSwitch />
         </Row>
       </Group>
 
@@ -130,16 +136,19 @@ export function SettingsScreen() {
       <Forget />
 
       <Group title="About">
-        {ABOUT_LINKS.map((item) => (
-          <Link
-            key={item.key}
-            href={item.href}
-            className="flex items-center gap-3 p-4 text-row-strong text-foreground outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5"
-          >
-            {item.icon}
-            {item.label}
-          </Link>
-        ))}
+        {ABOUT.map((item) => {
+          const Icon = NAV_ICONS[item.id];
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              className="flex items-center gap-3 p-4 text-row-strong text-foreground outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5"
+            >
+              <Icon aria-hidden className="text-muted-foreground" />
+              {item.name}
+            </Link>
+          );
+        })}
       </Group>
     </div>
   );
@@ -149,7 +158,7 @@ function Group({ title, children, id }: { title: string; children: ReactNode; id
   return (
     <section id={id} aria-label={title} className="flex flex-col gap-2">
       <h2 className="px-1 text-label text-muted-foreground">{title}</h2>
-      <div className="flex flex-col divide-y divide-row-pressed rounded-group bg-card">{children}</div>
+      <div className="flex flex-col divide-y divide-border rounded-group border border-border bg-card">{children}</div>
     </section>
   );
 }

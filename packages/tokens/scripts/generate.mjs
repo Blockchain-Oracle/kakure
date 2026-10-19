@@ -1,7 +1,8 @@
 /**
  * tokens.json → generated/{tokens.css, theme.css, tokens.ts, native.ts}.
  *
- * - tokens.css: CSS custom properties. Light mainnet on :root, `.dark` on <html>, and the testnet layers as
+ * - tokens.css: CSS custom properties. Light on :root, `.dark` on <html> (the app renders `.dark` by default: dark is the
+ *   default mode), and the testnet layers as
  *   `[data-network="testnet"]` (only the keys they change), so mode × network gives the four themes.
  * - theme.css: the Tailwind v4 `@theme inline` map from utilities to those properties.
  * - tokens.ts: every value for TypeScript (web), themes resolved.
@@ -66,8 +67,10 @@ function scaleDeclarations() {
     out.push([`spring-${name}`, spring.css.easing]);
     out.push([`spring-${name}-duration`, ms(spring.css.durationMs)]);
   }
-  out.push(["font-family-sans", fontStack(tokens.type.families.sans)]);
-  out.push(["font-family-display", fontStack(tokens.type.families.display)]);
+  for (const [name, families] of Object.entries(tokens.type.families))
+    out.push([`font-family-${name}`, fontStack(families)]);
+  // Raw CSS values (Mitoshi's --glow-live), written under their own names.
+  for (const [name, value] of Object.entries(withoutMeta(tokens.effects ?? {}))) out.push([name, value]);
   return out;
 }
 
@@ -87,8 +90,9 @@ function tokensCss() {
 function themeCss() {
   const lines = [];
   for (const name of Object.keys(themes.light)) lines.push(`--color-${name}: var(--${name});`);
-  lines.push("--font-sans: var(--kakure-font-sans, var(--font-family-sans));");
-  lines.push("--font-display: var(--kakure-font-display, var(--font-family-display));");
+  // next/font sets --kakure-font-<family> on <html>; the token stack is the fallback.
+  for (const name of Object.keys(tokens.type.families))
+    lines.push(`--font-${name}: var(--kakure-font-${name}, var(--font-family-${name}));`);
   // Static scales are written as values: a `--radius-x: var(--radius-x)` self-reference would be a cycle.
   for (const [name, value] of Object.entries(withoutMeta(tokens.radius))) lines.push(`--radius-${name}: ${px(value)};`);
   for (const [name, value] of Object.entries(withoutMeta(tokens.shadow)))
@@ -158,7 +162,8 @@ function webTs() {
   return `// ${HEADER}\nexport const tokens = ${JSON.stringify(data, null, 2)} as const;\n\nexport type Tokens = typeof tokens;\nexport type ThemeName = (typeof tokens.themeNames)[number];\nexport type ColorToken = keyof typeof tokens.themes.light;\n`;
 }
 
-const NATIVE_FONT = { sans: "Inter", display: "RobotoCondensed" };
+/** The native family per role font; the app maps family + weight to a loaded face and falls back to Inter. */
+const NATIVE_FONT = { sans: "Inter", display: "Sora", mono: "JetBrainsMono", stamp: "NotoSerifJP" };
 
 function nativeTs() {
   const nativeThemes = Object.fromEntries(THEME_NAMES.map((name) => [camel(name), camelKeys(themes[name])]));

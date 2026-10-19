@@ -8,10 +8,10 @@ import { PARTIES, RESIDUALS } from "./words";
 
 export function PrivacyScreen() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <h1 className="font-display text-page-title text-foreground">How privacy works</h1>
-      <section className="rounded-group bg-card p-5">
-        <p className="font-display text-step-title font-black text-foreground">
+      <section className="rounded-group border border-border bg-card p-5">
+        <p className="font-display text-step-title text-foreground">
           The public sees nothing beyond what any shielded Zcash transaction shows. The operator sees what was bet,
           never who bet it.
         </p>
@@ -22,10 +22,10 @@ export function PrivacyScreen() {
       </section>
 
       <section aria-labelledby="who-title" className="flex flex-col gap-3">
-        <h2 id="who-title" className="text-sheet-heading text-foreground">
+        <h2 id="who-title" className="font-display text-sheet-heading text-foreground">
           Who learns what
         </h2>
-        <div className="overflow-x-auto rounded-group bg-card">
+        <div className="overflow-x-auto rounded-group border border-border bg-card">
           <table className="w-full min-w-[36rem] text-left text-row-detail">
             <thead className="bg-raised-2 text-label text-muted-foreground">
               <tr>
@@ -43,7 +43,7 @@ export function PrivacyScreen() {
             <tbody>
               {PARTIES.map((row) => (
                 <tr key={row.party} className="align-top odd:bg-card even:bg-raised-2">
-                  <th scope="row" className="px-4 py-3 text-row-strong text-foreground">
+                  <th scope="row" className="w-40 px-4 py-3 text-row-strong text-foreground [overflow-wrap:normal]">
                     {row.party}
                   </th>
                   <td className="px-4 py-3 text-foreground">{row.learns}</td>
@@ -56,10 +56,10 @@ export function PrivacyScreen() {
       </section>
 
       <section aria-labelledby="residual-title" className="flex flex-col gap-3">
-        <h2 id="residual-title" className="text-sheet-heading text-foreground">
+        <h2 id="residual-title" className="font-display text-sheet-heading text-foreground">
           What we can't hide
         </h2>
-        <ol className="flex list-decimal flex-col gap-2 rounded-group bg-card p-5 pl-10 text-body text-foreground">
+        <ol className="flex list-decimal flex-col gap-2 rounded-group border border-border bg-card p-5 pl-10 text-body text-foreground">
           {RESIDUALS.map((item) => (
             <li key={item}>{item}</li>
           ))}
@@ -67,10 +67,10 @@ export function PrivacyScreen() {
       </section>
 
       <section aria-labelledby="real-title" className="flex flex-col gap-3">
-        <h2 id="real-title" className="text-sheet-heading text-foreground">
+        <h2 id="real-title" className="font-display text-sheet-heading text-foreground">
           Testnet and mainnet
         </h2>
-        <div className="rounded-group bg-card p-5 text-body text-foreground">
+        <div className="rounded-group border border-border bg-card p-5 text-body text-foreground">
           <p>
             Testnet uses TAZ, which has no value; it is where Kakure runs today. Mainnet uses real ZEC and needs a
             deliberate slide to switch to. Each network keeps its own markets, operator key, cached files and tickets on

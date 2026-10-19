@@ -90,11 +90,11 @@ export function PlaceABet() {
     >
       <ol className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {STEPS.map((step, index) => (
-          <li key={step.title} className="flex flex-col gap-4 rounded-group bg-card p-5">
-            <span className="font-display text-display-price text-text-3 tabular-nums">
+          <li key={step.title} className="flex flex-col gap-4 rounded-group border border-border bg-card p-5">
+            <span className="numbers text-display-price text-ink-muted">
               {String(index + 1).padStart(STEP_DIGITS, "0")}
             </span>
-            <h3 className="text-title text-foreground">{step.title}</h3>
+            <h3 className="font-display text-title text-foreground">{step.title}</h3>
             <p className="text-row-detail text-muted-foreground">{step.body}</p>
             <PhoneShot src={step.shot.src} alt={step.shot.alt} className="mt-auto pt-2" />
           </li>
@@ -113,7 +113,7 @@ export function WhoSeesWhat() {
     >
       <ul className="flex flex-col gap-3 md:hidden">
         {PARTIES.map((row) => (
-          <li key={row.party} className="flex flex-col gap-3 rounded-group bg-card p-4">
+          <li key={row.party} className="flex flex-col gap-3 rounded-group border border-border bg-card p-4">
             <h3 className="text-row-strong text-foreground">{row.party}</h3>
             <div>
               <div className="text-label text-muted-foreground">Learns</div>
@@ -126,7 +126,7 @@ export function WhoSeesWhat() {
           </li>
         ))}
       </ul>
-      <div className="overflow-hidden rounded-group bg-card max-md:hidden">
+      <div className="overflow-hidden rounded-group border border-border bg-card max-md:hidden">
         <table className="w-full text-left text-row-detail">
           <thead className="bg-raised-2 text-label text-muted-foreground">
             <tr>
@@ -194,7 +194,7 @@ export function Lifecycle({ now }: { now: ReactNode }) {
       <div className="grid grid-cols-1 gap-4 wide:grid-cols-[minmax(0,1fr)_22rem]">
         <ol className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {LIFECYCLE.map((step) => (
-            <li key={step.title} className="flex gap-4 rounded-group bg-card p-5">
+            <li key={step.title} className="flex gap-4 rounded-group border border-border bg-card p-5">
               <span
                 aria-hidden
                 className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-foreground [&_svg]:size-5"
@@ -222,10 +222,10 @@ export function PortfolioAndReceipts() {
       lead="Kakure keeps no account and no server copy. Your tickets are encrypted in this browser, and only you can export them."
     >
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-4 rounded-group bg-card p-5 md:flex-row">
+        <div className="flex flex-col gap-4 rounded-group border border-border bg-card p-5 md:flex-row">
           <PhoneShot src={CAPTURES.portfolio.src} alt={CAPTURES.portfolio.alt} className="w-48 shrink-0 self-center" />
           <div className="flex flex-col gap-2">
-            <h3 className="text-title text-foreground">Portfolio</h3>
+            <h3 className="font-display text-title text-foreground">Portfolio</h3>
             <p className="text-row-detail text-muted-foreground">
               Open and settled tickets, your result in ZEC, and a privacy eye that takes amounts off the page. While a
               position is open, a sound ladder climbs as the price moves your way.
@@ -235,10 +235,10 @@ export function PortfolioAndReceipts() {
             </p>
           </div>
         </div>
-        <div className="flex flex-col gap-4 rounded-group bg-card p-5 md:flex-row">
+        <div className="flex flex-col gap-4 rounded-group border border-border bg-card p-5 md:flex-row">
           <PhoneShot src={CAPTURES.ticket.src} alt={CAPTURES.ticket.alt} className="w-48 shrink-0 self-center" />
           <div className="flex flex-col gap-2">
-            <h3 className="text-title text-foreground">Receipts</h3>
+            <h3 className="font-display text-title text-foreground">Receipts</h3>
             <p className="text-row-detail text-muted-foreground">
               A perforated slip made on your device: no payout address, no transaction id, no bet time. An outcome slip
               shows the result; a provable one lets anyone find your ticket in the signed list, and you choose when to

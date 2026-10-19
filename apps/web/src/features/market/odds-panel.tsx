@@ -45,9 +45,12 @@ export function OddsPanel({
 
   if (odds) {
     return (
-      <section className="flex flex-col gap-4 rounded-group bg-card p-5" aria-labelledby="odds-title">
+      <section
+        className="flex flex-col gap-4 rounded-group border border-border bg-card p-5"
+        aria-labelledby="odds-title"
+      >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="odds-title" className="text-title text-foreground">
+          <h2 id="odds-title" className="font-display text-title text-foreground">
             Odds
           </h2>
           <span className="text-money-meta text-muted-foreground">
@@ -84,13 +87,16 @@ export function OddsPanel({
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-group bg-card p-5" aria-labelledby="sealed-title">
+    <section
+      className="flex flex-col gap-3 rounded-group border border-border bg-card p-5"
+      aria-labelledby="sealed-title"
+    >
       <div className="flex items-center gap-3">
         <span aria-hidden className="grid size-10 place-items-center rounded-md bg-secondary text-foreground">
           <Lock className="size-5" />
         </span>
         <div>
-          <h2 id="sealed-title" className="text-title text-foreground">
+          <h2 id="sealed-title" className="font-display text-title text-foreground">
             Sealed
           </h2>
           <p className="text-row-detail text-muted-foreground">{ticketsWord(market.ticketCount)} listed</p>

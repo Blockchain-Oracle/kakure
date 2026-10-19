@@ -3,8 +3,9 @@
  * worker downloads the same set on install and a new deploy gets a fresh shell cache.
  *
  * Precached: every script, stylesheet, WebAssembly module and image under out/_next/static (all routes' chunks,
- * including the bet sheet's lazy ones and the address checker's .wasm), and the fonts the pages preload. Other font
- * subsets are left to the browser (it picks them by the characters on screen, which are the same for everyone).
+ * including the bet sheet's lazy ones and the address checker's .wasm), and the fonts the pages preload: the latin
+ * files of Sora, Inter and JetBrains Mono and both weights of the Noto Serif JP subset (src/app/layout.tsx). Other
+ * font subsets are left to the browser (it picks them by the characters on screen, which are the same for everyone).
  */
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";

@@ -9,15 +9,15 @@ import { sidesOf, sideWord } from "@/features/markets/market-view";
 /** The sheet, its QR code and the WebAssembly address check load only when someone starts a bet. */
 const BetSheet = dynamic(() => import("./bet-sheet"), { ssr: false });
 
-const PLATE: Record<string, string> = {
-  U: "bg-up-fill shadow-[inset_0_-3px_0_var(--up-fill-edge)]",
-  Y: "bg-up-fill shadow-[inset_0_-3px_0_var(--up-fill-edge)]",
-  D: "bg-down-fill shadow-[inset_0_-3px_0_var(--down-fill-edge)]",
-  N: "bg-down-fill shadow-[inset_0_-3px_0_var(--down-fill-edge)]",
-};
+const UP = "bg-up-surface text-up shadow-[inset_0_0_0_1px_var(--up)] hover:bg-up hover:text-on-fill";
+const DOWN = "bg-down-surface text-down shadow-[inset_0_0_0_1px_var(--down)] hover:bg-down hover:text-on-fill";
+const PLATE: Record<string, string> = { U: UP, Y: UP, D: DOWN, N: DOWN };
 const SIGN: Record<string, string> = { U: "▲", D: "▼", Y: "✓", N: "✕" };
 
-/** Up / Down as Kawase's vivid direction plates with black labels, a sign and a word (never colour alone). */
+/**
+ * Up / Down as Mitoshi's direction buttons (tokens.css button-up/-down): the profit or loss wash with its ink and an
+ * ink border, filled on hover; a sign and a word, never colour alone. Mint and rose mean direction only.
+ */
 export function BetLauncher({
   market,
   addresses,
@@ -30,7 +30,7 @@ export function BetLauncher({
   const [side, setSide] = useState<Side | null>(null);
   const close = useCallback(() => setSide(null), []);
   return (
-    <section className="rounded-group bg-card p-5" aria-label="Place a bet">
+    <section className="rounded-group border border-border bg-card p-5" aria-label="Place a bet">
       <div className="grid grid-cols-2 gap-3">
         {sidesOf(market).map((value) => (
           <button
@@ -38,7 +38,7 @@ export function BetLauncher({
             type="button"
             onClick={() => setSide(value as Side)}
             className={cx(
-              "kk-press flex h-14 items-center justify-center gap-2 rounded-button text-button-label text-on-fill outline-none",
+              "kk-press flex h-(--size-cta-height) items-center justify-center gap-2 rounded-button text-button-label outline-none transition-colors duration-(--duration-hover)",
               "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
               PLATE[value],
             )}

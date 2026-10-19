@@ -26,7 +26,7 @@ export function MarketCard({ market, network, now }: { market: Market; network: 
   return (
     <Link
       href={`/m#${network}/${market.id}`}
-      className="kk-press group flex flex-col gap-4 rounded-group bg-card p-5 text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="kk-press group flex flex-col gap-4 rounded-group border border-border bg-card p-5 text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-center gap-3">
         <Mark mark={asset.mark} label={asset.symbol} />

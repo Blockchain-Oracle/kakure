@@ -19,7 +19,7 @@ export interface EmptyStateProps {
 }
 
 const TONE: Record<NonNullable<EmptyStateProps["tone"]>, string> = {
-  neutral: "bg-secondary text-foreground",
+  neutral: "bg-secondary text-vermilion",
   warn: "bg-warn-surface text-warn",
   destructive: "bg-destructive-surface text-destructive",
 };
@@ -28,16 +28,16 @@ export function EmptyState({ icon, title, reason, action, detail, tone = "neutra
   return (
     <div
       className={cx(
-        "flex w-full flex-col items-center rounded-group bg-card px-6 py-12 text-center text-card-foreground",
+        "flex w-full flex-col items-center rounded-group border border-border bg-card px-6 py-12 text-center text-card-foreground",
         className,
       )}
     >
       {icon ? (
-        <div className={cx("grid size-12 place-items-center rounded-md [&_svg]:size-6", TONE[tone])} aria-hidden>
+        <div className={cx("grid size-12 place-items-center rounded-full [&_svg]:size-6", TONE[tone])} aria-hidden>
           {icon}
         </div>
       ) : null}
-      <h2 className="mt-5 text-title text-foreground">{title}</h2>
+      <h2 className="mt-5 font-display text-sheet-heading text-foreground">{title}</h2>
       <p className="mt-2 max-w-md text-body text-muted-foreground">{reason}</p>
       {action ? <div className="mt-6 flex flex-wrap justify-center gap-3">{action}</div> : null}
       {detail ? (

@@ -10,7 +10,7 @@ import { NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { assetFor } from "@/features/markets/assets";
 import { sideWord, ticketsWord, WINDOW_LABEL } from "@/features/markets/market-view";
 import { useAmounts } from "@/features/portfolio/amounts";
-import { BrandMark } from "@/features/shell/brand";
+import { KakureMark } from "@/features/shell/brand";
 import { downloadBlob } from "@/features/tickets/export";
 import { STATUS_DETAIL, STATUS_LABEL } from "@/features/tickets/status";
 import { copySecret } from "@/lib/clipboard";
@@ -134,8 +134,10 @@ export function TicketSheet({
           className="bg-raised-2 shadow-none"
           brand={
             <span className="flex items-center gap-2">
-              <BrandMark className="size-6" />
-              <span className="font-display text-row-title font-black">Kakure</span>
+              <span className="kk-disc size-7">
+                <KakureMark className="size-5" />
+              </span>
+              <span className="font-display text-row-title font-bold tracking-[0.12em]">KAKURE</span>
             </span>
           }
           tag={tag}
@@ -152,7 +154,7 @@ export function TicketSheet({
                   ecc="M"
                   size={104}
                   label="Verify link for this receipt"
-                  mark={<BrandMark className="size-full" />}
+                  mark={<KakureMark className="size-full text-paper-ink" />}
                 />
               </div>
               <p className="text-row-detail text-muted-foreground">

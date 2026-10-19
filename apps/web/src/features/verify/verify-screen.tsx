@@ -38,7 +38,7 @@ export function VerifyScreen() {
 
   const receipt = value && !HASH.test(value) ? decodeReceipt(value) : null;
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <h1 className="font-display text-page-title text-foreground">Verify</h1>
       <SearchField
         label="Receipt link or ticket hash"
@@ -59,7 +59,7 @@ export function VerifyScreen() {
         <>
           <BatchCard bundle={data.bundle} network={data.network} />
           {value === "" ? (
-            <p className="rounded-group bg-card p-5 text-row-detail text-muted-foreground">
+            <p className="rounded-group border border-border bg-card p-5 text-row-detail text-muted-foreground">
               Open a receipt's verify link, or paste one above. A ticket hash (64 hex characters) is searched in every
               market's signed list. Everything is checked here; nothing is sent.
             </p>
@@ -104,7 +104,7 @@ function Check({ ok, children }: { ok: boolean | null; children: ReactNode }) {
 
 function BatchCard({ bundle, network }: { bundle: Bundle; network: Network }) {
   return (
-    <section className="rounded-group bg-card p-5" aria-label="Signed batch">
+    <section className="rounded-group border border-border bg-card p-5" aria-label="Signed batch">
       <ul className="flex flex-col gap-2">
         <Check ok>
           Batch {bundle.seq} ({NETWORK_LABEL[network]}) is signed by the operator key pinned in this build, and its
@@ -119,7 +119,7 @@ function BatchCard({ bundle, network }: { bundle: Bundle; network: Network }) {
 function HashCard({ hash, bundle }: { hash: string; bundle: Bundle }) {
   const market = bundle.markets.find((candidate) => candidate.leaves.includes(hash));
   return (
-    <section className="rounded-group bg-card p-5" aria-label="Ticket hash">
+    <section className="rounded-group border border-border bg-card p-5" aria-label="Ticket hash">
       <ul className="flex flex-col gap-2">
         <Check ok={Boolean(market)}>
           {market
@@ -146,9 +146,9 @@ function ReceiptCard({ receipt, bundle, network }: { receipt: Receipt; bundle: B
     : null;
   const payout = market?.outcome === receipt.side ? winningPayout(market, receipt.side, size) : null;
   return (
-    <section className="flex flex-col gap-4 rounded-group bg-card p-5" aria-label="Receipt">
+    <section className="flex flex-col gap-4 rounded-group border border-border bg-card p-5" aria-label="Receipt">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-title text-foreground">
+        <h2 className="font-display text-title text-foreground">
           {sideWord(receipt.side)} · {coinAmount(size, coin)}
         </h2>
         <Pill tone={receipt.nonce ? "accent" : "neutral"}>{receipt.nonce ? "Provable receipt" : "Outcome slip"}</Pill>
@@ -199,8 +199,8 @@ const KEY_TAIL = 8;
 
 function KeysCard() {
   return (
-    <section className="rounded-group bg-card p-5" aria-labelledby="keys-title">
-      <h2 id="keys-title" className="flex items-center gap-2 text-title text-foreground">
+    <section className="rounded-group border border-border bg-card p-5" aria-labelledby="keys-title">
+      <h2 id="keys-title" className="flex items-center gap-2 font-display text-title text-foreground">
         <ShieldCheck aria-hidden className="size-5" /> Operator keys in this build
       </h2>
       <dl className="mt-3 flex flex-col gap-2">

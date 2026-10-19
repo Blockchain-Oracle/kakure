@@ -23,7 +23,7 @@ export function LifecycleNow() {
   if (data.status === "loading") return <Skeleton className="h-56 rounded-group" />;
   if (data.status !== "ready") {
     return (
-      <div className="rounded-group bg-card p-5 text-row-detail text-muted-foreground">
+      <div className="rounded-group border border-border bg-card p-5 text-row-detail text-muted-foreground">
         No signed batch on {NETWORK_LABEL[data.network]} to read right now.
       </div>
     );
@@ -33,7 +33,7 @@ export function LifecycleNow() {
   const tickets = bundle.markets.reduce((sum, market) => sum + market.ticketCount, 0);
   const next = nextBatchAt(bundle);
   return (
-    <aside className="flex flex-col gap-4 rounded-group bg-card p-5" aria-label="Right now">
+    <aside className="flex flex-col gap-4 rounded-group border border-border bg-card p-5" aria-label="Right now">
       <span className="text-label text-muted-foreground">Right now on {NETWORK_LABEL[data.network]}</span>
       <dl className="grid grid-cols-2 gap-4">
         <Figure label="Markets sealed" value={`${sealed} of ${bundle.markets.length}`} />
@@ -55,7 +55,7 @@ function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-meta text-muted-foreground">{label}</dt>
-      <dd className="font-display text-position-pnl text-foreground tabular-nums">{value}</dd>
+      <dd className="numbers text-position-pnl text-foreground">{value}</dd>
     </div>
   );
 }
@@ -78,14 +78,20 @@ export function ProofNow() {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {market ? (
-        <article className="flex flex-col gap-3 rounded-group bg-card p-5" aria-label="Rules of a live market">
+        <article
+          className="flex flex-col gap-3 rounded-group border border-border bg-card p-5"
+          aria-label="Rules of a live market"
+        >
           <span className="text-label text-muted-foreground">The rules, fixed before betting opened</span>
           <p className="text-row-strong text-foreground">{market.rules.question}</p>
           <p className="text-row-detail text-muted-foreground">{market.rules.resolution}</p>
           <p className="text-row-detail text-muted-foreground">{market.rules.payoutFormula}</p>
         </article>
       ) : null}
-      <article className="flex flex-col gap-3 rounded-group bg-card p-5" aria-label="Checked on this page">
+      <article
+        className="flex flex-col gap-3 rounded-group border border-border bg-card p-5"
+        aria-label="Checked on this page"
+      >
         <span className="text-label text-muted-foreground">Checked on this page, just now</span>
         <ul className="flex flex-col gap-2 text-row-detail text-foreground">
           <Check>

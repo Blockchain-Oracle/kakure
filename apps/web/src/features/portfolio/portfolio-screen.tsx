@@ -84,7 +84,7 @@ export function PortfolioScreen() {
     });
 
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-page-title text-foreground">Portfolio</h1>
         <button
@@ -101,8 +101,11 @@ export function PortfolioScreen() {
       {tickets === null ? (
         <Skeleton className="h-40 rounded-group" />
       ) : tickets === "locked" ? (
-        <section className="flex flex-col gap-3 rounded-group bg-card p-5" aria-labelledby="locked-title">
-          <h2 id="locked-title" className="text-title text-foreground">
+        <section
+          className="flex flex-col gap-3 rounded-group border border-border bg-card p-5"
+          aria-labelledby="locked-title"
+        >
+          <h2 id="locked-title" className="font-display text-title text-foreground">
             Your tickets are locked
           </h2>
           <p className="text-row-detail text-muted-foreground">
@@ -153,7 +156,7 @@ export function PortfolioScreen() {
             ]}
           />
           {shown.length === 0 ? (
-            <p className="rounded-group bg-card p-5 text-row-detail text-muted-foreground">
+            <p className="rounded-group border border-border bg-card p-5 text-row-detail text-muted-foreground">
               {tab === "open" ? "No open tickets. Settled ones are in the other tab." : "Nothing has settled yet."}
             </p>
           ) : (
@@ -201,10 +204,10 @@ function Hero({
       ? USD.format((Number(zat) / Number(ZATOSHI_PER_ZEC)) * Number(zec.price))
       : null;
   return (
-    <section className="grid grid-cols-1 gap-4 rounded-group bg-card p-5 md:grid-cols-2">
+    <section className="grid grid-cols-1 gap-4 rounded-group border border-border bg-card p-5 md:grid-cols-2">
       <div>
         <div className="text-label text-muted-foreground">Riding on open tickets</div>
-        <div className="mt-1 font-display text-display-price text-foreground">
+        <div className="mt-1 numbers text-display-price text-foreground">
           {hidden ? "Hidden" : <RollingNumber value={format(atRisk)} />}
         </div>
         <div className="text-money-meta text-muted-foreground">
@@ -214,7 +217,7 @@ function Hero({
       <div>
         <div className="text-label text-muted-foreground">Settled result</div>
         <div
-          className={`mt-1 font-display text-display-price ${pnl > 0n ? "text-up" : pnl < 0n ? "text-down" : "text-foreground"}`}
+          className={`mt-1 numbers text-display-price ${pnl > 0n ? "text-up" : pnl < 0n ? "text-down" : "text-foreground"}`}
         >
           {hidden ? "Hidden" : <RollingNumber value={format(pnl, true)} />}
         </div>
@@ -240,7 +243,7 @@ function Row({ position, now, onOpen }: { position: Position; now: number; onOpe
       <button
         type="button"
         onClick={onOpen}
-        className="kk-press flex w-full items-center gap-3 rounded-group bg-card p-4 text-left outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
+        className="kk-press flex w-full items-center gap-3 rounded-group border border-border bg-card p-4 text-left outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Mark mark={asset.mark} label={asset.symbol} />
         <span className="min-w-0 flex-1">
@@ -263,12 +266,12 @@ function Row({ position, now, onOpen }: { position: Position; now: number; onOpe
  */
 function ReplayCard() {
   return (
-    <section className="flex items-start gap-4 rounded-group bg-card p-5">
+    <section className="flex items-start gap-4 rounded-group border border-border bg-card p-5">
       <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-foreground">
         <Clapperboard className="size-5" />
       </span>
       <div>
-        <h2 className="text-title text-foreground">Replay arrives with price history</h2>
+        <h2 className="font-display text-title text-foreground">Replay arrives with price history</h2>
         <p className="mt-1 text-row-detail text-muted-foreground">
           Replay and Recap films will be drawn from the operator's signed daily price history, which this site doesn't
           read yet. No film is faked from a guess; they'll appear here once it does.

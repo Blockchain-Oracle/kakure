@@ -40,7 +40,7 @@ export function LivePrice({ stream }: { stream: StreamSymbol }) {
         {price.status === "closed" ? <Pill tone="quiet">Feed closed</Pill> : null}
       </div>
       {price.price ? (
-        <RollingNumber value={formatUsd(price.price)} className="font-display text-display-price text-foreground" />
+        <RollingNumber value={formatUsd(price.price)} className="numbers text-display-price text-foreground" />
       ) : (
         <div className="flex flex-col gap-2" aria-busy="true">
           <Skeleton className="h-11 w-56 rounded-md" />

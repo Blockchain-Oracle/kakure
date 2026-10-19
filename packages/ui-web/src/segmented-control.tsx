@@ -6,8 +6,8 @@ import { cx } from "./cx";
 /**
  * Adapted from 21st.dev ddoemonn/segmented-control (#23552): a radio group whose thumb slides on a spring,
  * with the selected labels masked inside the thumb so the label colour flips exactly under it.
- * Reskin: Kawase plates (quiet `secondary` plate, black `primary` thumb), no border, inset shadow or blue focus;
- * the motion library is replaced by a CSS spring (the same 520/34/0.45 spring, `--spring-mode-thumb`).
+ * Reskin to Mitoshi's choices (terminal.css `.tm-choice`): a surface plate on a hairline and an ink thumb with stage
+ * ink, the vermilion focus ring; the motion library is replaced by a CSS spring (`--spring-mode-thumb`).
  * Arrow keys, Home and End move the selection, as in the original.
  */
 export interface SegmentedOption<T extends string> {
@@ -83,7 +83,10 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={cx("relative inline-block select-none rounded-full bg-secondary p-0.5", className)}
+      className={cx(
+        "relative inline-block select-none rounded-full bg-secondary p-0.5 shadow-[inset_0_0_0_1px_var(--border)]",
+        className,
+      )}
     >
       <div className="relative grid" style={{ gridTemplateColumns: template, touchAction: "manipulation" }}>
         {options.map((option) => (
@@ -94,7 +97,7 @@ export function SegmentedControl<T extends string>({
         <div
           aria-hidden
           className={cx(
-            "pointer-events-none absolute inset-y-0 left-0 overflow-hidden rounded-full bg-primary",
+            "pointer-events-none absolute inset-y-0 left-0 overflow-hidden rounded-full bg-foreground",
             spring,
           )}
           style={{ width: `${PERCENT / count}%`, transform: `translateX(${index * PERCENT}%)` }}
@@ -108,7 +111,7 @@ export function SegmentedControl<T extends string>({
             }}
           >
             {options.map((option) => (
-              <span key={option.value} className={cx(segment, "text-primary-foreground")}>
+              <span key={option.value} className={cx(segment, "text-stage")}>
                 {option.label}
               </span>
             ))}

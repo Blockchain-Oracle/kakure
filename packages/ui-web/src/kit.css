@@ -1,9 +1,9 @@
 /*
- * Kit CSS that utilities can't express: keyframes, the dialog sheet, reduced-motion guards.
- * Every value is a token from @kakure/tokens (tokens.css must be imported first).
+ * Kit CSS that utilities can't express: keyframes, the dialog sheet, the glow toggle, reduced-motion guards.
+ * Every value is a token from @kakure/tokens (Mitoshi's system; tokens.css must be imported first).
  */
 
-/* Skeleton: the `skeleton` fill pulsing 0.65 → 1 over 1200 ms; still under reduced motion (kawase.md §4.6). */
+/* Skeleton: the `skeleton` fill pulsing 0.65 → 1; still under reduced motion. */
 @keyframes kk-skeleton-pulse {
   from {
     opacity: var(--opacity-skeleton-from);
@@ -18,19 +18,19 @@
   animation: kk-skeleton-pulse calc(var(--duration-skeleton-period) / 2) var(--ease-default) infinite alternate;
 }
 
-/* Press: 100 ms in, 160 ms out, to 0.97 (kawase.md §4.6). */
+/* Press: 100 ms in, 160 ms out, to 0.97. */
 .kk-press {
-  transition: transform var(--duration-press-out) var(--ease-default);
+  transition: transform var(--duration-press-out) var(--ease-out);
 }
 .kk-press:active {
   transform: scale(var(--scale-press));
   transition-duration: var(--duration-press-in);
 }
 
-/* The active-step pulse for timelines (Kawase TxSteps: "a pulse when active"). */
+/* The active-step pulse for timelines. */
 @keyframes kk-step-pulse {
   from {
-    box-shadow: 0 0 0 0 var(--accent);
+    box-shadow: 0 0 0 0 var(--vermilion);
   }
   to {
     box-shadow: 0 0 0 6px transparent;
@@ -40,7 +40,31 @@
   animation: kk-step-pulse var(--duration-skeleton-period) var(--ease-default) infinite;
 }
 
-/* Sheet: a native <dialog>; bottom sheet on phones, a 384 px right drawer from the rail breakpoint (kawase.md §5). */
+/* The live ping (Mitoshi environment.css `mode-ping`): a dot whose halo grows and fades every 1.6 s. */
+@keyframes kk-ping {
+  75%,
+  100% {
+    scale: 2;
+    opacity: 0;
+  }
+}
+.kk-ping {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+.kk-ping::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  opacity: 0.4;
+  animation: kk-ping var(--duration-ping) cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Sheet: a native <dialog>; a bottom sheet on phones and a right drawer from 768 px (Mitoshi drawer: 384 / 560,
+ * in 380 ms on the drawer curve, out 240 ms). */
 .kk-sheet {
   position: fixed;
   inset: auto 0 0 0;
@@ -50,23 +74,25 @@
   margin: 0;
   padding: 0;
   border: 0;
-  color: var(--foreground);
-  background: var(--card);
+  color: var(--popover-foreground);
+  background: var(--popover);
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  box-shadow: var(--shadow-sheet);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    var(--shadow-sheet);
   transform: translateY(0);
   opacity: 1;
   transition:
-    transform var(--duration-sheet-exit) var(--ease-sheet),
-    opacity var(--duration-sheet-exit) var(--ease-sheet),
-    overlay var(--duration-sheet-exit) allow-discrete,
-    display var(--duration-sheet-exit) allow-discrete;
+    transform var(--duration-drawer-out) var(--ease-drawer),
+    opacity var(--duration-drawer-out) var(--ease-drawer),
+    overlay var(--duration-drawer-out) allow-discrete,
+    display var(--duration-drawer-out) allow-discrete;
 }
 .kk-sheet:not([open]) {
   transform: translateY(100%);
 }
 .kk-sheet[open] {
-  transition-duration: var(--duration-sheet-enter);
+  transition-duration: var(--duration-drawer-in);
 }
 @starting-style {
   .kk-sheet[open] {
@@ -77,9 +103,9 @@
   background: var(--scrim);
   opacity: 1;
   transition:
-    opacity var(--duration-sheet-exit) var(--ease-sheet),
-    overlay var(--duration-sheet-exit) allow-discrete,
-    display var(--duration-sheet-exit) allow-discrete;
+    opacity var(--duration-drawer-out) var(--ease-drawer),
+    overlay var(--duration-drawer-out) allow-discrete,
+    display var(--duration-drawer-out) allow-discrete;
 }
 .kk-sheet:not([open])::backdrop {
   opacity: 0;
@@ -97,7 +123,9 @@
     height: auto;
     max-height: none;
     border-radius: var(--radius-sheet);
-    box-shadow: var(--shadow-dock);
+  }
+  .kk-sheet[data-size="wide"] {
+    width: var(--layout-drawer-wide);
   }
   .kk-sheet:not([open]) {
     transform: translateX(calc(100% + var(--layout-window-inset)));
@@ -109,7 +137,134 @@
   }
 }
 
-/* Glass: only the dock and the network capsule (kawase.md §4.3); opaque under Reduce Transparency. */
+/* A centred modal on the same <dialog> (the shortcuts list, the search palette). */
+.kk-modal {
+  margin: max(10dvh, var(--space-xxxl)) auto auto;
+  width: min(calc(100% - 2 * var(--space-lg)), var(--layout-modal));
+  max-height: 80dvh;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    var(--shadow-sheet);
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--duration-state) var(--ease-out),
+    transform var(--duration-state) var(--ease-out),
+    overlay var(--duration-state) allow-discrete,
+    display var(--duration-state) allow-discrete;
+}
+.kk-modal[data-size="wide"] {
+  width: min(calc(100% - 2 * var(--space-lg)), var(--layout-palette));
+}
+.kk-modal:not([open]) {
+  opacity: 0;
+  transform: translateY(var(--space-sm)) scale(0.98);
+}
+@starting-style {
+  .kk-modal[open] {
+    opacity: 0;
+    transform: translateY(var(--space-sm)) scale(0.98);
+  }
+}
+.kk-modal::backdrop {
+  background: var(--scrim);
+}
+
+/* ── The glow toggle (21st daiwiikharihar/cinematic-glow-toggle, reskinned): `--on` is 0 or 1. The thumb springs on
+ * `glow-thumb` (500 / 30), the ON side glows vermilion. ── */
+.kk-glow-toggle {
+  --on: 0;
+  --travel: calc(var(--size-mode-track-width) - var(--size-mode-knob) - 2 * var(--size-glow-inset));
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-width: var(--size-touch);
+  min-height: var(--size-touch);
+  padding: 0 var(--space-xs);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.kk-glow-toggle[aria-checked="true"] {
+  --on: 1;
+}
+.kk-glow-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.kk-glow-label {
+  font: 700 11px / 1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    color var(--duration-state) var(--ease-out),
+    text-shadow var(--duration-state) var(--ease-out);
+}
+.kk-glow-label[data-side="off"] {
+  color: color-mix(in srgb, var(--ink-muted) calc(var(--on) * 100%), var(--foreground));
+}
+.kk-glow-label[data-side="on"] {
+  color: color-mix(in srgb, var(--link) calc(var(--on) * 100%), var(--ink-muted));
+  text-shadow: 0 0 8px color-mix(in srgb, var(--glow) calc(var(--on) * 100%), transparent);
+}
+.kk-glow-track {
+  position: relative;
+  flex: none;
+  width: var(--size-mode-track-width);
+  height: var(--size-mode-track-height);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-dim) calc(var(--on) * 100%), var(--secondary));
+  box-shadow:
+    inset 0 1px 3px var(--scrim),
+    0 0 18px color-mix(in srgb, var(--glow-soft) calc(var(--on) * 100%), transparent);
+  transition:
+    background-color var(--duration-pill) var(--ease-out),
+    box-shadow var(--duration-pill) var(--ease-out);
+}
+.kk-glow-thumb {
+  position: absolute;
+  top: var(--size-glow-inset);
+  left: var(--size-glow-inset);
+  width: var(--size-mode-knob);
+  height: var(--size-mode-knob);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--vermilion) calc(var(--on) * 100%), var(--ink-muted));
+  box-shadow:
+    0 1px 3px var(--scrim),
+    0 0 calc(var(--on) * 14px) color-mix(in srgb, var(--glow) calc(var(--on) * 100%), transparent);
+  transform: translateX(calc(var(--on) * var(--travel)));
+  transition:
+    transform var(--spring-glow-thumb-duration) var(--spring-glow-thumb),
+    scale var(--duration-press-out) var(--ease-out),
+    background-color var(--duration-pill) var(--ease-out),
+    box-shadow var(--duration-pill) var(--ease-out);
+}
+.kk-glow-toggle:active .kk-glow-thumb {
+  scale: 0.9;
+}
+.kk-glow-gloss {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  width: 8px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, white 30%, transparent);
+  filter: blur(1px);
+}
+
+/* Glass: kept for the bet sheet's sticky bar; opaque under Reduce Transparency. */
 .kk-glass {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
@@ -126,13 +281,20 @@
   }
 }
 
-/* Reduced motion: travel becomes a 100 ms crossfade; springs and pulses stand still (kawase.md §4.6). */
+/* Reduced motion: travel becomes a 100 ms crossfade; springs, pulses and pings stand still. */
 @media (prefers-reduced-motion: reduce) {
-  .kk-press:active {
+  .kk-glow-thumb,
+  .kk-glow-track {
+    transition-duration: var(--duration-reduced-motion);
+  }
+  .kk-press:active,
+  .kk-glow-toggle:active .kk-glow-thumb {
     transform: none;
+    scale: none;
   }
   .kk-step-active,
-  .kk-skeleton {
+  .kk-skeleton,
+  .kk-ping::before {
     animation: none;
   }
   .kk-sheet,
@@ -152,11 +314,18 @@
 }
 
 /* The in-app Motion setting (Settings → Reduced) sets <html data-motion="reduce">: the same rules as the system's. */
-:root[data-motion="reduce"] .kk-press:active {
+:root[data-motion="reduce"] .kk-glow-thumb,
+:root[data-motion="reduce"] .kk-glow-track {
+  transition-duration: var(--duration-reduced-motion);
+}
+:root[data-motion="reduce"] .kk-press:active,
+:root[data-motion="reduce"] .kk-glow-toggle:active .kk-glow-thumb {
   transform: none;
+  scale: none;
 }
 :root[data-motion="reduce"] .kk-step-active,
-:root[data-motion="reduce"] .kk-skeleton {
+:root[data-motion="reduce"] .kk-skeleton,
+:root[data-motion="reduce"] .kk-ping::before {
   animation: none;
 }
 :root[data-motion="reduce"] .kk-sheet,

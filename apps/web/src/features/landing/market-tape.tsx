@@ -34,7 +34,7 @@ function Item({ market, network, now }: { market: Market; network: Network; now:
   return (
     <Link
       href={`/m#${network}/${market.id}`}
-      className="flex shrink-0 items-center gap-3 rounded-row bg-card px-4 py-3 outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex shrink-0 items-center gap-3 rounded-row border border-border bg-card px-4 py-3 outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Mark mark={asset.mark} label={asset.symbol} size="token" />
       <span className="flex flex-col">
@@ -72,7 +72,7 @@ export function MarketTape() {
   return (
     <section aria-labelledby="tape-title" className="flex flex-col gap-3">
       <div className="mx-auto flex w-full max-w-(--layout-content-max) items-baseline justify-between gap-3 px-5 rail:px-8">
-        <h2 id="tape-title" className="text-title text-foreground">
+        <h2 id="tape-title" className="font-display text-title text-foreground">
           Markets in the latest signed batch
         </h2>
         <span className="text-money-meta text-muted-foreground">

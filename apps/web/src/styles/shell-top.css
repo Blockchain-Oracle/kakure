@@ -1,0 +1,203 @@
+/*
+ * The top line (Mitoshi TopLine.tsx, app-shell.css:88-120, :324-347): the back chevron, the phone's mark and network
+ * chip, the health chip, the search pill and its keys. Sticky with a blur on phones.
+ */
+
+.kk-topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--space-sm);
+  min-height: var(--layout-topline);
+  padding: max(10px, env(safe-area-inset-top, 0px)) 0 10px;
+}
+.kk-topline-lead,
+.kk-topline-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+.kk-topline-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-touch);
+  height: var(--size-touch);
+  border-radius: var(--radius-full);
+  outline: none;
+}
+.kk-topline-mark:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.kk-phone-only {
+  display: contents;
+}
+.kk-wide-only {
+  display: none;
+}
+@media (max-width: 767px) {
+  .kk-topline {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: 0 calc(-1 * var(--space-md));
+    padding-inline: var(--space-md);
+    background: color-mix(in srgb, var(--canvas) 90%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+  .kk-topline-lead:has(.kk-topline-back) .kk-topline-mark {
+    display: none;
+  }
+  .kk-topline-lead {
+    flex: 1 1 0;
+  }
+}
+@media (min-width: 768px) {
+  .kk-topline-mark,
+  .kk-phone-only {
+    display: none;
+  }
+  .kk-wide-only {
+    display: inline-flex;
+  }
+  .kk-topline-lead {
+    flex: none;
+  }
+  .kk-topline-tools {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+}
+
+/* The search pill: labelled from 768 px, 288 px from 1024 (Mitoshi app-shell.css:101-119). */
+.kk-search-pill {
+  flex: 0 1 var(--layout-search-width);
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  height: 40px;
+  padding: 0 var(--space-sm) 0 14px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted-foreground);
+  font: 400 14px / 1 var(--font-sans);
+  outline: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) ease,
+    color var(--duration-hover) ease,
+    transform 80ms ease-out;
+}
+.kk-search-pill:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.kk-search-pill:active {
+  transform: scale(0.99);
+}
+.kk-search-pill:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 0 0 2px var(--ring);
+}
+.kk-search-pill svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.kk-search-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kk-topline-keys {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  margin-left: auto;
+}
+@media (min-width: 1024px) {
+  .kk-search-pill {
+    flex: none;
+    width: var(--layout-search-width);
+  }
+}
+.kk-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--size-kbd);
+  height: var(--size-kbd);
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--secondary);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 1px 0 var(--border);
+  color: var(--muted-foreground);
+  font: 600 11px / 1 var(--font-mono);
+}
+
+/* The health chip: the world and the relay as a dot and a word (Mitoshi app-shell.css:324-334). The dot is vermilion
+ * and pings while prices are live, amber while the relay reconnects, muted while connecting or offline. */
+.kk-health {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 40px;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-full);
+  color: var(--muted-foreground);
+  font: 500 13px / 1 var(--font-sans);
+  white-space: nowrap;
+  outline: none;
+}
+.kk-health:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.kk-health:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.kk-health-dot {
+  width: var(--size-health-dot);
+  height: var(--size-health-dot);
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--ink-muted);
+  color: var(--ink-muted);
+}
+.kk-health[data-state="live"] .kk-health-dot {
+  background: var(--vermilion);
+  color: var(--vermilion);
+}
+.kk-health[data-state="reconnecting"] .kk-health-dot {
+  background: var(--warn-dot);
+  color: var(--warn-dot);
+}
+.kk-health-net {
+  color: var(--foreground);
+  font-weight: 600;
+}
+@media (max-width: 1023px) {
+  .kk-health-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kk-search-pill:active {
+    transform: none;
+  }
+}

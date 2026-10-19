@@ -47,3 +47,6 @@ target/
 operator-data/
 *.sqlite
 *.sqlite-journal
+
+# Local tool caches (21st scout)
+.cache/

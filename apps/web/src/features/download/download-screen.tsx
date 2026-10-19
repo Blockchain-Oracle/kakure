@@ -70,10 +70,13 @@ async function latestAndroid(): Promise<Release | null | "unreachable"> {
 export async function DownloadScreen() {
   const release = await latestAndroid();
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <h1 className="font-display text-page-title text-foreground">Get the app</h1>
-      <section className="flex flex-col gap-4 rounded-group bg-card p-5" aria-labelledby="android-title">
-        <h2 id="android-title" className="text-title text-foreground">
+      <section
+        className="flex flex-col gap-4 rounded-group border border-border bg-card p-5"
+        aria-labelledby="android-title"
+      >
+        <h2 id="android-title" className="font-display text-title text-foreground">
           Android
         </h2>
         {release === "unreachable" ? (
@@ -123,8 +126,8 @@ export async function DownloadScreen() {
           </div>
         )}
       </section>
-      <section className="rounded-group bg-card p-5" aria-labelledby="ios-title">
-        <h2 id="ios-title" className="text-title text-foreground">
+      <section className="rounded-group border border-border bg-card p-5" aria-labelledby="ios-title">
+        <h2 id="ios-title" className="font-display text-title text-foreground">
           iPhone
         </h2>
         <p className="mt-2 text-body text-muted-foreground">

@@ -35,7 +35,7 @@ export function MarketScreen() {
   }, [market]);
 
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
       <Link
         href="/markets"
         className="flex w-fit items-center gap-1.5 rounded-xs text-row-detail text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -131,7 +131,7 @@ function Detail({
       {freshness}
       <div className="grid grid-cols-1 gap-4 wide:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-4">
-          <section className="rounded-group bg-card p-5" aria-label="Price">
+          <section className="rounded-group border border-border bg-card p-5" aria-label="Price">
             {asset.stream ? (
               <LivePrice stream={asset.stream} />
             ) : (

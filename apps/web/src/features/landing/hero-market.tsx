@@ -37,7 +37,7 @@ export function HeroMarket() {
   if (data.status === "loading") return <Skeleton className="h-[26rem] w-full rounded-stage" />;
   if (data.status !== "ready") {
     return (
-      <div className="flex h-full min-h-72 flex-col justify-center rounded-stage bg-card p-6 text-center">
+      <div className="flex h-full min-h-72 flex-col justify-center rounded-stage border border-border bg-card p-6 text-center">
         <p className="text-title text-foreground">
           {data.status === "unpublished" ? "No markets published yet" : "The signed batch didn't load"}
         </p>
@@ -52,7 +52,7 @@ export function HeroMarket() {
   const market = featuredMarket(data.bundle.markets, now);
   if (!market) {
     return (
-      <div className="rounded-stage bg-card p-6 text-row-detail text-muted-foreground">
+      <div className="rounded-stage border border-border bg-card p-6 text-row-detail text-muted-foreground">
         Batch {data.bundle.seq} lists no open market right now. The next batch is at{" "}
         {formatClock(nextBatchAt(data.bundle))}.
       </div>
@@ -64,7 +64,10 @@ export function HeroMarket() {
   const coin = NETWORK_COIN[data.network];
   const link = `/m#${data.network}/${market.id}`;
   return (
-    <article className="flex flex-col gap-5 rounded-stage bg-card p-6 shadow-receipt" aria-label="A live market">
+    <article
+      className="flex flex-col gap-5 rounded-stage border border-border bg-card p-6 shadow-receipt"
+      aria-label="A live market"
+    >
       <div className="flex items-center gap-3">
         <Mark mark={asset.mark} label={asset.symbol} size="detail" />
         <div className="min-w-0 flex-1">

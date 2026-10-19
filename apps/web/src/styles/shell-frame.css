@@ -1,0 +1,355 @@
+/*
+ * The app shell's frame (Mitoshi app-shell.css:6-167): the floating rail, the column and the one bordered stage.
+ * Breakpoints: dock < 768 ≤ 88 px icon rail < 1280 ≤ 248 px rail. Every value is a token.
+ */
+
+.kk-shell {
+  min-height: 100dvh;
+  background: var(--canvas);
+  color: var(--foreground);
+  transition: background-color var(--duration-flood-settle) var(--ease-out);
+}
+
+.kk-skip {
+  position: fixed;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  z-index: 120;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font: 700 14px / 1.2 var(--font-sans);
+  translate: 0 -200%;
+}
+.kk-skip:focus-visible {
+  translate: 0 0;
+  outline: none;
+}
+
+/* ── the rail ── */
+.kk-rail {
+  display: none;
+}
+@media (min-width: 768px) {
+  .kk-rail {
+    position: fixed;
+    top: var(--layout-window-inset);
+    bottom: var(--layout-window-inset);
+    left: var(--layout-window-inset);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+    width: var(--layout-rail-compact);
+    padding: var(--space-xl) var(--space-md);
+    border-radius: var(--radius-rail);
+    background: var(--rail);
+    overflow-y: auto;
+    scrollbar-width: none;
+    transition: background-color var(--duration-flood-settle) var(--ease-out);
+  }
+}
+@media (min-width: 1280px) {
+  .kk-rail {
+    width: var(--layout-rail-wide);
+    padding: var(--space-xl);
+  }
+}
+@media (min-width: 768px) and (max-height: 880px) {
+  .kk-rail {
+    gap: var(--space-md);
+    padding-block: var(--space-lg);
+  }
+}
+
+.kk-rail-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+@media (min-width: 1280px) {
+  .kk-rail-head {
+    align-items: stretch;
+  }
+}
+.kk-rail-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-lg);
+  color: var(--foreground);
+  outline: none;
+}
+.kk-rail-brand:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.kk-rail-brand .kk-rail-word {
+  display: none;
+}
+@media (min-width: 1280px) {
+  .kk-rail-brand {
+    padding-left: var(--space-xs);
+  }
+  .kk-rail-brand .kk-rail-word {
+    display: inline-flex;
+  }
+}
+.kk-rail-plate {
+  display: none;
+}
+.kk-rail-stamp {
+  display: flex;
+}
+@media (min-width: 1280px) {
+  .kk-rail-plate {
+    display: block;
+  }
+  .kk-rail-stamp {
+    display: none;
+  }
+}
+
+/* The places: 48 px rows at a 12 px gap, one pill moved by a transform (Mitoshi Rail.tsx:61-80). */
+.kk-rail-nav {
+  --rail-gap: var(--layout-nav-gap);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--rail-gap);
+}
+@media (max-height: 880px) {
+  .kk-rail-nav {
+    --rail-gap: var(--space-xs);
+  }
+}
+.kk-rail-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  height: var(--layout-nav-item);
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--radius-nav-item);
+  background: transparent;
+  color: color-mix(in srgb, var(--foreground) 78%, transparent);
+  font: 600 16px / 24px var(--font-sans);
+  letter-spacing: -0.01em;
+  text-align: left;
+  outline: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) var(--ease-out),
+    color var(--duration-hover) var(--ease-out);
+}
+.kk-rail-item:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--rail-active) 45%, transparent);
+}
+.kk-rail-item[aria-current="page"] {
+  color: var(--foreground);
+  background: transparent;
+}
+.kk-rail-item[data-here] {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--rail-active) 45%, transparent);
+}
+.kk-rail-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+.kk-rail-icon {
+  width: var(--size-rail-icon);
+  height: var(--size-rail-icon);
+  flex: none;
+  stroke-width: 2;
+}
+.kk-rail-item[aria-current="page"] .kk-rail-icon {
+  stroke-width: 2.5;
+}
+.kk-rail-label,
+.kk-rail-key {
+  display: none;
+}
+@media (min-width: 1280px) {
+  .kk-rail-item {
+    justify-content: flex-start;
+  }
+  .kk-rail-label {
+    display: inline;
+  }
+  .kk-rail-key {
+    display: inline;
+    margin-left: auto;
+    color: var(--ink-muted);
+    font: 500 12px / 1 var(--font-mono);
+    opacity: 0;
+    transition: opacity var(--duration-hover);
+  }
+  .kk-rail-item:hover .kk-rail-key,
+  .kk-rail-item:focus-visible .kk-rail-key {
+    opacity: 1;
+  }
+}
+.kk-rail-pill {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--layout-nav-item);
+  border-radius: var(--radius-nav-item);
+  background: var(--rail-active);
+  transform: translateY(calc(var(--rail-i, 0) * (var(--layout-nav-item) + var(--rail-gap))));
+  opacity: 0;
+  transition:
+    transform var(--duration-pill) var(--ease-out),
+    opacity var(--duration-state) var(--ease-out);
+}
+.kk-rail-pill[data-on] {
+  opacity: 1;
+}
+
+/* The foot: the theme toggle beside Docs · Legal (the links on the full rail only). */
+.kk-rail-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+}
+@media (min-width: 1280px) {
+  .kk-rail-foot {
+    flex-direction: row;
+    gap: var(--space-md);
+    padding-left: var(--space-xs);
+  }
+}
+.kk-rail-legal {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font: 500 13px / 1.2 var(--font-sans);
+  white-space: nowrap;
+}
+.kk-rail-legal a {
+  color: var(--muted-foreground);
+  border-radius: var(--radius-xs);
+  outline: none;
+}
+.kk-rail-legal a:hover {
+  color: var(--foreground);
+}
+.kk-rail-legal a:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+@media (min-width: 1280px) {
+  .kk-rail-legal {
+    display: flex;
+  }
+}
+
+/* ── the column and the stage ── */
+:root {
+  --dock-clearance: calc(
+    var(--layout-dock-item-h) +
+    var(--space-md) +
+    max(var(--space-md), env(safe-area-inset-bottom, 0px))
+  );
+}
+@media (min-width: 768px) {
+  :root {
+    --dock-clearance: 0px;
+  }
+}
+.kk-column {
+  display: flex;
+  min-width: 0;
+  min-height: 100dvh;
+  flex-direction: column;
+  padding: 0 var(--space-md) calc(var(--dock-clearance) + var(--space-lg));
+}
+@media (min-width: 768px) {
+  .kk-column {
+    padding: 0 var(--layout-window-inset) var(--layout-window-inset)
+      calc(var(--layout-rail-compact) + var(--layout-window-inset) * 2);
+  }
+}
+@media (min-width: 1280px) {
+  .kk-column {
+    padding-left: calc(var(--layout-rail-wide) + var(--layout-window-inset) * 2);
+  }
+}
+
+/* One bordered stage holds the page and is its only inset (Mitoshi app-shell.css:162-167). */
+.kk-stage {
+  flex: 1;
+  min-width: 0;
+  padding: var(--layout-stage-pad-sm);
+  border: var(--layout-stage-edge) solid var(--stage-edge);
+  border-radius: var(--radius-stage);
+  background: var(--stage);
+  outline: none;
+  overflow-x: clip;
+}
+@media (min-width: 640px) {
+  .kk-stage {
+    padding: var(--layout-stage-pad-md);
+  }
+}
+@media (min-width: 1024px) {
+  .kk-stage {
+    padding: var(--layout-stage-pad);
+  }
+}
+
+/* A 44 px round icon button (the theme toggle, the back chevron, More's tools). */
+.kk-icon-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-touch);
+  height: var(--size-touch);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--muted-foreground);
+  outline: none;
+  cursor: pointer;
+  transition:
+    color var(--duration-hover) var(--ease-out),
+    background-color var(--duration-hover) var(--ease-out);
+}
+.kk-icon-button:hover {
+  color: var(--foreground);
+  background: var(--secondary);
+}
+.kk-icon-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.kk-icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+.kk-theme-toggle {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.kk-theme-toggle:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    0 0 0 2px var(--ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kk-rail-pill,
+  .kk-rail-item,
+  .kk-rail,
+  .kk-shell {
+    transition: none;
+  }
+}
+:root[data-motion="reduce"] .kk-rail-pill,
+:root[data-motion="reduce"] .kk-rail-item {
+  transition: none;
+}

@@ -12,7 +12,7 @@ export function MarketFacts({ market, now }: { market: Market; now: number }) {
   const open = isBettable(market, now);
   const opening = market.opening ? Object.entries(market.opening) : [];
   return (
-    <section className="rounded-group bg-card p-5" aria-label="Times">
+    <section className="rounded-group border border-border bg-card p-5" aria-label="Times">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
         <Fact term="Betting closes">
           {formatDateTime(market.cutoffAt)}

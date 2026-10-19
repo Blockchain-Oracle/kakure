@@ -1,0 +1,239 @@
+/*
+ * Which world you are in (Mitoshi environment.css): the brand disc, the network plate with its hanko, the compact
+ * stamp, the phone chip, the switch's state from <html data-network>, and the flood between worlds. The testnet
+ * tint itself is in the tokens (`canvas`, `rail`), so everything painted with them changes inside the flood.
+ */
+
+/* The seal disc (Mitoshi .rail-disc): a 40 px vermilion disc holding the mark in on-accent ink. */
+.kk-disc {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-rail-disc);
+  height: var(--size-rail-disc);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.kk-disc-mark {
+  width: 24px;
+  height: 24px;
+}
+.kk-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  color: var(--foreground);
+  font: 700 17px / 1 var(--font-display);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.kk-wordmark-kanji {
+  color: var(--muted-foreground);
+  font: 500 13px / 1 var(--font-stamp);
+  letter-spacing: 0;
+}
+
+/* Network words and parts follow <html data-network>, so prerendered HTML is never wrong. */
+.kk-when-mainnet {
+  display: none;
+}
+:root[data-network="mainnet"] .kk-when-mainnet {
+  display: inline;
+}
+:root[data-network="mainnet"] .kk-when-testnet {
+  display: none;
+}
+:root[data-network="mainnet"] .kk-net-toggle {
+  --on: 1;
+}
+:root[data-network="testnet"] .kk-net-toggle {
+  --on: 0;
+}
+
+/* The hanko: 試 on Testnet, 本 on Mainnet, pressed in like a stamp (Mitoshi .mode-stamp, environment.css:56-66). */
+.kk-hanko {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 2px solid currentColor;
+  border-radius: 11px;
+  rotate: -6deg;
+  font: 700 18px / 1 var(--font-stamp);
+  animation: kk-stamp var(--duration-stamp) var(--ease-bounce) both;
+}
+@keyframes kk-stamp {
+  0% {
+    scale: 1.6;
+    opacity: 0;
+  }
+  55% {
+    scale: 0.92;
+    opacity: 1;
+  }
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+/* The plate: a ticket torn from the rail, TESTNET on vermilion and MAINNET on ink (Mitoshi ModePlate). */
+.kk-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.kk-plate-ticket {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px var(--space-md) 10px 0;
+  border-radius: 20px;
+  background: var(--network);
+  color: var(--network-foreground);
+  transition:
+    background-color var(--duration-network-flood) var(--ease-out),
+    color var(--duration-network-flood) var(--ease-out);
+}
+.kk-plate-stub {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+}
+.kk-plate-perf {
+  position: relative;
+  flex: none;
+  align-self: stretch;
+  width: 2px;
+  border-left: 2px dashed color-mix(in srgb, currentColor 35%, transparent);
+}
+.kk-plate-perf::before,
+.kk-plate-perf::after {
+  content: "";
+  position: absolute;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: var(--rail);
+  transition: background-color var(--duration-network-flood) var(--ease-out);
+}
+.kk-plate-perf::before {
+  top: -16px;
+}
+.kk-plate-perf::after {
+  bottom: -16px;
+}
+.kk-plate-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: var(--space-md);
+}
+.kk-plate-label {
+  overflow: hidden;
+  font: 800 18px / 1.1 var(--font-display);
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.kk-plate-line {
+  overflow: hidden;
+  font: 600 12px / 1.2 var(--font-sans);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/* The compact rail's stamp tile and switch. */
+.kk-stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.kk-stamp-tile {
+  display: grid;
+  place-items: center;
+  width: var(--size-seal);
+  height: var(--size-seal);
+  border-radius: var(--radius-lg);
+  background: var(--network);
+  color: var(--network-foreground);
+  transition:
+    background-color var(--duration-network-flood) var(--ease-out),
+    color var(--duration-network-flood) var(--ease-out);
+}
+.kk-stamp-tile .kk-hanko {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+/* The phone chip (Mitoshi .mode-chip): the hanko and the word on the plate colour. */
+.kk-net-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--network);
+  color: var(--network-foreground);
+  font: 700 11px / 1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-network-flood) var(--ease-out),
+    color var(--duration-network-flood) var(--ease-out);
+}
+.kk-net-chip .kk-hanko {
+  width: auto;
+  height: auto;
+  border: 0;
+  rotate: none;
+  font-size: 13px;
+  animation: none;
+}
+
+/* ── The flood between worlds (Mitoshi environment.css:19-25): the new world is revealed by a circle spreading from
+ * the switch, 520 ms on the flood curve. `--flood-x/y` and `data-flooding` are set by switchNetwork(). ── */
+:root[data-flooding]::view-transition-old(root),
+:root[data-flooding]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root[data-flooding]::view-transition-new(root) {
+  animation: kk-flood var(--duration-network-flood) var(--ease-flood);
+}
+@keyframes kk-flood {
+  from {
+    clip-path: circle(0 at var(--flood-x, 50%) var(--flood-y, 50%));
+  }
+  to {
+    clip-path: circle(150vmax at var(--flood-x, 50%) var(--flood-y, 50%));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kk-hanko {
+    animation: none;
+  }
+  :root[data-flooding]::view-transition-group(*),
+  :root[data-flooding]::view-transition-old(*),
+  :root[data-flooding]::view-transition-new(*) {
+    animation: none;
+  }
+}
+:root[data-motion="reduce"] .kk-hanko {
+  animation: none;
+}

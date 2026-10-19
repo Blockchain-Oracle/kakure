@@ -44,7 +44,7 @@ function rulesHashOf(market: Market): string {
 export function ProofScreen() {
   const data = useMarkets();
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
       <h1 className="font-display text-page-title text-foreground">Proof</h1>
       {data.status === "loading" ? (
         <Skeleton className="h-64 rounded-group" />
@@ -119,8 +119,11 @@ function FileLink({ network, file }: { network: string; file: string }) {
 
 function Files({ bundle, latestFile, network }: { bundle: Bundle; latestFile: string; network: string }) {
   return (
-    <section className="flex flex-col gap-3 rounded-group bg-card p-5" aria-labelledby="files-title">
-      <h2 id="files-title" className="text-title text-foreground">
+    <section
+      className="flex flex-col gap-3 rounded-group border border-border bg-card p-5"
+      aria-labelledby="files-title"
+    >
+      <h2 id="files-title" className="font-display text-title text-foreground">
         Signed files, batch {bundle.seq}
       </h2>
       <ul className="flex flex-col gap-2">
@@ -166,7 +169,7 @@ function MarketProof({
   const countOk = market.leaves.length === market.ticketCount;
   const opening = market.opening ? Object.entries(market.opening) : [];
   return (
-    <li className="flex flex-col gap-3 rounded-group bg-card p-5">
+    <li className="flex flex-col gap-3 rounded-group border border-border bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-row-strong text-foreground">
           {asset.symbol} · {WINDOW_LABEL[market.window]}{" "}

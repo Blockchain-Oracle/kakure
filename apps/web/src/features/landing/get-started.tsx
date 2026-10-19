@@ -32,7 +32,7 @@ export function GetStarted() {
             <li key={guide.slug}>
               <a
                 href={`${DOCS_ORIGIN}/${guide.slug}`}
-                className="flex h-full flex-col gap-1 rounded-group bg-card p-5 outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-full flex-col gap-1 rounded-group border border-border bg-card p-5 outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="text-row-title text-foreground">{guide.title}</span>
                 <span className="text-row-detail text-muted-foreground">{guide.body}</span>
@@ -40,8 +40,8 @@ export function GetStarted() {
             </li>
           ))}
         </ul>
-        <aside className="flex flex-col gap-4 rounded-group bg-card p-5" aria-label="Get the app">
-          <h3 className="text-title text-foreground">Kakure on your phone</h3>
+        <aside className="flex flex-col gap-4 rounded-group border border-border bg-card p-5" aria-label="Get the app">
+          <h3 className="font-display text-title text-foreground">Kakure on your phone</h3>
           <div className="flex items-center gap-4">
             <div className="shrink-0 rounded-md bg-paper p-2">
               <DottedQr value={`${SITE_ORIGIN}/download`} size={QR_SIZE} label="Link to the download page" />

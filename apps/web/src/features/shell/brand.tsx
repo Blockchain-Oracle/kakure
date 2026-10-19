@@ -1,29 +1,46 @@
 import { cx } from "@kakure/ui-web";
 
 /**
- * Kakure's mark: an ink tile (Kawase's KawaseMark grammar, kawase.md §4.7) holding a disc half hidden behind the
- * horizon, for 隠れ "hidden". Drawn with tokens, so it follows the theme.
+ * Kakure's mark: a sun half hidden below the horizon, for 隠れ "hidden". Drawn in `currentColor` so it sits in ink on
+ * the vermilion disc (Mitoshi's seal: a 40 px accent disc holding the mark, Rail.tsx:133-140).
  */
-export function BrandMark({ className }: { className?: string }) {
+export function KakureMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 28 28" aria-hidden className={cx("size-7 shrink-0", className)}>
-      <rect width="28" height="28" rx="8" fill="var(--primary)" />
-      <circle cx="14" cy="15.5" r="6.5" fill="var(--accent)" />
-      <rect x="5" y="15.5" width="18" height="8" fill="var(--primary)" />
-      <rect x="6" y="15" width="16" height="1.6" rx="0.8" fill="var(--primary-foreground)" />
+    <svg viewBox="0 0 24 24" aria-hidden className={cx("shrink-0", className)} fill="currentColor">
+      <path d="M6.5 14.25a5.5 5.5 0 0 1 11 0Z" />
+      <rect x="3.5" y="15.75" width="17" height="2" rx="1" />
+      <rect x="7.5" y="19" width="9" height="1.6" rx="0.8" opacity="0.55" />
     </svg>
   );
 }
 
+/** The vermilion seal disc with the mark (rail head, phone top line, dock seal). */
+export function BrandDisc({ className }: { className?: string }) {
+  return (
+    <span className={cx("kk-disc", className)}>
+      <KakureMark className="kk-disc-mark" />
+    </span>
+  );
+}
+
+/** The wordmark: KAKURE in Sora, spaced as Mitoshi's rail word, with 隠れ in Noto Serif JP. */
+export function Wordmark({ className }: { className?: string }) {
+  return (
+    <span className={cx("kk-wordmark", className)}>
+      KAKURE
+      <span lang="ja" className="kk-wordmark-kanji">
+        隠れ
+      </span>
+    </span>
+  );
+}
+
+/** The disc and the wordmark together (the landing header). */
 export function Brand({ wordmark = true }: { wordmark?: boolean }) {
   return (
     <span className="flex items-center gap-2.5">
-      <BrandMark />
-      {wordmark ? (
-        <span className="whitespace-nowrap font-display text-title font-black tracking-[-0.02em] text-foreground">
-          Kakure
-        </span>
-      ) : null}
+      <BrandDisc />
+      {wordmark ? <Wordmark /> : null}
     </span>
   );
 }

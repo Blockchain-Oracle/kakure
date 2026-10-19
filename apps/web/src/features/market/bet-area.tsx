@@ -32,15 +32,18 @@ export function BetArea({
       {isBettable(market, now) ? (
         <BetLauncher market={market} addresses={addresses} network={network} />
       ) : (
-        <section className="rounded-group bg-card p-5 text-row-detail text-muted-foreground" aria-label="Betting">
+        <section
+          className="rounded-group border border-border bg-card p-5 text-row-detail text-muted-foreground"
+          aria-label="Betting"
+        >
           {market.state === "scheduled"
             ? `Betting opens ${formatDateTime(market.opensAt)}. The QR can be built once it does.`
             : "Betting is closed for this market. Open markets are on the markets list."}
         </section>
       )}
       {mine.length > 0 ? (
-        <section className="rounded-group bg-card p-5" aria-labelledby="mine-title">
-          <h2 id="mine-title" className="text-title text-foreground">
+        <section className="rounded-group border border-border bg-card p-5" aria-labelledby="mine-title">
+          <h2 id="mine-title" className="font-display text-title text-foreground">
             Your tickets here
           </h2>
           <ul className="mt-3 flex flex-col gap-2">

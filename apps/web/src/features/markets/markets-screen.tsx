@@ -36,7 +36,7 @@ export function MarketsScreen() {
   const counts = openCounts(markets, now);
 
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5 px-5 py-6 rail:px-8 rail:py-8">
+    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-page-title text-foreground">Markets</h1>
         {data.status === "ready" ? <BatchMeta bundle={data.bundle} now={now} /> : null}

@@ -1,34 +1,19 @@
 "use client";
 
-import { SegmentedControl } from "@kakure/ui-web";
+import { cx, SegmentedControl } from "@kakure/ui-web";
 import { Monitor, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
-import { setThemeMode, type ThemeMode, useThemeMode } from "./theme-store";
+import { setThemeMode, type ThemeMode, useIsDark, useThemeMode } from "./theme-store";
 
 const OPTIONS = [
-  { value: "light", label: <Sun />, name: "Light" },
   { value: "dark", label: <Moon />, name: "Dark" },
+  { value: "light", label: <Sun />, name: "Light" },
   { value: "system", label: <Monitor />, name: "System" },
 ] as const satisfies ReadonlyArray<{ value: ThemeMode; label: ReactNode; name: string }>;
 
-const NEXT: Record<ThemeMode, ThemeMode> = { light: "dark", dark: "system", system: "light" };
-const ICON: Record<ThemeMode, ReactNode> = { light: <Sun />, dark: <Moon />, system: <Monitor /> };
-
-/** Light / dark / system. A segmented control where it fits; one cycling button in the icon rail. */
-export function ThemeControl({ compact = false }: { compact?: boolean }) {
+/** Dark / light / system, for Settings. */
+export function ThemeControl() {
   const mode = useThemeMode();
-  if (compact) {
-    return (
-      <button
-        type="button"
-        onClick={() => setThemeMode(NEXT[mode])}
-        aria-label={`Theme: ${mode}. Switch to ${NEXT[mode]}`}
-        className="kk-press grid size-11 place-items-center rounded-full bg-secondary text-foreground outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4"
-      >
-        {ICON[mode]}
-      </button>
-    );
-  }
   return (
     <SegmentedControl
       label="Theme"
@@ -37,5 +22,25 @@ export function ThemeControl({ compact = false }: { compact?: boolean }) {
       value={mode}
       onChange={(next) => setThemeMode(next)}
     />
+  );
+}
+
+/**
+ * The rail foot's and More's one-tap theme toggle (Mitoshi ThemeToggle: a 44 px circle on a hairline, the sun in
+ * dark and the moon in cream). It sets an explicit choice; Settings can return to "system".
+ */
+export function ThemeToggle({ className }: { className?: string }) {
+  const dark = useIsDark();
+  const label = dark ? "Switch to light" : "Switch to dark";
+  return (
+    <button
+      type="button"
+      onClick={() => setThemeMode(dark ? "light" : "dark")}
+      aria-label={label}
+      title={label}
+      className={cx("kk-icon-button kk-theme-toggle", className)}
+    >
+      {dark ? <Sun aria-hidden /> : <Moon aria-hidden />}
+    </button>
   );
 }

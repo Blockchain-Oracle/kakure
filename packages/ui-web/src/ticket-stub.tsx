@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import { cx } from "./cx";
 
 /**
- * Kawase's receipt slip (kawase.md §6.1), adapted from 21st.dev ravikatiyar162/ticket-confirmation-card (#6492):
- * a head with the brand and a tag (the folio, or what kind of slip it is), the result (the figure in the condensed display face, with a stamp), facts as
+ * The receipt slip, adapted from 21st.dev ravikatiyar162/ticket-confirmation-card (#6492): a head with the brand and
+ * a tag (the folio, or what kind of slip it is), the result (the figure in JetBrains Mono, with a stamp), facts as
  * label/value rows, then a perforation (a dashed rule with notches cut in the colour of the ground) and a stub.
- * Paper is the `card` plate with the `receipt` shadow, radius 20; no border.
+ * Paper is the `card` plate with Mitoshi's one drop shadow (`receipt`), radius 8.
  */
 export interface StubFact {
   label: string;
@@ -56,13 +56,13 @@ export function TicketStub({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-label text-muted-foreground">{eyebrow}</div>
-            <div className="mt-1 font-display text-display-price text-foreground">{figure}</div>
+            <div className="mt-1 numbers text-display-price text-foreground">{figure}</div>
             {caption ? <div className="mt-1 text-row-detail text-muted-foreground">{caption}</div> : null}
           </div>
           {stamp ? (
             <span
               className={cx(
-                "grid size-20 shrink-0 -rotate-12 place-items-center rounded-full font-display text-title font-black",
+                "grid size-20 shrink-0 -rotate-12 place-items-center rounded-full font-display text-title font-extrabold",
                 "shadow-[inset_0_0_0_3px_currentColor]",
                 STAMP_TONE[stamp.tone],
               )}
