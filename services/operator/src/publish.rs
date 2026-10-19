@@ -103,6 +103,7 @@ impl Publisher {
             "SELECT file FROM address_lists ORDER BY seq",
             "SELECT resolution_file FROM markets WHERE resolution_file IS NOT NULL ORDER BY resolved_at",
             "SELECT file FROM history_files ORDER BY day",
+            "SELECT file FROM prints_files ORDER BY hour",
             "SELECT file FROM bundles ORDER BY seq",
         ] {
             let mut stmt = store.conn.prepare(sql)?;

@@ -6,12 +6,13 @@
 //! candle ending at `opensAt`). A missing or zero-volume candle, or a venue without an opening
 //! reference, is no vote. Two of three decide; anything else refunds every ticket.
 
-use std::{cmp::Ordering, collections::BTreeMap};
+use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, anyhow, ensure};
 use serde::Serialize;
 use zcash_client_backend::proto::service::{self, BlockId, BlockRange, TxFilter};
 
+pub use crate::settle::{Vote, majority, vote};
 use crate::{
     catalog::{self, Asset, HOUR_SECS},
     domain::FINALITY_CONFIRMATIONS,
@@ -24,79 +25,6 @@ use crate::{
 pub const NU7_BRANCH: u32 = 0x7719_0AD9;
 /// After this long past `closesAt`, venues that still have no committed candle are no vote.
 pub const CLOSE_GRACE_SECS: i64 = 20 * 60;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Vote {
-    Up,
-    Down,
-    Flat,
-    None,
-}
-
-impl Vote {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Vote::Up => "U",
-            Vote::Down => "D",
-            Vote::Flat => "flat",
-            Vote::None => "none",
-        }
-    }
-}
-
-/// Compares two positive decimal strings exactly (venues print prices as plain decimals).
-pub fn cmp_decimal(a: &str, b: &str) -> Option<Ordering> {
-    fn parts(s: &str) -> Option<(String, String)> {
-        let (int, frac) = s.split_once('.').unwrap_or((s, ""));
-        if int.is_empty() && frac.is_empty()
-            || !int.bytes().all(|c| c.is_ascii_digit())
-            || !frac.bytes().all(|c| c.is_ascii_digit())
-        {
-            return None;
-        }
-        let int = int.trim_start_matches('0').to_string();
-        Some((int, frac.trim_end_matches('0').to_string()))
-    }
-    match (parts(a), parts(b)) {
-        (Some((ai, af)), Some((bi, bf))) => Some(
-            ai.len()
-                .cmp(&bi.len())
-                .then_with(|| ai.cmp(&bi))
-                .then_with(|| {
-                    let width = af.len().max(bf.len());
-                    format!("{af:0<width$}").cmp(&format!("{bf:0<width$}"))
-                }),
-        ),
-        // Exponent notation (tiny prices printed by a JSON number): compare as floats.
-        _ => a.parse::<f64>().ok()?.partial_cmp(&b.parse::<f64>().ok()?),
-    }
-}
-
-/// One venue's vote: window-end close against its opening reference.
-pub fn vote(opening: Option<&str>, close: Option<&str>) -> Vote {
-    match (opening, close) {
-        (Some(open), Some(close)) => match cmp_decimal(close, open) {
-            Some(Ordering::Greater) => Vote::Up,
-            Some(Ordering::Less) => Vote::Down,
-            Some(Ordering::Equal) => Vote::Flat,
-            None => Vote::None,
-        },
-        _ => Vote::None,
-    }
-}
-
-/// Two of three decide (`U` or `D`); otherwise `None` (refund).
-pub fn majority(votes: &[Vote]) -> Option<&'static str> {
-    let ups = votes.iter().filter(|v| **v == Vote::Up).count();
-    let downs = votes.iter().filter(|v| **v == Vote::Down).count();
-    if ups >= 2 {
-        Some("U")
-    } else if downs >= 2 {
-        Some("D")
-    } else {
-        None
-    }
-}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -2,14 +2,15 @@
   "name": "@kakure/query",
   "private": true,
   "type": "module",
-  "description": "TanStack Query options for Kakure's signed public files (latest \u2192 bundle \u2192 addresses), keyed by network, validated and signature-checked against the pinned operator key.",
+  "description": "TanStack Query options for Kakure's signed public files (latest → bundle → addresses), keyed by network, validated and signature-checked against the pinned operator key.",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "parity": "tsx scripts/parity.ts"
+    "parity": "tsx scripts/parity.ts",
+    "check-v2": "tsx scripts/check-v2.ts"
   },
   "dependencies": {
     "@kakure/domain": "workspace:*",

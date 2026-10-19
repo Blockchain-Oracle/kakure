@@ -219,7 +219,7 @@ pub async fn coinbase_path(
     Ok(path)
 }
 
-async fn get_json(http: &reqwest::Client, url: &str) -> Result<(Value, Fetched)> {
+pub(crate) async fn get_json(http: &reqwest::Client, url: &str) -> Result<(Value, Fetched)> {
     let response = http
         .get(url)
         .send()
@@ -240,7 +240,7 @@ async fn get_json(http: &reqwest::Client, url: &str) -> Result<(Value, Fetched)>
         },
     ))
 }
-fn rows_of(value: &Value) -> Result<&Vec<Value>> {
+pub(crate) fn rows_of(value: &Value) -> Result<&Vec<Value>> {
     value
         .as_array()
         .ok_or_else(|| anyhow!("expected an array of candles"))
@@ -255,7 +255,7 @@ fn pick(rows: &[Value], start: i64, time: usize, close: usize, volume: usize) ->
     Ok(Candle::NotYet)
 }
 
-fn candle_from(close: &Value, volume: &Value) -> Result<Candle> {
+pub(crate) fn candle_from(close: &Value, volume: &Value) -> Result<Candle> {
     if number(volume)? <= 0.0 {
         return Ok(Candle::NoTrades);
     }
@@ -269,7 +269,7 @@ fn candle_from(close: &Value, volume: &Value) -> Result<Candle> {
 }
 
 /// Venues print numbers either as JSON numbers or as decimal strings.
-fn number(value: &Value) -> Result<f64> {
+pub(crate) fn number(value: &Value) -> Result<f64> {
     match value {
         Value::Number(n) => n.as_f64().ok_or_else(|| anyhow!("bad number {n}")),
         Value::String(s) => s.parse().with_context(|| format!("bad number {s:?}")),

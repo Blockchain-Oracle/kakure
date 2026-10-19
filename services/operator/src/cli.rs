@@ -19,7 +19,9 @@ use crate::{
     catalog,
     domain::{self, BATCH_INTERVAL_SECS, BetMemo, NONCE_BYTES},
     engine::{self, Engine, TICK_OFFSET_SECS},
+    minutes::MINUTE_SECS,
     payouts,
+    realtime::{self, Realtime},
     remote::{self, Server, Tor},
     scan::{self, SyncOpts},
     send, signing,
@@ -138,6 +140,15 @@ enum Command {
     Pubkey {
         #[command(flatten)]
         common: Common,
+    },
+    /// The real-time market (plan §00 REVAMP 2): every venue's 1-minute closes, Window prints and
+    /// settlement, σ, hourly prints files and a signed bundle every minute.
+    Serve {
+        #[command(flatten)]
+        common: Common,
+        /// Run one minute's work and exit.
+        #[arg(long)]
+        once: bool,
     },
     /// The operator loop: sync → ingest → engine → publish, on a fixed UTC-aligned clock.
     Run {
@@ -361,6 +372,41 @@ impl Cli {
             }
             Command::Pubkey { common } => {
                 print_pubkey(&signing::load(&common.wallet().dir)?.public());
+            }
+            Command::Serve { common, once } => {
+                let mut rt = Realtime::open(&common.wallet())?;
+                eprintln!("serve: publishing to {}", rt.public_dir().display());
+                loop {
+                    if !once {
+                        // The minute's work starts TICK_OFFSET into each minute, once venues have
+                        // committed the minute that just ended.
+                        let now = chrono::Utc::now().timestamp();
+                        let next = (now - realtime::TICK_OFFSET_SECS).div_euclid(MINUTE_SECS)
+                            * MINUTE_SECS
+                            + MINUTE_SECS
+                            + realtime::TICK_OFFSET_SECS;
+                        tokio::time::sleep(Duration::from_secs(u64::try_from(next - now)?)).await;
+                    }
+                    let now = chrono::Utc::now().timestamp();
+                    match rt.tick(now).await {
+                        Ok(r) => println!(
+                            "{} serve: bundle-{}.json, {} minutes, {} opened, {} settled, {} windows, {} prints{}",
+                            catalog::iso(now),
+                            r.seq,
+                            r.minutes,
+                            r.opened,
+                            r.settled,
+                            r.windows,
+                            r.prints,
+                            r.uploaded
+                                .map_or(String::new(), |n| format!(", {n} file(s) pushed")),
+                        ),
+                        Err(e) => eprintln!("serve: minute failed: {e:#}"),
+                    }
+                    if once {
+                        break;
+                    }
+                }
             }
             Command::Run {
                 common,

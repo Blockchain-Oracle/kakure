@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { LATEST_FILE } from "./constants";
+import { BUNDLES_KEPT, LATEST_FILE } from "./constants";
 
 /** A file the Worker has already verified as signed by this network's operator. */
 export interface VerifiedFile {
@@ -60,6 +60,13 @@ export class DataStore extends DurableObject<object> {
       file.sha256,
       file.seq,
     );
+    // A bundle every minute (plan §00): keep the last day of them. Prints files are the permanent record.
+    if (file.name === LATEST_FILE && file.seq !== null) {
+      this.ctx.storage.sql.exec(
+        "DELETE FROM files WHERE name GLOB 'bundle-*.json' AND CAST(substr(name, 8, length(name) - 12) AS INTEGER) < ?",
+        file.seq - BUNDLES_KEPT,
+      );
+    }
     return "stored";
   }
 }

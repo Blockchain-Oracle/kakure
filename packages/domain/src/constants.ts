@@ -125,3 +125,48 @@ export const UA_TYPECODE_ORCHARD = 0x03;
 
 /** ZIP 321 payment URIs. */
 export const ZIP321_SCHEME = "zcash:";
+
+/* ── Real-time markets (plan §00 REVAMP 2). Mirrored in services/operator/src/lanes.rs and fair.rs. ───────────── */
+
+/** The 24/7 crypto lanes. Stocks join when their price source is live. */
+export const LANE_ASSETS = ["BTC", "ETH", "SOL", "ZEC", "XRP", "DOGE"] as const;
+export type LaneAsset = (typeof LANE_ASSETS)[number];
+
+/** Window lengths, shortest first: 1m, 2m, 5m, 15m, 1h, 4h, 1d (Owarine's crypto lanes plus 1m). */
+export const CADENCES_SEC = [60, 120, 300, 900, 3_600, 14_400, 86_400] as const;
+
+/**
+ * Two series half a Window apart on the short lanes, so a Window is always mid-trade (Owarine's staggered phases,
+ * `crypto.ts:27`). Phases are whole minutes: every boundary lands on a 1-minute venue candle.
+ */
+export const PHASES_SEC: Readonly<Record<number, readonly number[]>> = { 120: [0, 60], 300: [0, 180] };
+
+/** Entry and early close stop this long before expiry (Owarine/Mitoshi `ENTRY_BUFFER_SEC`). */
+export const ENTRY_BUFFER_SEC = 30;
+
+/** The fair price never uses less time left than this (Agari/Mitoshi `MIN_SECONDS_LEFT`). */
+export const MIN_TAU_SEC = 5;
+
+/** σ is realised over the relay's last 5 hours of 1-minute closes, annualised over a 365-day year of minutes. */
+export const SIGMA_MINUTES_PER_YEAR = 525_600;
+export const SIGMA_MIN = 0.2;
+export const SIGMA_MAX = 2.5;
+export const SIGMA_DECIMALS = 4;
+/** Fewer 1-minute returns than this and σ isn't re-estimated (the last value stands). */
+export const SIGMA_MIN_RETURNS = 60;
+
+/** The house's published spread and price bounds (fractions of 1; pays × = 1 / ask). */
+export const HALF_SPREAD = "0.025";
+export const MIN_ASK = "0.02";
+export const MAX_ASK = "0.98";
+
+/** Venues vote on the close of each 1-minute candle; two of three decide (plan §3, PD20). */
+export const VENUE_KEYS = ["coinbase", "kraken", "bitstamp", "gemini"] as const;
+export type VenueKey = (typeof VENUE_KEYS)[number];
+export const VOTES_TO_DECIDE = 2;
+/** Every lane asset is printed by exactly this many venues. */
+export const VENUES_PER_ASSET = 3;
+
+/** A real-time bundle every minute; settled Windows stay in it this long, then live on in the hourly prints files. */
+export const BUNDLE_INTERVAL_SEC = 60;
+export const BUNDLE_SETTLED_KEEP_SEC = 600;

@@ -46,7 +46,8 @@ export async function checkPush(network: Network, name: string, body: ArrayBuffe
     if (typeof document.seq !== "number") return { ok: false, reason: "malformed" };
     seq = document.seq;
     requires.push({ name: document.bundle, sha256: document.bundleHash });
-  } else if (BUNDLE_FILE.test(name)) {
+  } else if (BUNDLE_FILE.test(name) && document.v === 1) {
+    // A pool bundle names its address list, which must be stored first. Real-time (v2) bundles have none.
     if (typeof document.addresses !== "string") return { ok: false, reason: "malformed" };
     requires.push({ name: document.addresses, sha256: null });
   }

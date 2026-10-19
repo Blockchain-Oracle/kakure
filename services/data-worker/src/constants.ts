@@ -24,6 +24,9 @@ export const BASE_HEADERS: Readonly<Record<string, string>> = {
   "x-frame-options": "DENY",
 };
 
+/** Bundles older than this many sequence numbers are deleted when `latest.json` advances (a day at one a minute). */
+export const BUNDLES_KEPT = 1_440;
+
 /** A pushed file larger than this is refused unread; a SQLite row holds at most 2 MB, and a bundle is ~200 KB. */
 export const PUSH_MAX_BYTES = 1_900_000;
 

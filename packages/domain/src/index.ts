@@ -1,8 +1,11 @@
 export * from "./bundle";
+export * from "./bundle-v2";
 export * from "./constants";
 export { fromBase64Url, toBase64Url, toHex, utf8 } from "./encoding";
+export * from "./lanes";
 export * from "./memo";
 export * from "./payout";
+export * from "./settle";
 export * from "./ticket";
 export * from "./units";
 export * from "./zip321";

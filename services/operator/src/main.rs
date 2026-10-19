@@ -1,5 +1,5 @@
-//! Kakure operator: the market wallet on librustzcash (Tor-only chain access), the catalog,
-//! ingest, engine and the signed bundle publisher.
+//! Kakure operator: the market wallet on librustzcash (Tor-only chain access), the real-time
+//! market (`serve`, plan §00) and the pool engine it replaces (`run`), and the signed publisher.
 
 mod catalog;
 mod cli;
@@ -7,18 +7,25 @@ mod cli;
 #[allow(dead_code)]
 mod domain;
 mod engine;
+mod fair;
 mod history;
 mod ingest;
+mod lanes;
 mod lifecycle;
+mod minutes;
 mod params;
 mod payouts;
 mod publish;
 mod push;
+mod realtime;
 mod release;
 mod remote;
 mod resolve;
+mod rt_store;
 mod scan;
 mod send;
+mod settle;
+mod sigma;
 mod signing;
 mod store;
 mod venues;

@@ -8,7 +8,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/*.test.ts",
-    "vectors": "tsx scripts/vectors.ts"
+    "vectors": "tsx scripts/vectors.ts",
+    "lanes-vectors": "tsx scripts/lanes-vectors.ts"
   },
   "dependencies": {
     "@noble/hashes": "catalog:",
