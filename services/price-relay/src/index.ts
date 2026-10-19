@@ -1,4 +1,4 @@
-import { SNAPSHOT_PATH, STREAM_PATH } from "@kakure/feeds/protocol";
+import { BARS_PATH, HEALTH_PATH, SNAPSHOT_PATH, STREAM_PATH } from "@kakure/feeds/protocol";
 import { ALLOWED_ORIGINS, HTTP_FORBIDDEN, HTTP_NOT_FOUND, HTTP_UPGRADE_REQUIRED, HUB_NAME } from "./constants";
 
 export { PriceHub } from "./hub";
@@ -28,10 +28,12 @@ export default {
       }
       return hub.fetch(request);
     }
-    if (pathname === SNAPSHOT_PATH) {
+    if (pathname === SNAPSHOT_PATH || pathname === HEALTH_PATH || pathname === BARS_PATH) {
       const response = await hub.fetch(request);
       const headers = new Headers(response.headers);
-      headers.set("cache-control", "public, max-age=5");
+      if (pathname === SNAPSHOT_PATH) {
+        headers.set("cache-control", "public, max-age=5");
+      }
       if (origin !== null) {
         headers.set("access-control-allow-origin", origin);
       }

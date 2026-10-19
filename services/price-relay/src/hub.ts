@@ -1,20 +1,41 @@
 import { DurableObject } from "cloudflare:workers";
-import { CRYPTO_STREAM_SYMBOLS, type Quote, type RelayMessage, type StreamSymbol } from "@kakure/feeds/protocol";
 import {
+  BARS_PATH,
+  CRYPTO_STREAM_SYMBOLS,
+  HEALTH_PATH,
+  type HealthResponse,
+  type Quote,
+  type RelayMessage,
+  type StreamSymbol,
+  type UpstreamFeed,
+} from "@kakure/feeds/protocol";
+import { BarStore } from "./bars";
+import {
+  BARS_CACHE_SECONDS,
   BROADCAST_INTERVAL_MS,
-  COINBASE_FAILURES_BEFORE_FALLBACK,
   COINBASE_WS,
   HTTP_SWITCHING_PROTOCOLS,
   IDLE_UPSTREAM_GRACE_MS,
   KRAKEN_WS,
+  MINUTE_BACKFILL_SYMBOLS,
+  NOTE_CHARS,
+  NOTES_KEPT,
   RECONNECT_BACKOFF_FACTOR,
   RECONNECT_MAX_MS,
   RECONNECT_MIN_MS,
+  SILENT_AFTER_MS,
   WS_CLOSE_GOING_AWAY,
 } from "./constants";
 import { SessionCalendar, streamStocks } from "./pyth";
 
-type Upstream = "coinbase" | "kraken";
+type SocketFeed = Exclude<UpstreamFeed, "pyth">;
+
+interface FeedState {
+  socket: WebSocket | null;
+  since: number | null;
+  backoffMs: number;
+  messages: number;
+}
 
 export interface HubEnv {
   /** Pyth Hermes key (Worker secret). Without it, stocks stay in their honest "connecting" state. */
@@ -22,23 +43,42 @@ export interface HubEnv {
 }
 
 /**
- * One Durable Object fans a single upstream exchange feed out to every client.
- * It keeps no logs and stores nothing about clients; the upstream only runs while someone is connected.
+ * One Durable Object fans two upstream exchange feeds out to every client.
+ * Coinbase is the primary; Kraken runs alongside it, and a symbol takes Kraken's price only while Coinbase has been
+ * silent on that symbol for `SILENT_AFTER_MS`, so one dead symbol never goes dark. It keeps no logs and stores
+ * nothing about clients; the upstreams only run while someone is connected.
  */
 export class PriceHub extends DurableObject<HubEnv> {
   private readonly prices = new Map<StreamSymbol, Quote>();
   private readonly pending = new Map<StreamSymbol, Quote>();
-  private upstream: WebSocket | null = null;
-  private source: Upstream = "coinbase";
-  private coinbaseFailures = 0;
-  private backoffMs = RECONNECT_MIN_MS;
+  /** When each symbol last ticked on Coinbase (arrival time), for the per-symbol fallback. */
+  private readonly coinbaseSeen = new Map<StreamSymbol, number>();
+  private readonly feeds: Record<SocketFeed, FeedState> = {
+    coinbase: { socket: null, since: null, backoffMs: RECONNECT_MIN_MS, messages: 0 },
+    kraken: { socket: null, since: null, backoffMs: RECONNECT_MIN_MS, messages: 0 },
+  };
+  private readonly bars = new BarStore();
+  private readonly notes: string[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private stocks: AbortController | null = null;
+  private stocksSince: number | null = null;
+  private stockMessages = 0;
   private stockBackoffMs = RECONNECT_MIN_MS;
   private sessions: SessionCalendar | null = null;
 
   override async fetch(request: Request): Promise<Response> {
-    if (new URL(request.url).pathname.endsWith("/snapshot")) {
+    const { pathname } = new URL(request.url);
+    if (pathname === HEALTH_PATH) {
+      return Response.json(this.health(), { headers: { "cache-control": "no-store" } });
+    }
+    if (pathname === BARS_PATH) {
+      this.ensureUpstream();
+      await this.bars.ensureBackfill(CRYPTO_STREAM_SYMBOLS, MINUTE_BACKFILL_SYMBOLS);
+      return Response.json(this.bars.snapshot(), {
+        headers: { "cache-control": `public, max-age=${BARS_CACHE_SECONDS}` },
+      });
+    }
+    if (pathname.endsWith("/snapshot")) {
       return Response.json({ t: "snap", prices: Object.fromEntries(this.prices) } satisfies RelayMessage);
     }
     const { 0: client, 1: server } = new WebSocketPair();
@@ -59,22 +99,32 @@ export class PriceHub extends DurableObject<HubEnv> {
     }
   }
 
-  /** Fires after the idle grace: close the upstream if nobody came back. */
+  /** Fires after the idle grace: close the upstreams if nobody came back. */
   override alarm(): void {
-    if (this.ctx.getWebSockets().length === 0) {
-      this.upstream?.close(WS_CLOSE_GOING_AWAY, "idle");
-      this.upstream = null;
-      this.stocks?.abort();
-      this.stocks = null;
+    if (this.ctx.getWebSockets().length > 0) {
+      return;
     }
+    for (const feed of Object.values(this.feeds)) {
+      feed.socket?.close(WS_CLOSE_GOING_AWAY, "idle");
+      feed.socket = null;
+      feed.since = null;
+    }
+    this.stocks?.abort();
+    this.stocks = null;
+    this.stocksSince = null;
   }
 
   private ensureUpstream(): void {
     this.ensureStocks();
-    if (this.upstream) {
-      return;
+    for (const source of Object.keys(this.feeds) as SocketFeed[]) {
+      if (!this.feeds[source].socket) {
+        this.openFeed(source).catch((error: unknown) => {
+          this.note(`${source} connect failed: ${String(error)}`);
+          this.scheduleReconnect(source);
+        });
+      }
     }
-    this.openUpstream().catch(() => this.scheduleReconnect());
+    void this.bars.ensureBackfill(CRYPTO_STREAM_SYMBOLS, MINUTE_BACKFILL_SYMBOLS);
   }
 
   /** Keyed Pyth stream for stocks, server-side only (the key never reaches clients). */
@@ -85,17 +135,19 @@ export class PriceHub extends DurableObject<HubEnv> {
     }
     const controller = new AbortController();
     this.stocks = controller;
+    this.stocksSince = Date.now();
     const run = async () => {
       this.sessions ??= await SessionCalendar.load();
-      await streamStocks(key, this.sessions, (quotes) => this.accept(quotes), controller.signal);
+      await streamStocks(key, this.sessions, (quotes) => this.accept(quotes, "pyth"), controller.signal);
     };
     run()
-      .catch(() => undefined)
+      .catch((error: unknown) => this.note(`pyth stream ended: ${String(error)}`))
       .finally(() => {
         if (this.stocks !== controller) {
           return;
         }
         this.stocks = null;
+        this.stocksSince = null;
         if (!controller.signal.aborted && this.ctx.getWebSockets().length > 0) {
           const delay = this.stockBackoffMs;
           this.stockBackoffMs = Math.min(this.stockBackoffMs * RECONNECT_BACKOFF_FACTOR, RECONNECT_MAX_MS);
@@ -104,50 +156,65 @@ export class PriceHub extends DurableObject<HubEnv> {
       });
   }
 
-  private async openUpstream(): Promise<void> {
-    const url = this.source === "coinbase" ? COINBASE_WS : KRAKEN_WS;
-    const response = await fetch(url, { headers: { Upgrade: "websocket" } });
+  private async openFeed(source: SocketFeed): Promise<void> {
+    const feed = this.feeds[source];
+    const response = await fetch(source === "coinbase" ? COINBASE_WS : KRAKEN_WS, {
+      headers: { Upgrade: "websocket" },
+    });
     const socket = response.webSocket;
     if (!socket) {
-      throw new Error(`${this.source} refused the WebSocket upgrade (${response.status})`);
+      throw new Error(`${source} refused the WebSocket upgrade (${response.status})`);
     }
     socket.accept();
-    this.upstream = socket;
-    socket.send(JSON.stringify(this.subscribeMessage()));
-    socket.addEventListener("message", (event) => this.onUpstreamMessage(event.data));
-    socket.addEventListener("close", () => this.onUpstreamLost());
-    socket.addEventListener("error", () => this.onUpstreamLost());
-    this.backoffMs = RECONNECT_MIN_MS;
-    this.broadcast({ t: "status", upstream: "connected" });
-  }
-
-  private subscribeMessage(): unknown {
-    if (this.source === "coinbase") {
-      return { type: "subscribe", product_ids: CRYPTO_STREAM_SYMBOLS, channels: ["ticker_batch"] };
+    feed.socket = socket;
+    feed.since = Date.now();
+    socket.send(JSON.stringify(subscribeMessage(source)));
+    socket.addEventListener("message", (event) => this.onFeedMessage(source, event.data));
+    socket.addEventListener("close", (event) =>
+      this.onFeedLost(source, socket, `closed ${event.code} ${event.reason}`),
+    );
+    socket.addEventListener("error", () => this.onFeedLost(source, socket, "socket error"));
+    feed.backoffMs = RECONNECT_MIN_MS;
+    if (source === "coinbase") {
+      this.broadcast({ t: "status", upstream: "connected" });
     }
-    const symbols = CRYPTO_STREAM_SYMBOLS.map((symbol) => symbol.replace("-", "/"));
-    return { method: "subscribe", params: { channel: "ticker", symbol: symbols } };
   }
 
-  private onUpstreamMessage(data: string | ArrayBuffer): void {
-    if (typeof data !== "string") {
+  private onFeedMessage(source: SocketFeed, data: string | ArrayBuffer): void {
+    const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+    this.feeds[source].messages += 1;
+    let quotes: Array<[StreamSymbol, Quote]>;
+    try {
+      quotes = source === "coinbase" ? parseCoinbase(text) : parseKraken(text);
+    } catch {
+      this.note(`${source} unparsable: ${text}`);
       return;
     }
-    const quotes = this.source === "coinbase" ? parseCoinbase(data) : parseKraken(data);
-    if (quotes.length > 0 && this.source === "coinbase") {
-      this.coinbaseFailures = 0;
+    if (quotes.length === 0 && !isRoutine(source, text)) {
+      this.note(`${source}: ${text}`);
     }
-    this.accept(quotes);
+    this.accept(quotes, source);
   }
 
-  private accept(quotes: Array<[StreamSymbol, Quote]>): void {
+  /** Coinbase always wins for a symbol it has ticked recently; Kraken fills only the silent ones. */
+  private accept(quotes: Array<[StreamSymbol, Quote]>, source: UpstreamFeed): void {
     if (quotes.length === 0) {
       return;
     }
-    this.stockBackoffMs = RECONNECT_MIN_MS;
+    const now = Date.now();
+    if (source === "pyth") {
+      this.stockBackoffMs = RECONNECT_MIN_MS;
+      this.stockMessages += 1;
+    }
     for (const [symbol, quote] of quotes) {
+      if (source === "coinbase") {
+        this.coinbaseSeen.set(symbol, now);
+      } else if (source === "kraken" && now - (this.coinbaseSeen.get(symbol) ?? 0) < SILENT_AFTER_MS) {
+        continue;
+      }
       this.prices.set(symbol, quote);
       this.pending.set(symbol, quote);
+      this.bars.record(symbol, quote.p, quote.ts);
     }
     this.flushTimer ??= setTimeout(() => this.flush(), BROADCAST_INTERVAL_MS);
   }
@@ -161,27 +228,27 @@ export class PriceHub extends DurableObject<HubEnv> {
     this.pending.clear();
   }
 
-  private onUpstreamLost(): void {
-    if (!this.upstream) {
+  private onFeedLost(source: SocketFeed, socket: WebSocket, why: string): void {
+    const feed = this.feeds[source];
+    if (feed.socket !== socket) {
       return;
     }
-    this.upstream = null;
-    if (this.source === "coinbase") {
-      this.coinbaseFailures += 1;
-      if (this.coinbaseFailures >= COINBASE_FAILURES_BEFORE_FALLBACK) {
-        this.source = "kraken";
-      }
+    feed.socket = null;
+    feed.since = null;
+    this.note(`${source} lost: ${why}`);
+    if (source === "coinbase") {
+      this.broadcast({ t: "status", upstream: "reconnecting" });
     }
-    this.broadcast({ t: "status", upstream: "reconnecting" });
-    this.scheduleReconnect();
+    this.scheduleReconnect(source);
   }
 
-  private scheduleReconnect(): void {
+  private scheduleReconnect(source: SocketFeed): void {
     if (this.ctx.getWebSockets().length === 0) {
       return;
     }
-    const delay = this.backoffMs;
-    this.backoffMs = Math.min(this.backoffMs * RECONNECT_BACKOFF_FACTOR, RECONNECT_MAX_MS);
+    const feed = this.feeds[source];
+    const delay = feed.backoffMs;
+    feed.backoffMs = Math.min(feed.backoffMs * RECONNECT_BACKOFF_FACTOR, RECONNECT_MAX_MS);
     setTimeout(() => this.ensureUpstream(), delay);
   }
 
@@ -195,9 +262,53 @@ export class PriceHub extends DurableObject<HubEnv> {
       }
     }
   }
+
+  private note(text: string): void {
+    this.notes.push(`${new Date().toISOString()} ${text.slice(0, NOTE_CHARS)}`);
+    if (this.notes.length > NOTES_KEPT) {
+      this.notes.shift();
+    }
+  }
+
+  private health(): HealthResponse {
+    const now = Date.now();
+    const feed = (state: FeedState) => ({
+      connected: state.socket !== null,
+      since: state.since,
+      messages: state.messages,
+    });
+    return {
+      feeds: {
+        coinbase: feed(this.feeds.coinbase),
+        kraken: feed(this.feeds.kraken),
+        pyth: { connected: this.stocks !== null, since: this.stocksSince, messages: this.stockMessages },
+      },
+      symbols: Object.fromEntries(
+        [...this.prices].map(([symbol, quote]) => [symbol, { src: quote.src, ageMs: now - quote.ts }]),
+      ),
+      notes: [...this.notes],
+    };
+  }
 }
 
 const SYMBOLS = new Set<string>(CRYPTO_STREAM_SYMBOLS);
+
+function subscribeMessage(source: SocketFeed): unknown {
+  if (source === "coinbase") {
+    return { type: "subscribe", product_ids: CRYPTO_STREAM_SYMBOLS, channels: ["ticker_batch"] };
+  }
+  const symbols = CRYPTO_STREAM_SYMBOLS.map((symbol) => symbol.replace("-", "/"));
+  return { method: "subscribe", params: { channel: "ticker", symbol: symbols } };
+}
+
+/** Heartbeats and ticker snapshots are routine; anything else (errors, subscription replies) is worth a note. */
+function isRoutine(source: SocketFeed, text: string): boolean {
+  return source === "coinbase"
+    ? text.includes('"type":"heartbeat"') || text.includes('"type":"ticker"')
+    : text.includes('"channel":"heartbeat"') ||
+        text.includes('"channel":"ticker"') ||
+        text.includes('"channel":"status"');
+}
 
 /** Coinbase `ticker` / `ticker_batch` messages: `{ type: "ticker", product_id, price, time }`. */
 function parseCoinbase(data: string): Array<[StreamSymbol, Quote]> {

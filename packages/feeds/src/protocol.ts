@@ -57,6 +57,10 @@ export const STREAM_SYMBOLS: readonly StreamSymbol[] = [...CRYPTO_STREAM_SYMBOLS
 
 export const STREAM_PATH = "/v1/stream";
 export const SNAPSHOT_PATH = "/v1/snapshot";
+/** Upstream health: each feed's state and every symbol's last-tick age. Public and the same for everyone. */
+export const HEALTH_PATH = "/v1/health";
+/** Price history for every symbol in one response, so the relay never learns which one a visitor looks at (PD19). */
+export const BARS_PATH = "/v1/bars";
 
 /** A price as the venue reported it (decimal string, never a float) and the venue's timestamp (ms). */
 export interface Quote {
@@ -87,6 +91,25 @@ export interface StatusMessage {
 }
 
 export type RelayMessage = SnapshotMessage | TicksMessage | StatusMessage;
+
+/** A closing price at a bar's start time: `[unix ms, decimal price]`. */
+export type BarPoint = [number, string];
+
+/** `BARS_PATH`: 5-minute closes over the last day (sparklines) and 1-minute closes (charts), oldest first. */
+export interface BarsResponse {
+  fiveMinute: Partial<Record<StreamSymbol, BarPoint[]>>;
+  oneMinute: Partial<Record<StreamSymbol, BarPoint[]>>;
+}
+
+export type UpstreamFeed = "coinbase" | "kraken" | "pyth";
+
+/** `HEALTH_PATH`: per-feed state and per-symbol freshness. Nothing about clients. */
+export interface HealthResponse {
+  feeds: Record<UpstreamFeed, { connected: boolean; since: number | null; messages: number }>;
+  symbols: Partial<Record<StreamSymbol, { src: Quote["src"]; ageMs: number }>>;
+  /** The last few upstream messages that were neither ticks nor heartbeats (errors, subscription replies). */
+  notes: string[];
+}
 
 /** A price with no update for this long is shown as stale (with its age). */
 export const STALE_AFTER_MS = 30_000;
