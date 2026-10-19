@@ -9,6 +9,8 @@ const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD",
 const USD_DIGITS_LARGE = 2;
 const USD_DIGITS_SMALL = 6;
 const SMALL_PRICE = 1;
+/** The relay names its upstream per price; Kraken fills a symbol while Coinbase is silent on it. */
+export const SOURCE_NAME = { coinbase: "Coinbase", kraken: "Kraken", pyth: "Pyth" } as const;
 
 export function formatUsd(price: string): string {
   const value = Number(price);
@@ -23,7 +25,7 @@ export function formatUsd(price: string): string {
 export function LivePrice({ stream }: { stream: StreamSymbol }) {
   const price = usePrice(stream);
   const now = useNow();
-  const source = "Coinbase via the Kakure relay";
+  const source = `${SOURCE_NAME[price.src ?? "coinbase"]} via the Kakure relay`;
 
   return (
     <div className="flex flex-col gap-2">

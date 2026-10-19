@@ -453,6 +453,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@kakure/chart':
+        specifier: workspace:*
+        version: link:../../packages/chart
       '@kakure/domain':
         specifier: workspace:*
         version: link:../../packages/domain

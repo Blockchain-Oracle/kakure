@@ -21,4 +21,18 @@ export const safeStorage = {
       // Nothing to clean up.
     }
   },
+  /** Every stored pair; the query persister's sweep uses it to drop expired entries (it filters by its prefix). */
+  entries(): Array<[string, string]> {
+    const out: Array<[string, string]> = [];
+    try {
+      for (let i = 0; i < window.localStorage.length; i += 1) {
+        const key = window.localStorage.key(i);
+        const value = key === null ? null : window.localStorage.getItem(key);
+        if (key !== null && value !== null) out.push([key, value]);
+      }
+    } catch {
+      // Blocked storage: nothing to sweep.
+    }
+    return out;
+  },
 };

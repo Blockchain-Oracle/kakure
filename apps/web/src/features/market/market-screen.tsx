@@ -1,26 +1,20 @@
 "use client";
 
-import type { AddressList, Bundle, Market, Network } from "@kakure/domain";
-import { Button, buttonClass, EmptyState, Mark, Pill, Skeleton, SkeletonLine } from "@kakure/ui-web";
-import { ArrowLeft, Blocks, Hourglass, Link2Off, RefreshCw, Unplug } from "lucide-react";
+import type { Network } from "@kakure/domain";
+import { Button, buttonClass, EmptyState, Skeleton, SkeletonLine } from "@kakure/ui-web";
+import { ArrowLeft, Hourglass, Link2Off, RefreshCw, Unplug } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { NETWORK_LABEL } from "@/constants";
 import { DataErrorState, FreshnessStrip } from "@/features/data/data-states";
 import { useMarkets } from "@/features/data/use-markets";
 import { assetFor } from "@/features/markets/assets";
 import { setCategory } from "@/features/markets/category-store";
-import { statePill, WINDOW_LABEL } from "@/features/markets/market-view";
 import { MainnetSheet } from "@/features/network/mainnet-sheet";
 import { switchNetwork } from "@/features/network/network-store";
 import { useNow } from "@/lib/time";
-import { BatchHistory } from "./batch-history";
-import { BetArea } from "./bet-area";
 import { parseMarketFragment, useFragment } from "./fragment";
-import { LivePrice } from "./live-price";
-import { MarketFacts } from "./market-facts";
-import { OddsPanel } from "./odds-panel";
-import { RulesPanel } from "./rules-panel";
+import { Terminal } from "./terminal";
 
 /** Market detail (`/m#<network>/<id>`, surfaces.md): header, live price, odds or sealed, times, rules, history. */
 export function MarketScreen() {
@@ -35,7 +29,7 @@ export function MarketScreen() {
   }, [market]);
 
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
+    <div className="flex w-full flex-col gap-4">
       <Link
         href="/markets"
         className="flex w-fit items-center gap-1.5 rounded-xs text-row-detail text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -74,7 +68,7 @@ export function MarketScreen() {
           action={<BrowseLink />}
         />
       ) : data.status === "ready" && market ? (
-        <Detail
+        <Terminal
           market={market}
           bundle={data.bundle}
           addresses={data.addresses}
@@ -91,68 +85,6 @@ export function MarketScreen() {
         />
       ) : null}
     </div>
-  );
-}
-
-function Detail({
-  market,
-  bundle,
-  addresses,
-  network,
-  now,
-  freshness,
-}: {
-  market: Market;
-  bundle: Bundle;
-  addresses: AddressList | null;
-  network: Network;
-  now: number;
-  freshness: ReactNode;
-}) {
-  const asset = assetFor(market);
-  const pill = statePill(market, now);
-  return (
-    <>
-      <header className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <Mark mark={asset.mark} label={asset.symbol} size="detail" />
-          <div className="min-w-0 flex-1">
-            <div className="text-row-title text-foreground">{asset.name}</div>
-            <div className="text-meta text-muted-foreground">
-              {asset.symbol} · {WINDOW_LABEL[market.window]} · {NETWORK_LABEL[network]}
-            </div>
-          </div>
-          <Pill tone={pill.tone} indicator={pill.pulse ? "pulse" : false}>
-            {pill.label}
-          </Pill>
-        </div>
-        <h1 className="font-display text-page-title text-foreground">{market.rules.question}</h1>
-      </header>
-      {freshness}
-      <div className="grid grid-cols-1 gap-4 wide:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <section className="rounded-group border border-border bg-card p-5" aria-label="Price">
-            {asset.stream ? (
-              <LivePrice stream={asset.stream} />
-            ) : (
-              <div className="flex items-center gap-3 text-row-detail text-muted-foreground">
-                <Blocks aria-hidden className="size-5 text-foreground" />
-                {market.kind === "event"
-                  ? "Resolved from Zcash chain data, not from a price."
-                  : "This market's price feed isn't connected yet."}
-              </div>
-            )}
-          </section>
-          <BetArea market={market} bundle={bundle} addresses={addresses} network={network} now={now} />
-          <OddsPanel market={market} bundle={bundle} network={network} now={now} />
-          <RulesPanel market={market} />
-        </div>
-        <div className="flex min-w-0 flex-col gap-4">
-          <MarketFacts market={market} now={now} />
-          <BatchHistory market={market} bundle={bundle} now={now} />
-        </div>
-      </div>
-    </>
   );
 }
 

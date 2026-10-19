@@ -12,6 +12,7 @@
     "reachability": "node scripts/reachability.mjs"
   },
   "dependencies": {
+    "@kakure/chart": "workspace:*",
     "@kakure/domain": "workspace:*",
     "@kakure/feeds": "workspace:*",
     "@kakure/query": "workspace:*",

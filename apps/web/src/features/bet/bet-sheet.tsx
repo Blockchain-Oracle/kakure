@@ -13,11 +13,11 @@ import {
 } from "@kakure/domain";
 import { type Ticket, ticketLeaf, winningPayout } from "@kakure/query";
 import { fire } from "@kakure/sounds";
-import { Button, Chip, ChipGroup, SegmentedControl, Sheet } from "@kakure/ui-web";
+import { Button, Sheet } from "@kakure/ui-web";
 import { useEffect, useState } from "react";
 import { NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { assetFor } from "@/features/markets/assets";
-import { coinAmount, isBettable, sidesOf, sideWord } from "@/features/markets/market-view";
+import { coinAmount, isBettable, shortTitle, sideWord } from "@/features/markets/market-view";
 import { useNetwork } from "@/features/network/network-store";
 import { TicketsLockedError } from "@/features/tickets/ticket-db";
 import { addTicket } from "@/features/tickets/use-tickets";
@@ -26,8 +26,8 @@ import { PayoutAddressField, usePayoutAddress } from "./payout-address";
 import { QrStep } from "./qr-step";
 
 /**
- * The bet sheet (C2, surfaces.md): side, a fixed ticket, max loss and (only once odds are released) a payout
- * estimate, then the payout address checked in the browser. "Make QR" builds the ZIP 321 request on this device,
+ * The pay sheet (plan §0 R2): the ticket already chose the side and size, so this is one line of summary, the payout
+ * address (checked in the browser, with Paste) and the button. "Make QR" builds the ZIP 321 request on this device,
  * saves the ticket here first, and only then shows the code (plan §13.2). Nothing is sent to any server.
  */
 export interface BetSheetProps {
@@ -35,6 +35,8 @@ export interface BetSheetProps {
   addresses: AddressList | null;
   network: Network;
   side: Side;
+  /** The ticket size the bet ticket chose; the smallest size when opened from elsewhere. */
+  size?: bigint;
   onClose: () => void;
 }
 
@@ -53,11 +55,10 @@ function pickAddress(list: AddressList): string | undefined {
   }
 }
 
-export default function BetSheet({ market, addresses, network, side: initialSide, onClose }: BetSheetProps) {
+export default function BetSheet({ market, addresses, network, side, size: chosen, onClose }: BetSheetProps) {
   const now = useNow();
   const current = useNetwork();
-  const [side, setSide] = useState<Side>(initialSide);
-  const [size, setSize] = useState<bigint>(TICKET_SIZES_ZAT[0] ?? 0n);
+  const size = chosen ?? TICKET_SIZES_ZAT[0] ?? 0n;
   const payout = usePayoutAddress(network);
   const [ticket, setTicket] = useState<{ ticket: Ticket; uri: string } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -154,49 +155,28 @@ export default function BetSheet({ market, addresses, network, side: initialSide
             : { label: "Fix the payout address", action: () => payout.focus() };
 
   return (
-    <Sheet open onClose={onClose} title={ticket ? "Pay from your wallet" : `Bet on ${asset.symbol}`}>
+    <Sheet open onClose={onClose} title={ticket ? "Pay from your wallet" : "Where should winnings go?"}>
       {ticket ? (
         <QrStep ticket={ticket.ticket} uri={ticket.uri} market={market} onDone={onClose} />
       ) : (
-        <div className="flex flex-col gap-5">
-          <p className="text-row-detail text-muted-foreground">{market.rules.question}</p>
-          <SegmentedControl
-            label="Side"
-            value={side}
-            onChange={(next) => setSide(next)}
-            options={sidesOf(market).map((value) => ({
-              value: value as Side,
-              label: `${SIGN[value] ?? ""} ${sideWord(value)}`,
-            }))}
-            className="w-full"
-          />
-          <div className="flex flex-col gap-2">
-            <span className="text-label text-muted-foreground">Ticket</span>
-            <ChipGroup label="Ticket size">
-              {TICKET_SIZES_ZAT.map((value) => (
-                <Chip key={value.toString()} selected={value === size} onClick={() => setSize(value)}>
-                  {coinAmount(value, coin)}
-                </Chip>
-              ))}
-            </ChipGroup>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3 rounded-group bg-card px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-body-strong text-foreground">
+                <span aria-hidden>{SIGN[side]}</span> {sideWord(side)} · {coinAmount(size, coin)}
+              </div>
+              <div className="truncate text-meta text-muted-foreground">{shortTitle(market, asset.symbol)}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-meta text-muted-foreground">To win</div>
+              <div className="font-mono text-num-md text-up">
+                {estimate === null ? "—" : coinAmount(estimate, coin)}
+              </div>
+            </div>
           </div>
-          <dl className="flex flex-col gap-2.5 rounded-group bg-raised-2 p-4">
-            <Fact label="You risk" value={coinAmount(size, coin)} />
-            <Fact
-              label={`If ${sideWord(side)} wins`}
-              value={estimate === null ? "Set by the final pools" : `≈ ${coinAmount(estimate, coin)}`}
-            />
-            <p className="text-meta text-muted-foreground">
-              {estimate === null
-                ? "Odds are sealed until each side has 3 tickets, so there's no estimate yet. Winners split the losing side, less 2 %."
-                : `At the totals released in batch ${market.released?.seq}, with your ticket added. The final pools decide.`}{" "}
-              Your wallet pays the network fee.
-            </p>
-          </dl>
           <PayoutAddressField state={payout} network={network} />
-          <p className="rounded-row bg-warn-surface px-4 py-3 text-row-detail text-warn">
-            Paying from Zodl? Move your funds to Ironwood first (Zodl → Migrate). Paying from older Orchard funds
-            reveals the bet amount on chain.
+          <p className="text-meta text-muted-foreground">
+            Zodl: move funds to Ironwood first (Zodl → Migrate), or the amount shows on chain.
           </p>
           {failure ? (
             <p role="alert" className="rounded-row bg-destructive-surface px-4 py-3 text-row-detail text-destructive">
@@ -207,19 +187,10 @@ export default function BetSheet({ market, addresses, network, side: initialSide
             {cta.label}
           </Button>
           <p className="text-center text-meta text-muted-foreground">
-            {NETWORK_LABEL[network]} · the QR and memo are built on this device and never sent to a server
+            {NETWORK_LABEL[network]} · built on this device, never sent to a server
           </p>
         </div>
       )}
     </Sheet>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4">
-      <dt className="text-row-detail text-muted-foreground">{label}</dt>
-      <dd className="text-row-amount text-foreground tabular-nums">{value}</dd>
-    </div>
   );
 }

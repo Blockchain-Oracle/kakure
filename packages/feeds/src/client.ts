@@ -28,6 +28,8 @@ export interface PriceState {
   status: PriceStatus;
   price?: string;
   ts?: number;
+  /** Which upstream the relay took this price from (Coinbase, or Kraken while Coinbase is silent on it; Pyth). */
+  src?: Quote["src"];
 }
 
 const RECONNECT_MIN_MS = 1_000;
@@ -78,10 +80,16 @@ export class PriceStream {
     }
     const status: PriceStatus = this.upstreamHealthy && now - quote.ts < STALE_AFTER_MS ? "live" : "stale";
     const cached = this.states.get(symbol);
-    if (cached && cached.status === status && cached.price === quote.p && cached.ts === quote.ts) {
+    if (
+      cached &&
+      cached.status === status &&
+      cached.price === quote.p &&
+      cached.ts === quote.ts &&
+      cached.src === quote.src
+    ) {
       return cached; // stable identity for useSyncExternalStore
     }
-    const next: PriceState = { status, price: quote.p, ts: quote.ts };
+    const next: PriceState = { status, price: quote.p, ts: quote.ts, src: quote.src };
     this.states.set(symbol, next);
     return next;
   }

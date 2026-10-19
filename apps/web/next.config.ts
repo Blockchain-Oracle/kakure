@@ -4,6 +4,7 @@ import { DEV_DATA_PORT } from "./src/dev-constants";
 
 /** Workspace packages ship TypeScript source; Next compiles them with the app. */
 const WORKSPACE_PACKAGES = [
+  "@kakure/chart",
   "@kakure/domain",
   "@kakure/feeds",
   "@kakure/query",

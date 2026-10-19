@@ -92,3 +92,26 @@ body {
     animation: none;
   }
 }
+
+/* A changed number slides up into place (the bet ticket's amount; BeUI's digit entrance, in CSS). */
+@keyframes kk-roll-in {
+  from {
+    transform: translateY(35%);
+    opacity: 0;
+    filter: blur(4px);
+  }
+  to {
+    transform: none;
+    opacity: 1;
+    filter: none;
+  }
+}
+.kk-roll-in {
+  display: inline-block;
+  animation: kk-roll-in var(--duration-pill, 280ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kk-roll-in {
+    animation: none;
+  }
+}
