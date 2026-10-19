@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS receipts (
 CREATE INDEX IF NOT EXISTS receipts_market ON receipts (market_id, status);
 
 -- Tickets a bundle has made public (PD28): a market's ticketCount, leaves and totals are exactly
--- these rows. Pending tickets join only in releases of MIN_NEW_TICKETS_PER_RELEASE or more.
+-- these rows. A side's pending tickets join only in releases of MIN_NEW_TICKETS_PER_RELEASE or more of that side.
 CREATE TABLE IF NOT EXISTS released_tickets (
     market_id TEXT NOT NULL,
     leaf TEXT NOT NULL,

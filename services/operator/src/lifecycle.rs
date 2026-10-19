@@ -2,8 +2,8 @@
 //!
 //! 1. Freeze: once the cutoff block `H_c` has 10 confirmations, the wallet is fully scanned
 //!    through `H_c + 9` and no memo enhancement is pending at or below it, the final counts are
-//!    recorded with `H_c`'s block hash. They are the released tickets only (PD28): fewer than
-//!    `MIN_NEW_TICKETS_PER_RELEASE` still pending are refunded in full and never counted. A later
+//!    recorded with `H_c`'s block hash. They are the released tickets only (PD28): a side with
+//!    fewer than `MIN_NEW_TICKETS_PER_RELEASE` still pending is refunded in full, never counted. A later
 //!    tick that finds a different `H_c` or hash (a reorg below `H_c + 10`) unfreezes the market,
 //!    re-selects `H_c` and reconciles again.
 //! 2. Resolve: venue votes (close markets) or a chain read (event markets), archived in a signed
@@ -236,9 +236,19 @@ impl Engine {
                 .into_iter()
                 .filter(|r| r.status == "ticket")
                 .partition(|r| r.leaf.as_ref().is_some_and(|l| released.contains(l)));
+            // Per-side release: each side may hold back up to `min - 1` tickets at the freeze.
+            let per_side_bound = crate::release::max_unreleased_per_side(
+                crate::domain::MIN_NEW_TICKETS_PER_RELEASE as usize,
+            );
+            let mut held_back: BTreeMap<&str, usize> = BTreeMap::new();
+            for r in &unreleased {
+                *held_back
+                    .entry(r.side.as_deref().unwrap_or(""))
+                    .or_default() += 1;
+            }
             ensure!(
                 Some(u32::try_from(tickets.len())?) == m.final_count
-                    && unreleased.len() < crate::domain::MIN_NEW_TICKETS_PER_RELEASE as usize,
+                    && held_back.values().all(|n| *n <= per_side_bound),
                 "{}: ticket set changed after the freeze",
                 m.id
             );

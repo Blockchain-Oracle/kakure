@@ -6,9 +6,10 @@
 //! restart continues the same sequence.
 //!
 //! A market's public `ticketCount`, `leaves` and totals are its released tickets only (PD28):
-//! tickets stay pending, unpublished, until at least `MIN_NEW_TICKETS_PER_RELEASE` are pending,
-//! and all of them join in one release. This holds for the first (unsealing) release and every
-//! later one; at the final freeze, fewer pending are refunded in full and never counted.
+//! tickets stay pending, unpublished, until at least `MIN_NEW_TICKETS_PER_RELEASE` of the *same
+//! side* are pending, and that side's pending tickets join in one release (`release.rs`), so a
+//! bundle diff never isolates one ticket. This holds for the first (unsealing) release and every
+//! later one; at the final freeze, a side's fewer pending are refunded in full and never counted.
 //! Payouts are never sent from a tick: they go out between ticks at their own random times.
 
 use std::collections::{BTreeMap, HashSet};
@@ -464,8 +465,9 @@ impl Engine {
         Ok(())
     }
 
-    /// Releases each open market's pending tickets once at least `MIN_NEW_TICKETS_PER_RELEASE`
-    /// are pending, all at once, into bundle `seq` (PD28). Frozen markets never release again.
+    /// Releases each open market's pending tickets per side: a side goes out, whole, once at least
+    /// `MIN_NEW_TICKETS_PER_RELEASE` of its own tickets are pending (PD28, `release.rs`), so no
+    /// bundle diff can isolate one ticket's side or size. Frozen markets never release again.
     fn release_tickets(&mut self, seq: u64) -> Result<()> {
         for m in self.store.markets()? {
             if m.outcome.is_some() || m.cutoff_hash.is_some() || m.cancelled {
@@ -483,7 +485,8 @@ impl Engine {
                 .into_iter()
                 .filter(|(_, _, leaf)| !released.contains(leaf))
                 .collect();
-            if pending.len() < MIN_NEW_TICKETS_PER_RELEASE as usize {
+            let pending = crate::release::releasable(pending, MIN_NEW_TICKETS_PER_RELEASE as usize);
+            if pending.is_empty() {
                 continue;
             }
             let tx = self.store.conn.transaction()?;

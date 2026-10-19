@@ -117,7 +117,9 @@ let marketCount = 0;
 let leafCount = 0;
 /** Wording every market created under PD28 carries in its cancellation rules. */
 const RELEASE_RULE = "published only in releases of at least";
-const lastSeen = new Map<string, { count: number; leaves: Set<string> }>();
+/** Markets created under the per-side rule (2026-10-19) also promise that every side changes by ≥ the minimum. */
+const PER_SIDE_RULE = "new tickets of the same side";
+const lastSeen = new Map<string, { count: number; leaves: Set<string>; sides: Record<string, number> | null }>();
 let releaseChecked = 0;
 
 for (const file of addressFiles) {
@@ -189,7 +191,23 @@ for (const [position, file] of bundleFiles.entries()) {
       if (market.released && released !== market.ticketCount) {
         fail(file, `${market.id}: released totals count ${released} tickets, ticketCount is ${market.ticketCount}`);
       }
-      const before = lastSeen.get(market.id) ?? { count: 0, leaves: new Set<string>() };
+      const before = lastSeen.get(market.id) ?? { count: 0, leaves: new Set<string>(), sides: null };
+      const sides = market.released
+        ? Object.fromEntries(Object.entries(market.released.sides).map(([side, pool]) => [side, pool?.tickets ?? 0]))
+        : null;
+      // Per side: between two unsealed bundles, every side's count stays or grows by at least the minimum, so a
+      // bundle diff never isolates one ticket's side or size (the 2 Up + 1 Down leak).
+      if (market.rules.cancellation.includes(PER_SIDE_RULE) && sides && before.sides) {
+        for (const [side, count] of Object.entries(sides)) {
+          const grew = count - (before.sides[side] ?? 0);
+          if (grew > 0 && grew < MIN_NEW_TICKETS_PER_RELEASE) {
+            fail(
+              file,
+              `${market.id}: side ${side} grew by ${grew} ticket(s) (a release needs ${MIN_NEW_TICKETS_PER_RELEASE} of one side)`,
+            );
+          }
+        }
+      }
       const added = market.ticketCount - before.count;
       const kept = [...before.leaves].every((leaf) => market.leaves.includes(leaf));
       if (added > 0 && (added < MIN_NEW_TICKETS_PER_RELEASE || !kept)) {
@@ -201,7 +219,7 @@ for (const [position, file] of bundleFiles.entries()) {
       if (added !== 0 && market.released && market.released.seq !== bundle.seq) {
         fail(file, `${market.id}: released.seq ${market.released.seq} is not this release's bundle`);
       }
-      lastSeen.set(market.id, { count: market.ticketCount, leaves: new Set(market.leaves) });
+      lastSeen.set(market.id, { count: market.ticketCount, leaves: new Set(market.leaves), sides });
       // N1/N3: a refunded market ends `resolved` like any other, with counts only, hidden tickets or not.
       if (market.outcome === "refund" && market.resolution !== undefined) {
         if (market.state !== "resolved") {

@@ -14,6 +14,7 @@ mod params;
 mod payouts;
 mod publish;
 mod push;
+mod release;
 mod remote;
 mod resolve;
 mod scan;

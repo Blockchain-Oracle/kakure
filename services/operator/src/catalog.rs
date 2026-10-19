@@ -187,9 +187,9 @@ pub fn next_window_start(now: i64, length: i64) -> i64 {
 fn shared_cancellation(extra: &str) -> String {
     format!(
         "Ticket counts, ticket hashes and side totals are published only in releases of at least \
-         {MIN_NEW_TICKETS_PER_RELEASE} new tickets, so no release singles out one bet. Tickets still unreleased when \
-         the cutoff block H_c is final (fewer than {MIN_NEW_TICKETS_PER_RELEASE}) are refunded in full and never \
-         counted. Every counted ticket is refunded if either side has fewer than {MIN_TICKETS_PER_SIDE} counted \
+         {MIN_NEW_TICKETS_PER_RELEASE} new tickets of the same side, so no release singles out one bet. A side's tickets \
+         still unreleased when the cutoff block H_c is final (fewer than {MIN_NEW_TICKETS_PER_RELEASE} on that side) are \
+         refunded in full and never counted. Every counted ticket is refunded if either side has fewer than {MIN_TICKETS_PER_SIDE} counted \
          tickets at the cutoff{extra}. \
          Refunds to the memo's payout address: bets mined at or after the cutoff block H_c, bets mined before betting \
          opened, wrong amounts of 0.001 ZEC or more (smaller amounts are kept as dust), a side this market does not have, \
