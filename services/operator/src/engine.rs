@@ -151,6 +151,7 @@ impl Engine {
             .ok_or_else(|| anyhow!("the wallet has no scanned blocks yet (run sync)"))?;
 
         self.create_markets(now, tip)?;
+        self.create_ladders(now).await?;
         self.record_openings(now).await?;
         self.ensure_address_list(tip, now)?;
 
@@ -315,6 +316,59 @@ impl Engine {
             }
         }
         tx.commit()?;
+        Ok(())
+    }
+
+    /// Creates tomorrow's strike ladders (Range / Moonshot) once inside `LADDER_LEAD_SECS` of the day, from the
+    /// Coinbase 1-hour close that just ended: the strikes and that reference go into the signed rules before betting
+    /// opens. A venue that can't answer yet just means the next tick tries again.
+    async fn create_ladders(&mut self, now: i64) -> Result<()> {
+        let Some(day) = catalog::ladder_due(now) else {
+            return Ok(());
+        };
+        let reference_start =
+            now.div_euclid(catalog::HOUR_SECS) * catalog::HOUR_SECS - catalog::HOUR_SECS;
+        let reference_end = reference_start + catalog::HOUR_SECS;
+        for key in catalog::LADDER {
+            let asset = catalog::asset(key).expect("ladder asset");
+            if self
+                .store
+                .has_ladder(asset.ticker, day + catalog::DAY_SECS)?
+            {
+                continue;
+            }
+            let reference =
+                match venues::candle(&self.http, &asset.venues[0], reference_start, now).await {
+                    Ok(Candle::Close(close)) => close,
+                    Ok(_) => continue,
+                    Err(e) => {
+                        eprintln!("ladder: {key} reference: {e:#}");
+                        continue;
+                    }
+                };
+            let Some(cents) = catalog::price_cents(&reference) else {
+                eprintln!("ladder: {key} reference {reference} is not a decimal price");
+                continue;
+            };
+            let tx = self.store.conn.transaction()?;
+            for strike in catalog::strikes(cents) {
+                let market = catalog::strike_market(
+                    asset,
+                    day,
+                    day + catalog::DAY_SECS,
+                    strike,
+                    (&reference, reference_end),
+                    self.payout_window,
+                )?;
+                if store::insert_market(&tx, &market, now)? {
+                    eprintln!(
+                        "catalog: created {} (strike ${strike}, reference {reference})",
+                        market.id
+                    );
+                }
+            }
+            tx.commit()?;
+        }
         Ok(())
     }
 
@@ -735,6 +789,9 @@ impl Engine {
         let object = market.as_object_mut().expect("object");
         if let Some(opening) = &m.opening {
             object.insert("opening".into(), serde_json::from_str(opening)?);
+        }
+        if let Some(strike) = &m.strike {
+            object.insert("strike".into(), Value::String(strike.clone()));
         }
         // N3: a refunded market has no payout to verify, so its final state shows counts only.
         if let Some((s, sides_json)) = released

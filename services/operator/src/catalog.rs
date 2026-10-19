@@ -153,6 +153,71 @@ pub struct NewMarket {
     pub bet_height_cap: Option<u32>,
     /// The payout window the rules state; payouts for this market use exactly this window (O2).
     pub payout_window: Window,
+    /// Strike markets: the strike in whole US dollars (Range / Moonshot ladders).
+    pub strike: Option<u64>,
+    /// Strike markets: the opening reference fixed at creation (`{venue: strike}`, canonical JSON).
+    pub opening: Option<String>,
+}
+
+/// Daily assets that also get a ladder of strike markets ("BTC above $X at close?").
+pub const LADDER: [&str; 4] = ["btc", "eth", "sol", "zec"];
+/// Rung offsets from the reference price, in basis points: the near rungs are Range, the far ones Moonshot.
+pub const LADDER_OFFSETS_BPS: [i64; 6] = [-500, -250, -100, 100, 250, 500];
+/// Ladders are created this long before their day opens, so strikes start near the money.
+pub const LADDER_LEAD_SECS: i64 = 2 * HOUR_SECS;
+/// Strikes round to a tidy step of about this fraction of the price (25 bps), never below $1.
+const STRIKE_STEP_BPS: u128 = 25;
+const BPS: u128 = 10_000;
+const CENTS_PER_DOLLAR: u128 = 100;
+/// Tidy step multipliers within a decade.
+const NICE_STEPS: [u128; 3] = [1, 2, 5];
+const DECADE: u128 = 10;
+
+/// The day a ladder is due for: the next day's start, once `now` is within `LADDER_LEAD_SECS` of it.
+pub fn ladder_due(now: i64) -> Option<i64> {
+    let day = next_window_start(now, DAY_SECS);
+    (now >= day - LADDER_LEAD_SECS).then_some(day)
+}
+
+/// Parses a venue's decimal price ("82651.98") into whole cents, rounding half up past two decimals.
+pub fn price_cents(price: &str) -> Option<u128> {
+    let (whole, frac) = price.split_once('.').unwrap_or((price, ""));
+    let whole: u128 = whole.parse().ok()?;
+    let mut digits = frac.chars().chain(std::iter::repeat('0'));
+    let mut cents = whole * CENTS_PER_DOLLAR;
+    for scale in [DECADE, 1] {
+        cents += u128::from(digits.next()?.to_digit(10)?) * scale;
+    }
+    if digits.next()?.to_digit(10)? >= 5 {
+        cents += 1;
+    }
+    Some(cents)
+}
+
+/// Whole-dollar strikes around `reference_cents`, one per offset, rounded to a tidy step; duplicates removed.
+pub fn strikes(reference_cents: u128) -> Vec<u64> {
+    let raw_step = (reference_cents * STRIKE_STEP_BPS / BPS / CENTS_PER_DOLLAR).max(1);
+    let mut decade = 1;
+    while decade * DECADE <= raw_step {
+        decade *= DECADE;
+    }
+    let step = NICE_STEPS
+        .iter()
+        .map(|m| m * decade)
+        .filter(|s| *s <= raw_step)
+        .max()
+        .unwrap_or(1);
+    let mut out: Vec<u64> = LADDER_OFFSETS_BPS
+        .iter()
+        .filter_map(|bps| {
+            let target = reference_cents as i128 * (BPS as i128 + i128::from(*bps)) / BPS as i128;
+            let dollars = u128::try_from(target).ok()? / CENTS_PER_DOLLAR;
+            let rounded = (dollars + step / 2) / step * step;
+            u64::try_from(rounded).ok().filter(|s| *s > 0)
+        })
+        .collect();
+    out.dedup();
+    out
 }
 
 pub fn iso(ts: i64) -> String {
@@ -255,7 +320,65 @@ fn finish(
         target_height,
         bet_height_cap: target_height,
         payout_window,
+        strike: None,
+        opening: None,
     })
+}
+
+/// "Will BTC/USD close above $85,000 at <close>?": an ordinary Up/Down pool whose opening reference is the strike
+/// for every venue, fixed in these signed rules before betting opens (Range / Moonshot, plan §0).
+pub fn strike_market(
+    asset: &Asset,
+    opens_at: i64,
+    closes_at: i64,
+    strike: u64,
+    reference: (&str, i64),
+    payout: Window,
+) -> Result<NewMarket> {
+    let cutoff_at = closes_at - CUTOFF_BEFORE_CLOSE_SECS;
+    let ticker = asset.ticker;
+    let (reference_price, reference_end) = reference;
+    let venues: Vec<String> = asset
+        .venues
+        .iter()
+        .map(|v| format!("{} {}", v.venue.label(), v.pair))
+        .collect();
+    let rules = json!({
+        "question": format!(
+            "{ticker} above ${strike} at {} UTC: will {ticker}/USD close above ${strike} at {}?",
+            human(closes_at), iso(closes_at)
+        ),
+        "resolution": format!(
+            "Each venue ({}) votes Up (above) or Down (below) by comparing the close of its committed 1-hour {ticker}/USD \
+             candle ending {} with the strike ${strike}. A close exactly at the strike is Flat. Up or Down wins with at \
+             least 2 of the 3 venue votes; a missing or zero-volume candle is no vote. The strike was set when this market \
+             was created, from the Coinbase 1-hour close of {reference_price} ending {}, and cannot change. {}",
+            venues.join(", "), iso(closes_at), iso(reference_end), betting_window(opens_at, cutoff_at)
+        ),
+        "sources": asset.venues.iter().map(|v| v.venue.source(v.pair)).collect::<Vec<_>>(),
+        "cancellation": shared_cancellation(", or if no direction gets 2 of the 3 venue votes"),
+        "payoutFormula": payout_formula(payout),
+    });
+    let mut market = finish(
+        ticker,
+        "1d",
+        Kind::Close,
+        opens_at,
+        closes_at,
+        &rules,
+        None,
+        payout,
+    )?;
+    market.id = format!("{}-a{strike}", market.id);
+    debug_assert!(is_market_id(&market.id), "{}", market.id);
+    let opening: serde_json::Map<String, Value> = asset
+        .venues
+        .iter()
+        .map(|v| (v.venue.key().to_string(), Value::String(strike.to_string())))
+        .collect();
+    market.opening = Some(canonical_json(&Value::Object(opening))?);
+    market.strike = Some(strike);
+    Ok(market)
 }
 
 /// An Up/Down market on `asset` for the window `[opens_at, closes_at)`.
@@ -471,5 +594,63 @@ mod tests {
                 .expect("cancellation")
                 .contains("refunded in full and never counted")
         );
+    }
+
+    #[test]
+    fn price_cents_rounds_half_up() {
+        assert_eq!(price_cents("82651.98"), Some(8_265_198));
+        assert_eq!(price_cents("82651.985"), Some(8_265_199));
+        assert_eq!(price_cents("45"), Some(4_500));
+        assert_eq!(price_cents("0.1234"), Some(12));
+        assert_eq!(price_cents("x1"), None);
+    }
+
+    #[test]
+    fn strikes_are_tidy_and_ordered() {
+        // BTC at $82,651.98: step ≈ 25 bps ≈ $206 → $200; rungs at -5 %, -2.5 %, -1 %, +1 %, +2.5 %, +5 %.
+        let btc = strikes(8_265_198);
+        assert_eq!(btc, [78_600, 80_600, 81_800, 83_400, 84_800, 86_800]);
+        assert!(btc.iter().all(|s| s % 200 == 0));
+        // ZEC at $45.10: step floors at $1; nearby rungs may coincide and are deduplicated.
+        let zec = strikes(4_510);
+        assert!(zec.windows(2).all(|w| w[0] < w[1]), "{zec:?}");
+        assert!(zec.iter().all(|s| *s > 0));
+    }
+
+    #[test]
+    fn strike_market_fixes_its_opening() {
+        let asset = asset("btc").expect("btc");
+        let day = 1_792_368_000;
+        let m = strike_market(
+            asset,
+            day,
+            day + DAY_SECS,
+            85_000,
+            ("82651.98", day - LADDER_LEAD_SECS),
+            Window {
+                min: 7_200,
+                max: 21_600,
+            },
+        )
+        .expect("market");
+        assert!(m.id.ends_with("-a85000") && is_market_id(&m.id), "{}", m.id);
+        assert_eq!(m.strike, Some(85_000));
+        let opening: Value =
+            serde_json::from_str(m.opening.as_deref().expect("opening")).expect("json");
+        assert!(
+            opening
+                .as_object()
+                .expect("map")
+                .values()
+                .all(|v| v == "85000")
+        );
+        assert!(m.rules.contains("close above $85000"));
+    }
+
+    #[test]
+    fn ladders_are_due_inside_the_lead() {
+        let day = 1_792_368_000;
+        assert_eq!(ladder_due(day - LADDER_LEAD_SECS - 1), None);
+        assert_eq!(ladder_due(day - LADDER_LEAD_SECS), Some(day));
     }
 }

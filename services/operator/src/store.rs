@@ -206,12 +206,14 @@ pub struct MarketRow {
     pub resolved_at: Option<i64>,
     /// The payout window its signed rules state (`None`: created before it was stored, 2–6 h).
     pub payout_window: Option<(i64, i64)>,
+    /// Strike markets: whole US dollars (Range / Moonshot ladders).
+    pub strike: Option<String>,
 }
 
 const MARKET_COLUMNS: &str = "id, kind, subject, window, opens_at, cutoff_at, closes_at, rules, rules_hash,
      target_height, opening, cancelled, cutoff_height, released_seq, released_count, released_sides,
      cutoff_hash, bet_height_cap, final_count, final_sides, outcome, outcome_reason, resolution_file,
-     resolved_at, payout_min_secs, payout_max_secs";
+     resolved_at, payout_min_secs, payout_max_secs, strike";
 
 fn market_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MarketRow> {
     Ok(MarketRow {
@@ -242,6 +244,7 @@ fn market_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MarketRow> {
             (Some(min), Some(max)) => Some((min, max)),
             _ => None,
         },
+        strike: r.get(26)?,
     })
 }
 
@@ -286,6 +289,7 @@ impl Store {
             ("resolved_at", "INTEGER"),
             ("payout_min_secs", "INTEGER"),
             ("payout_max_secs", "INTEGER"),
+            ("strike", "TEXT"),
         ] {
             let exists: bool = conn.query_row(
                 "SELECT COUNT(*) > 0 FROM pragma_table_info('markets') WHERE name = ?1",
@@ -334,6 +338,19 @@ impl Store {
         Ok(self
             .conn
             .query_row("SELECT 1 FROM markets WHERE id = ?1", [id], |_| Ok(()))
+            .optional()?
+            .is_some())
+    }
+
+    /// Whether the strike ladder for `subject` closing at `closes_at` was already created.
+    pub fn has_ladder(&self, subject: &str, closes_at: i64) -> Result<bool> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT 1 FROM markets WHERE subject = ?1 AND closes_at = ?2 AND strike IS NOT NULL LIMIT 1",
+                params![subject, closes_at],
+                |_| Ok(()),
+            )
             .optional()?
             .is_some())
     }
@@ -481,8 +498,8 @@ pub fn insert_market(
 ) -> Result<bool> {
     let inserted = tx.execute(
         "INSERT OR IGNORE INTO markets (id, kind, subject, window, opens_at, cutoff_at, closes_at, rules,
-             rules_hash, target_height, created_at, bet_height_cap, payout_min_secs, payout_max_secs)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+             rules_hash, target_height, created_at, bet_height_cap, payout_min_secs, payout_max_secs, strike, opening)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
         params![
             m.id,
             m.kind.as_str(),
@@ -497,7 +514,9 @@ pub fn insert_market(
             now,
             m.bet_height_cap,
             m.payout_window.min,
-            m.payout_window.max
+            m.payout_window.max,
+            m.strike.map(|s| s.to_string()),
+            m.opening
         ],
     )?;
     Ok(inserted == 1)

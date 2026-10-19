@@ -55,6 +55,11 @@ export const marketSchema = z.object({
   rulesHash: z.string().regex(HEX_HASH),
   /** Opening reference (close markets): the per-venue values the direction vote compares against. */
   opening: z.record(z.string(), z.string()).optional(),
+  /**
+   * Strike markets (Range / Moonshot ladders, added 2026-10-19): whole US dollars. Up means the close is above it. The
+   * opening reference is the strike for every venue, fixed in the signed rules before betting opens.
+   */
+  strike: z.string().regex(ZAT).optional(),
   state: marketStateSchema,
   /** Odds stay sealed until each side has the minimum among the released tickets (D3). */
   sealed: z.boolean(),

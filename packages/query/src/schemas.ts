@@ -62,6 +62,7 @@ const market = z.object({
   rules: marketRules,
   rulesHash: hexHash,
   opening: z.optional(z.record(z.string(), z.string())),
+  strike: z.optional(z.string().check(z.regex(ZAT))),
   state: marketState,
   sealed: z.boolean(),
   ticketCount: count,
