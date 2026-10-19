@@ -1,4 +1,26 @@
-import { type Quote, type RelayMessage, STALE_AFTER_MS, STREAM_PATH, type StreamSymbol } from "./protocol";
+import {
+  BARS_PATH,
+  type BarsResponse,
+  type Quote,
+  type RelayMessage,
+  STALE_AFTER_MS,
+  STREAM_PATH,
+  type StreamSymbol,
+} from "./protocol";
+
+/**
+ * Every symbol's history in one response (PD19: the relay never learns which one you look at). Cached by the
+ * browser for the relay's max-age; a failure resolves to empty bars so charts start from live ticks.
+ */
+export async function fetchBars(relayOrigin: string): Promise<BarsResponse> {
+  try {
+    const response = await fetch(`${relayOrigin}${BARS_PATH}`);
+    if (!response.ok) return { fiveMinute: {}, oneMinute: {} };
+    return (await response.json()) as BarsResponse;
+  } catch {
+    return { fiveMinute: {}, oneMinute: {} };
+  }
+}
 
 export type PriceStatus = "connecting" | "live" | "stale" | "closed";
 

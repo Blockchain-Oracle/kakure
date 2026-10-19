@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { TICKET_SIZES_ZAT } from "./constants";
 import { type BetMemo, decodeBetMemo, encodeBetMemo } from "./memo";
-import { canonicalNotes, payoutZat, refundZat, settlement } from "./payout";
+import { canonicalNotes, payoutZat, quoteTicket, refundZat, settlement } from "./payout";
 import { ticketHashHex } from "./ticket";
 import { zatToZec, zecToZat } from "./units";
 import { buildPaymentUri, parsePaymentUri } from "./zip321";
@@ -107,5 +107,21 @@ describe("ZIP 321", () => {
     assert.equal(zatToZec(1_000_000n), "0.01");
     assert.equal(zecToZat("0.00000001"), 1n);
     assert.throws(() => zecToZat("0.000000001"));
+  });
+});
+
+describe("ticket quote", () => {
+  it("adds the bettor's stake to their side before quoting", () => {
+    // 0.1 ZEC into Up with 0.3 Up / 0.3 Down already: payoutZat(0.1, 0.4, 0.3) = 0.1 + 0.1·0.3·0.98/0.4 → 0.174 on the grid.
+    const quote = quoteTicket(10_000_000n, 30_000_000n, 30_000_000n);
+    assert.equal(quote.payoutZat, payoutZat(10_000_000n, 40_000_000n, 30_000_000n));
+    assert.equal(quote.profitZat, quote.payoutZat - 10_000_000n);
+    assert.equal(quote.multipleBps, (quote.payoutZat * 10_000n) / 10_000_000n);
+  });
+
+  it("pays the stake back when the other side is empty", () => {
+    const quote = quoteTicket(1_000_000n, 0n, 0n);
+    assert.equal(quote.payoutZat, 1_000_000n);
+    assert.equal(quote.multipleBps, 10_000n);
   });
 });

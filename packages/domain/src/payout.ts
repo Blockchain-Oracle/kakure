@@ -53,6 +53,30 @@ export function payoutZat(sizeZat: bigint, winningPoolZat: bigint, losingPoolZat
   return sizeZat + winnings;
 }
 
+/** What a ticket would pay if its side wins, as the pools stand now. */
+export interface TicketQuote {
+  /** Total paid back (stake included), on the payout grid. */
+  payoutZat: bigint;
+  /** Payout ÷ stake in basis points (19000 = "pays 1.9×"). */
+  multipleBps: bigint;
+  /** Payout minus stake. */
+  profitZat: bigint;
+}
+
+/**
+ * The ticket's own quote (plan §0 R2): `payoutZat(s, W + s, L)`, with the bettor's stake added to their side's pool.
+ * Using the payout formula itself, grid rounding included, means the ticket never shows a multiple the operator
+ * would not pay. `sidePoolZat` / `otherPoolZat` are the last released totals; an empty other side pays the stake back.
+ */
+export function quoteTicket(sizeZat: bigint, sidePoolZat: bigint, otherPoolZat: bigint): TicketQuote {
+  const payout = payoutZat(sizeZat, sidePoolZat + sizeZat, otherPoolZat);
+  return {
+    payoutZat: payout,
+    multipleBps: (payout * BPS_DENOMINATOR) / sizeZat,
+    profitZat: payout - sizeZat,
+  };
+}
+
 /** A refund returns the full stake; wrong amounts under REFUND_MIN_ZAT are kept as dust (plan §13.3). */
 export function refundZat(receivedZat: bigint): bigint {
   return receivedZat >= REFUND_MIN_ZAT ? receivedZat : 0n;

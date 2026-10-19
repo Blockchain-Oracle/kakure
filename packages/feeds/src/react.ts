@@ -13,6 +13,11 @@ export function configurePrices(relayOrigin: string): PriceStream {
   return shared;
 }
 
+/** The configured stream (or `null` before `configurePrices`), for canvas code that reads ticks outside React. */
+export function sharedPrices(): PriceStream | null {
+  return shared;
+}
+
 const NOT_CONFIGURED: PriceState = { status: "connecting" };
 const noop = () => {};
 
