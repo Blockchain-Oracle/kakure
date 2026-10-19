@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { TradeRedirect } from "@/features/trade/trade-redirect";
+import { TradeScreen } from "@/features/trade/trade-screen";
 
-/** `/trade`: the rail's first place; the terminal arrives in R2, until then it opens Markets. */
+/** `/trade#BTC`: the rail's first place, the dock's seal and key 1; the live terminal for one asset's window. */
 export const metadata: Metadata = { title: "Trade" };
 
 export default function TradePage() {
-  return <TradeRedirect />;
+  return <TradeScreen />;
 }

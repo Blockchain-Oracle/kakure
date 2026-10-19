@@ -44,7 +44,7 @@ export function Terminal({
   network: Network;
   now: number;
   freshness: ReactNode;
-  /** On the markets page: a shorter chart and a link to the full terminal instead of the lanes. */
+  /** On the markets page: a shorter chart and a link to the full terminal (`/trade`) instead of the lanes. */
   hero?: boolean;
 }) {
   const asset = assetFor(market);
@@ -79,7 +79,7 @@ export function Terminal({
           </div>
           {hero ? (
             <Link
-              href={`/m#${network}/${market.id}`}
+              href={`/trade#${network}/${market.id}`}
               className="text-chip-label text-muted-foreground hover:text-foreground"
             >
               Open terminal →
