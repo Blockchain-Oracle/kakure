@@ -1,6 +1,7 @@
 //! Kakure operator: the market wallet on librustzcash (Tor-only chain access), the real-time
 //! market (`serve`, plan §00) and the pool engine it replaces (`run`), and the signed publisher.
 
+mod api;
 mod catalog;
 mod cli;
 // Shared formats (S01). Payout maths is used from S03.
@@ -8,6 +9,7 @@ mod cli;
 mod domain;
 mod engine;
 mod fair;
+mod gateway;
 mod history;
 mod ingest;
 mod lanes;

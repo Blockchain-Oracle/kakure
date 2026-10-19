@@ -1,0 +1,23 @@
+{
+  "name": "@kakure/ohttp",
+  "private": true,
+  "type": "module",
+  "description": "Oblivious HTTP (RFC 9458) client for Kakure's trading API: requests are HPKE-encrypted to the operator's gateway key and sent through the relay, which sees the IP but never the content.",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "roundtrip": "tsx scripts/roundtrip.ts"
+  },
+  "dependencies": {
+    "hpke": "1.1.7",
+    "ohttp-ts": "0.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

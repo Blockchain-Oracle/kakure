@@ -102,7 +102,10 @@ impl Realtime {
         let reads = minutes::read_all(&self.http, now).await;
         let minutes = rt_store::put_minutes(&mut self.store.conn, &reads)?;
         let (opened, settled) = self.advance_windows(now)?;
-        if self.sigma_at.is_none_or(|at| now - at >= SIGMA_REFRESH_SECS) {
+        if self
+            .sigma_at
+            .is_none_or(|at| now - at >= SIGMA_REFRESH_SECS)
+        {
             match sigma::estimate(&self.http).await {
                 Ok(sigma) => {
                     // An asset with too little history keeps its last σ.

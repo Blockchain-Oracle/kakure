@@ -40,6 +40,15 @@ export const HTTP_METHOD_NOT_ALLOWED = 405;
 export const HTTP_CONFLICT = 409;
 export const HTTP_PRECONDITION_FAILED = 412;
 export const HTTP_PAYLOAD_TOO_LARGE = 413;
+export const HTTP_UNSUPPORTED_MEDIA_TYPE = 415;
+export const HTTP_BAD_GATEWAY = 502;
+export const HTTP_SERVICE_UNAVAILABLE = 503;
+
+/** The trading API's relay: `POST /ohttp/<network>` (src/relay.ts). Same limit as the operator gateway. */
+export const OHTTP_PREFIX = "/ohttp/";
+export const OHTTP_REQUEST_TYPE = "message/ohttp-req";
+export const OHTTP_RESPONSE_TYPE = "message/ohttp-res";
+export const OHTTP_MAX_BYTES = 64 * 1024;
 
 /**
  * Content Security Policy for the site's HTML (audit O14). `connect-src` is the privacy control: a page can only talk

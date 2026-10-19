@@ -50,6 +50,16 @@ reference, but its NumberFlow/motion dependencies were left out to stay within t
 | [zcash_address](https://github.com/zcash/librustzcash) =0.14.0-pre.2, zcash_protocol =0.11.0-pre.1 | `packages/zaddr-wasm`, compiled to WebAssembly | MIT OR Apache-2.0 |
 | [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen) 0.2.129 | `packages/zaddr-wasm` bindings | MIT OR Apache-2.0 |
 
+## Libraries added in the real-time revamp (plan §00)
+
+| Package | Where | Licence |
+| --- | --- | --- |
+| [ohttp](https://github.com/martinthomson/ohttp) 0.8.0 (features `server`, `rust-hpke`) | The operator's Oblivious HTTP gateway (`services/operator/src/gateway.rs`) | MIT OR Apache-2.0 |
+| [bhttp](https://github.com/martinthomson/ohttp) 0.8.0 | Binary HTTP inside the gateway | MIT OR Apache-2.0 |
+| [axum](https://github.com/tokio-rs/axum) 0.8 | The gateway's HTTP server (already in the tree through tonic) | MIT |
+| [ohttp-ts](https://github.com/thibmeu/ohttp-ts) 0.6.1 | The browser's Oblivious HTTP client (`packages/ohttp`) | MIT |
+| [hpke](https://github.com/panva/hpke) 1.1.7 | HPKE for that client (X25519, HKDF-SHA256, AES-128-GCM via WebCrypto) | MIT |
+
 Sounds are synthesised at runtime from code (`packages/sounds`); no audio file ships.
 
 ## Docs site (`apps/docs`)

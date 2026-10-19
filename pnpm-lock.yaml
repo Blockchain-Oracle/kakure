@@ -579,6 +579,25 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/ohttp:
+    dependencies:
+      hpke:
+        specifier: 1.1.7
+        version: 1.1.7
+      ohttp-ts:
+        specifier: 0.6.1
+        version: 0.6.1(hpke@1.1.7)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/query:
     dependencies:
       '@kakure/domain':
@@ -2995,6 +3014,9 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
+  bhttp-ts@0.6.1:
+    resolution: {integrity: sha512-8WQNLhUbA9ywMNn/fOPRv+o3kxU+BZHKA1MNGYkm9/MWYQfbCMfS/pjosF3G5T1BcVnwUHhyZdZCYVein7in1A==}
+
   big-integer@1.6.52:
     resolution: {integrity: sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg==}
     engines: {node: '>=0.6'}
@@ -4140,6 +4162,9 @@ packages:
     resolution: {integrity: sha512-puUZAUKT5m8Zzvs72XWy3HtvVbTWljRE66cP60bxJzAqf2DgICo7lYTY2IHUmLnNpjYvw5bvmoHvPc0QO2a62w==}
     engines: {node: ^16.14.0 || >=18.0.0}
 
+  hpke@1.1.7:
+    resolution: {integrity: sha512-wQGOBpFBFlP2h7euuLuey8yJGUtJ+c8D/ohPxtTQqpICItFtHDpbXk2B29xfUpIFPn0miS9TJVObFGAeEZzDJA==}
+
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
 
@@ -4883,6 +4908,11 @@ packages:
     resolution: {integrity: sha512-i8iA8uij0g1YQzS8uOJPSRCgwDjO9warIHUAu1Fqj877Wc3wlfxDYBioYWgKTBF2+URVJttyDWSEpmd99nlvtQ==}
     engines: {node: ^22.13.0 || ^24.3.0 || >= 26.0.0}
 
+  ohttp-ts@0.6.1:
+    resolution: {integrity: sha512-amrwcueJWKMWV2nHLLZM3S4Z88z2pB0RzEqoml0XoI5arFGNHtoxMRDLsrpNbym4xIA06jE5qJMFmLsxIoambA==}
+    peerDependencies:
+      hpke: ^1
+
   on-finished@2.3.0:
     resolution: {integrity: sha512-ikqdkGAAyf/X/gPhXGvfgAytDZtDbr+bkNUJ0N9h5MI/dmdgCs3l6hoHrcUv41sRKew3jIwrp4qQDXiK99Utww==}
     engines: {node: '>= 0.8'}
@@ -5001,6 +5031,9 @@ packages:
 
   property-information@7.2.0:
     resolution: {integrity: sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg==}
+
+  quicvarint@0.2.1:
+    resolution: {integrity: sha512-h45spZya+YkPl9qyrMnV4hjd3HvrlUTqxBwqdWN/Nr+MwXjb91B7tHHd1lFy/upSm4KiApLRSc6HnsmZNjdR+w==}
 
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
@@ -8238,6 +8271,10 @@ snapshots:
 
   baseline-browser-mapping@2.11.29: {}
 
+  bhttp-ts@0.6.1:
+    dependencies:
+      quicvarint: 0.2.1
+
   big-integer@1.6.52: {}
 
   blake3-wasm@2.1.5: {}
@@ -9473,6 +9510,8 @@ snapshots:
     dependencies:
       lru-cache: 10.4.3
 
+  hpke@1.1.7: {}
+
   html-void-elements@3.0.0: {}
 
   http-errors@2.0.1:
@@ -10531,6 +10570,12 @@ snapshots:
     dependencies:
       flow-enums-runtime: 0.0.6
 
+  ohttp-ts@0.6.1(hpke@1.1.7):
+    dependencies:
+      bhttp-ts: 0.6.1
+      hpke: 1.1.7
+      quicvarint: 0.2.1
+
   on-finished@2.3.0:
     dependencies:
       ee-first: 1.1.1
@@ -10654,6 +10699,8 @@ snapshots:
       sisteransi: 1.0.5
 
   property-information@7.2.0: {}
+
+  quicvarint@0.2.1: {}
 
   range-parser@1.2.1: {}
 

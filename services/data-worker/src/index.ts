@@ -17,11 +17,14 @@ import {
   KEY_PATTERN,
   LATEST_CACHE,
   LATEST_FILE,
+  NETWORKS,
   NEXT_STATIC_PREFIX,
+  OHTTP_PREFIX,
   PERMISSIONS_POLICY,
   PUSH_MAX_BYTES,
 } from "./constants";
 import { checkPush } from "./push";
+import { relay } from "./relay";
 import type { DataStore, WriteResult } from "./store";
 
 export { DataStore } from "./store";
@@ -31,6 +34,9 @@ interface Env {
   STORE: DurableObjectNamespace<DataStore>;
   /** The static site export (apps/web/out). */
   ASSETS?: Fetcher;
+  /** Each network operator's OHTTP gateway (`https://…/gateway`), public URLs set in wrangler.jsonc `vars`. */
+  OHTTP_GATEWAY_TESTNET?: string;
+  OHTTP_GATEWAY_MAINNET?: string;
 }
 
 /**
@@ -42,6 +48,11 @@ interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
+    if (pathname.startsWith(OHTTP_PREFIX)) {
+      const network = pathname.slice(OHTTP_PREFIX.length) as Network;
+      if (!(NETWORKS as readonly string[]).includes(network)) return notFound();
+      return relay(request, network, network === "testnet" ? env.OHTTP_GATEWAY_TESTNET : env.OHTTP_GATEWAY_MAINNET);
+    }
     if (pathname.startsWith(DATA_PREFIX)) {
       const key = pathname.slice(DATA_PREFIX.length);
       if (!KEY_PATTERN.test(key)) return notFound();

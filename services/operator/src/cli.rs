@@ -16,9 +16,10 @@ use zcash_client_backend::data_api::AccountBirthday;
 use zcash_protocol::consensus::BlockHeight;
 
 use crate::{
-    catalog,
+    api, catalog,
     domain::{self, BATCH_INTERVAL_SECS, BetMemo, NONCE_BYTES},
     engine::{self, Engine, TICK_OFFSET_SECS},
+    gateway::Gateway,
     minutes::MINUTE_SECS,
     payouts,
     realtime::{self, Realtime},
@@ -374,8 +375,18 @@ impl Cli {
                 print_pubkey(&signing::load(&common.wallet().dir)?.public());
             }
             Command::Serve { common, once } => {
-                let mut rt = Realtime::open(&common.wallet())?;
+                let wallet = common.wallet();
+                let mut rt = Realtime::open(&wallet)?;
                 eprintln!("serve: publishing to {}", rt.public_dir().display());
+                if !once {
+                    let gateway = Gateway::load(&wallet.dir)?;
+                    let network = wallet.net.name();
+                    tokio::spawn(async move {
+                        if let Err(e) = api::serve(gateway, network).await {
+                            eprintln!("gateway: stopped: {e:#}");
+                        }
+                    });
+                }
                 loop {
                     if !once {
                         // The minute's work starts TICK_OFFSET into each minute, once venues have

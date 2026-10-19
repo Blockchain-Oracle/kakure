@@ -9,14 +9,19 @@ description = "Kakure operator: market wallet, whole-block scanning and payouts 
 
 [dependencies]
 anyhow = "1"
+# The trading API's HTTP server (already in the tree via tonic); http1 only, behind Traefik.
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 base64 = "0.22"
 blake2b_simd = "1"
+bhttp = "0.8"
 bip0039 = { version = "0.14", features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["std", "now"] }
 clap = { version = "4.5", features = ["derive"] }
 ed25519-dalek = "2"
 futures-util = "0.3"
 hex = "0.4"
+# Oblivious HTTP gateway (RFC 9458): pure-Rust HPKE, server side only.
+ohttp = { version = "0.8", default-features = false, features = ["server", "rust-hpke"] }
 rand = { version = "0.10", default-features = false, features = ["sys_rng"] }
 # Venue candles and the R2 uploader: plain HTTPS, rustls with the ring provider installed in main.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
