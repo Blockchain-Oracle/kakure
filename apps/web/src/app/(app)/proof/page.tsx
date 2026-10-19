@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ProofScreen } from "@/features/proof/proof-screen";
+import { RealtimeProof } from "@/features/proof/realtime-proof";
 
+/** `/proof`: what this browser checks itself, every minute (plan §00). */
 export const metadata: Metadata = { title: "Proof" };
 
 export default function ProofPage() {
-  return <ProofScreen />;
+  return <RealtimeProof />;
 }

@@ -1,7 +1,8 @@
 "use client";
 
+import { SCHEMA_VERSION_V2 } from "@kakure/domain";
 import { configurePrices, pauseWhenHidden } from "@kakure/feeds";
-import { SCHEMA_VERSION, UniformLoad } from "@kakure/query";
+import { UniformRealtimeLoad } from "@kakure/query";
 import { clearLegacyCueMemory, installAudioUnlock } from "@kakure/sounds";
 import { experimental_createQueryPersister } from "@tanstack/query-persist-client-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,8 +12,8 @@ import { getPrefs } from "@/features/settings/prefs-store";
 import { safeStorage } from "@/lib/storage";
 import { registerServiceWorker } from "./service-worker";
 
-/** Resolution evidence is large (raw venue responses) and only read on /proof: kept in memory, never persisted. */
-const NOT_PERSISTED = new Set(["resolutions"]);
+/** Hourly prints files are large and only read on /proof: kept in memory, never persisted. */
+const NOT_PERSISTED = new Set(["prints"]);
 
 /**
  * One query cache for the app. Only public, signed data is ever queried (the same files every visitor loads), and
@@ -25,8 +26,8 @@ function makeClient() {
     storage: typeof window === "undefined" ? undefined : safeStorage,
     prefix: STORAGE_KEYS.cache,
     maxAge: CACHE_MAX_AGE_MS,
-    buster: String(SCHEMA_VERSION),
-    filters: { predicate: (query) => !NOT_PERSISTED.has(String(query.queryKey[1])) },
+    buster: String(SCHEMA_VERSION_V2),
+    filters: { predicate: (query) => !NOT_PERSISTED.has(String(query.queryKey[2])) },
   });
   // Old batches' entries expire; sweep them so the cache doesn't grow with every bundle.
   if (typeof window !== "undefined") void persister.persisterGc();
@@ -61,7 +62,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={client}>
-      <UniformLoad source={DATA_SOURCE} />
+      <UniformRealtimeLoad source={DATA_SOURCE} />
       {children}
     </QueryClientProvider>
   );
