@@ -567,6 +567,28 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  packages/ecash:
+    dependencies:
+      '@noble/curves':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@noble/hashes':
+        specifier: 'catalog:'
+        version: 2.4.0
+    devDependencies:
+      '@kakure/ohttp':
+        specifier: workspace:*
+        version: link:../ohttp
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/feeds:
     devDependencies:
       '@types/react':
@@ -1913,6 +1935,10 @@ packages:
 
   '@noble/ciphers@2.4.0':
     resolution: {integrity: sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/curves@2.4.0':
+    resolution: {integrity: sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==}
     engines: {node: '>= 20.19.0'}
 
   '@noble/ed25519@3.2.0':
@@ -7159,6 +7185,10 @@ snapshots:
     optional: true
 
   '@noble/ciphers@2.4.0': {}
+
+  '@noble/curves@2.4.0':
+    dependencies:
+      '@noble/hashes': 2.4.0
 
   '@noble/ed25519@3.2.0': {}
 

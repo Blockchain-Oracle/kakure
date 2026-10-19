@@ -1,0 +1,25 @@
+{
+  "name": "@kakure/ecash",
+  "private": true,
+  "type": "module",
+  "description": "Kakure's chip wallet crypto: Cashu BDHKE blinding, unblinding and DLEQ checks (NUT-00/12) against the keyset in the signed bundle.",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts",
+    "e2e": "tsx scripts/e2e.ts"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "@kakure/ohttp": "workspace:*"
+  }
+}

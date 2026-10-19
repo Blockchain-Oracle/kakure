@@ -147,18 +147,19 @@ fn read_only(wallet: &Wallet) -> Result<Connection> {
     )?)
 }
 
-struct Output {
-    txid: String,
-    height: u32,
+/// One received output (also read by the chip deposits, `deposits.rs`).
+pub(crate) struct Output {
+    pub(crate) txid: String,
+    pub(crate) height: u32,
     tx_index: u32,
-    pool: u8,
-    output_index: u32,
-    value: u64,
+    pub(crate) pool: u8,
+    pub(crate) output_index: u32,
+    pub(crate) value: u64,
     address_index: u32,
-    memo: Option<String>,
+    pub(crate) memo: Option<String>,
 }
 
-fn outputs(wallet: &Wallet) -> Result<Vec<Output>> {
+pub(crate) fn outputs(wallet: &Wallet) -> Result<Vec<Output>> {
     let conn = read_only(wallet)?;
     let mut stmt = conn.prepare(OUTPUTS)?;
     let rows = stmt.query_map([], |r| {

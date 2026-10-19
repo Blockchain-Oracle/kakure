@@ -59,6 +59,9 @@ reference, but its NumberFlow/motion dependencies were left out to stay within t
 | [axum](https://github.com/tokio-rs/axum) 0.8 | The gateway's HTTP server (already in the tree through tonic) | MIT |
 | [ohttp-ts](https://github.com/thibmeu/ohttp-ts) 0.6.1 | The browser's Oblivious HTTP client (`packages/ohttp`) | MIT |
 | [hpke](https://github.com/panva/hpke) 1.1.7 | HPKE for that client (X25519, HKDF-SHA256, AES-128-GCM via WebCrypto) | MIT |
+| [cashu](https://github.com/cashubtc/cdk) 0.18.2 | The chip mint's BDHKE, keysets and DLEQ proofs (`services/operator/src/mint.rs`), used standalone | Apache-2.0 OR MIT |
+| [bitcoin](https://github.com/rust-bitcoin/rust-bitcoin) 0.32 | Only the mint keyset's derivation path type (already in the tree through cashu) | CC0-1.0 |
+| [@noble/curves](https://github.com/paulmillr/noble-curves) 2.4.0 | secp256k1 for the browser's chip wallet (`packages/ecash`), checked against the Cashu NUT-00/02/12 vectors | MIT |
 
 Sounds are synthesised at runtime from code (`packages/sounds`); no audio file ships.
 

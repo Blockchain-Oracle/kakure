@@ -9,6 +9,9 @@ use std::{fs, os::unix::fs::PermissionsExt, path::Path};
 use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
+/// How long a connection waits for another writer before failing.
+const BUSY_TIMEOUT_SECS: u64 = 10;
+
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS markets (
     id TEXT PRIMARY KEY,
@@ -276,6 +279,8 @@ impl Store {
             fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
         }
         conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")?;
+        // `serve` opens this database from three places at once (publication, chain, mint).
+        conn.busy_timeout(std::time::Duration::from_secs(BUSY_TIMEOUT_SECS))?;
         conn.execute_batch(SCHEMA)?;
         // The real-time market's tables (plan §00), so either runtime can push every file.
         crate::rt_store::migrate(&conn)?;

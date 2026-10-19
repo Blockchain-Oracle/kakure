@@ -37,6 +37,36 @@ CREATE INDEX IF NOT EXISTS rt_windows_unsettled ON rt_windows (outcome, start);
 CREATE INDEX IF NOT EXISTS rt_windows_settled ON rt_windows (settled_at);
 CREATE INDEX IF NOT EXISTS rt_windows_expiry ON rt_windows (expiry);
 
+-- Chip deposits (plan §00): every received output whose memo names a deposit id. A deposit's
+-- mintable amount is its confirmed outputs less what it already minted.
+CREATE TABLE IF NOT EXISTS deposit_outputs (
+    txid TEXT NOT NULL,
+    pool INTEGER NOT NULL,
+    output_index INTEGER NOT NULL,
+    deposit_id TEXT NOT NULL,
+    amount_zat INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    PRIMARY KEY (txid, pool, output_index)
+);
+CREATE INDEX IF NOT EXISTS deposit_outputs_id ON deposit_outputs (deposit_id);
+CREATE TABLE IF NOT EXISTS deposit_issued (
+    deposit_id TEXT PRIMARY KEY,
+    issued_zat INTEGER NOT NULL
+);
+
+-- Spent chips by Y = hash_to_curve(secret) (NUT-07). A chip is spent once, ever.
+CREATE TABLE IF NOT EXISTS spent (
+    y TEXT PRIMARY KEY,
+    spent_at INTEGER NOT NULL
+);
+
+-- Withdrawals: spent chips owed to a shielded address, paid as canonical notes (payouts.rs).
+CREATE TABLE IF NOT EXISTS withdrawals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount_zat INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
 -- Hourly prints files (write-once, pushed like bundles).
 CREATE TABLE IF NOT EXISTS prints_files (
     hour INTEGER PRIMARY KEY,
@@ -276,4 +306,119 @@ pub fn prints_map(prints: &Prints) -> Map<String, Value> {
             )
         })
         .collect()
+}
+
+/// One received deposit output, as `deposits.rs` reads it from the wallet.
+pub struct DepositOutput {
+    pub txid: String,
+    pub pool: u8,
+    pub output_index: u32,
+    pub deposit_id: String,
+    pub amount_zat: u64,
+    pub height: u32,
+}
+
+pub fn put_deposit_outputs(conn: &mut Connection, outputs: &[DepositOutput]) -> Result<usize> {
+    let tx = conn.transaction()?;
+    let mut stored = 0;
+    {
+        let mut insert = tx.prepare(
+            "INSERT OR IGNORE INTO deposit_outputs (txid, pool, output_index, deposit_id, amount_zat, height)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        )?;
+        for o in outputs {
+            stored += insert.execute(params![
+                o.txid,
+                o.pool,
+                o.output_index,
+                o.deposit_id,
+                o.amount_zat,
+                o.height
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(stored)
+}
+
+/// A deposit's state: everything received (confirmed or not), what is confirmed at `tip` with
+/// `confirmations`, and what it has already minted.
+pub struct DepositState {
+    pub received_zat: u64,
+    pub confirmed_zat: u64,
+    pub issued_zat: u64,
+    pub first_height: Option<u32>,
+}
+
+pub fn deposit_state(
+    conn: &Connection,
+    deposit_id: &str,
+    tip: u32,
+    confirmations: u32,
+) -> Result<DepositState> {
+    let (received, confirmed, first): (i64, i64, Option<u32>) = conn.query_row(
+        "SELECT COALESCE(SUM(amount_zat), 0),
+                COALESCE(SUM(CASE WHEN height + ?2 <= ?3 + 1 THEN amount_zat ELSE 0 END), 0),
+                MIN(height)
+         FROM deposit_outputs WHERE deposit_id = ?1",
+        params![deposit_id, confirmations, tip],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
+    let issued: i64 = conn
+        .query_row(
+            "SELECT issued_zat FROM deposit_issued WHERE deposit_id = ?1",
+            [deposit_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or(0);
+    Ok(DepositState {
+        received_zat: u64::try_from(received)?,
+        confirmed_zat: u64::try_from(confirmed)?,
+        issued_zat: u64::try_from(issued)?,
+        first_height: first,
+    })
+}
+
+/// Records that a deposit minted `zat` more, inside the caller's transaction.
+pub fn add_issued(tx: &rusqlite::Transaction<'_>, deposit_id: &str, zat: u64) -> Result<()> {
+    tx.execute(
+        "INSERT INTO deposit_issued (deposit_id, issued_zat) VALUES (?1, ?2)
+         ON CONFLICT (deposit_id) DO UPDATE SET issued_zat = issued_zat + excluded.issued_zat",
+        params![deposit_id, zat],
+    )?;
+    Ok(())
+}
+
+/// Marks every chip spent, inside the caller's transaction; fails (and the caller rolls back) if
+/// any was spent before.
+pub fn spend(tx: &rusqlite::Transaction<'_>, ys: &[String], now: i64) -> Result<()> {
+    for y in ys {
+        let inserted = tx.execute(
+            "INSERT OR IGNORE INTO spent (y, spent_at) VALUES (?1, ?2)",
+            params![y, now],
+        )?;
+        anyhow::ensure!(inserted == 1, "a chip was already spent");
+    }
+    Ok(())
+}
+
+/// `true` for each Y already spent (NUT-07 state check).
+pub fn spent_states(conn: &Connection, ys: &[String]) -> Result<Vec<bool>> {
+    ys.iter()
+        .map(|y| {
+            Ok(conn
+                .query_row("SELECT 1 FROM spent WHERE y = ?1", [y], |_| Ok(()))
+                .optional()?
+                .is_some())
+        })
+        .collect()
+}
+
+pub fn new_withdrawal(tx: &rusqlite::Transaction<'_>, zat: u64, now: i64) -> Result<u32> {
+    tx.execute(
+        "INSERT INTO withdrawals (amount_zat, created_at) VALUES (?1, ?2)",
+        params![zat, now],
+    )?;
+    Ok(u32::try_from(tx.last_insert_rowid())?)
 }

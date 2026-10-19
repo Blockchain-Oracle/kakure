@@ -17,9 +17,12 @@ use zcash_protocol::consensus::BlockHeight;
 
 use crate::{
     api, catalog,
+    chain::{self, Chain},
+    deposits,
     domain::{self, BATCH_INTERVAL_SECS, BetMemo, NONCE_BYTES},
     engine::{self, Engine, TICK_OFFSET_SECS},
     gateway::Gateway,
+    mint::Mint,
     minutes::MINUTE_SECS,
     payouts,
     realtime::{self, Realtime},
@@ -147,9 +150,13 @@ enum Command {
     Serve {
         #[command(flatten)]
         common: Common,
-        /// Run one minute's work and exit.
+        /// Run one minute's work and exit (no gateway, no chain).
         #[arg(long)]
         once: bool,
+        #[arg(long, default_value_t = 4)]
+        parallel: usize,
+        #[arg(long, default_value_t = 8)]
+        blocks_per_circuit: usize,
     },
     /// The operator loop: sync → ingest → engine → publish, on a fixed UTC-aligned clock.
     Run {
@@ -374,48 +381,29 @@ impl Cli {
             Command::Pubkey { common } => {
                 print_pubkey(&signing::load(&common.wallet().dir)?.public());
             }
-            Command::Serve { common, once } => {
+            Command::Serve {
+                common,
+                once,
+                parallel,
+                blocks_per_circuit,
+            } => {
                 let wallet = common.wallet();
                 let mut rt = Realtime::open(&wallet)?;
                 eprintln!("serve: publishing to {}", rt.public_dir().display());
-                if !once {
-                    let gateway = Gateway::load(&wallet.dir)?;
-                    let network = wallet.net.name();
-                    tokio::spawn(async move {
-                        if let Err(e) = api::serve(gateway, network).await {
-                            eprintln!("gateway: stopped: {e:#}");
+                if once {
+                    minute_loop(&mut rt, true).await;
+                } else {
+                    let sync = SyncOpts {
+                        parallel,
+                        blocks_per_circuit,
+                    };
+                    match start_trading(&common, &wallet, &mut rt, sync).await? {
+                        // The chain task holds SQLite across awaits, so it shares this task with
+                        // the minute loop instead of being spawned onto another thread.
+                        Some(chain) => {
+                            tokio::join!(minute_loop(&mut rt, false), chain.run());
                         }
-                    });
-                }
-                loop {
-                    if !once {
-                        // The minute's work starts TICK_OFFSET into each minute, once venues have
-                        // committed the minute that just ended.
-                        let now = chrono::Utc::now().timestamp();
-                        let next = (now - realtime::TICK_OFFSET_SECS).div_euclid(MINUTE_SECS)
-                            * MINUTE_SECS
-                            + MINUTE_SECS
-                            + realtime::TICK_OFFSET_SECS;
-                        tokio::time::sleep(Duration::from_secs(u64::try_from(next - now)?)).await;
-                    }
-                    let now = chrono::Utc::now().timestamp();
-                    match rt.tick(now).await {
-                        Ok(r) => println!(
-                            "{} serve: bundle-{}.json, {} minutes, {} opened, {} settled, {} windows, {} prints{}",
-                            catalog::iso(now),
-                            r.seq,
-                            r.minutes,
-                            r.opened,
-                            r.settled,
-                            r.windows,
-                            r.prints,
-                            r.uploaded
-                                .map_or(String::new(), |n| format!(", {n} file(s) pushed")),
-                        ),
-                        Err(e) => eprintln!("serve: minute failed: {e:#}"),
-                    }
-                    if once {
-                        break;
+                        None => minute_loop(&mut rt, false).await,
                     }
                 }
             }
@@ -785,4 +773,99 @@ fn status(wallet: &Wallet) -> Result<()> {
         );
     }
     Ok(())
+}
+
+/// Starts the trading side of `serve` (plan §00): the mint and its Oblivious HTTP gateway, and,
+/// when the data directory has a wallet, the chain task (deposits, withdrawals) and the deposit
+/// address. What clients need to trade goes into every signed bundle.
+async fn start_trading(
+    common: &Common,
+    wallet: &Wallet,
+    rt: &mut Realtime,
+    sync: SyncOpts,
+) -> Result<Option<Chain>> {
+    let mut chain = None;
+    let gateway = Gateway::load(&wallet.dir)?;
+    let mint = Mint::load(&wallet.dir)?;
+    let mainnet = matches!(wallet.net, Net::Mainnet);
+    let confirmations = deposits::confirmations(mainnet);
+    let tip = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let mut trading = serde_json::json!({
+        "keyset": mint.keyset_json(),
+        "gatewayKeys": URL_SAFE_NO_PAD.encode(gateway.key_config()),
+        "depositMemoPrefix": deposits::DEPOSIT_MEMO_PREFIX,
+        "depositConfirmations": confirmations,
+        "minWithdrawZat": api::MIN_WITHDRAW_ZAT.to_string(),
+        "withdrawWithinSecs": api::WITHDRAW_WINDOW.max,
+    });
+    if wallet.exists() {
+        let mut db = wallet.open()?;
+        let (_, address) = wallet::addresses(&mut db, wallet.net, chain::DEPOSIT_ADDRESS_INDEX, 1)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("no deposit address"))?;
+        trading["depositAddress"] = serde_json::Value::String(address);
+        let tor = common.tor(wallet).await?;
+        chain = Some(Chain {
+            wallet: common.wallet(),
+            store: Store::open(&wallet.dir.join("engine.sqlite"))?,
+            tor,
+            sync,
+            tip: tip.clone(),
+        });
+    } else {
+        eprintln!(
+            "serve: no wallet in {}: deposits and withdrawals are off",
+            wallet.dir.display()
+        );
+    }
+    rt.set_trading(trading);
+    let api = api::Api {
+        gateway,
+        mint,
+        store: std::sync::Mutex::new(Store::open(&wallet.dir.join("engine.sqlite"))?),
+        tip,
+        network: engine::domain_network(wallet.net),
+        network_name: wallet.net.name(),
+        confirmations,
+    };
+    tokio::spawn(async move {
+        if let Err(e) = api::serve(api).await {
+            eprintln!("gateway: stopped: {e:#}");
+        }
+    });
+    Ok(chain)
+}
+
+/// The one-minute clock: the minute's work starts `TICK_OFFSET` into each minute, once venues have
+/// committed the minute that just ended.
+async fn minute_loop(rt: &mut Realtime, once: bool) {
+    loop {
+        if !once {
+            let now = chrono::Utc::now().timestamp();
+            let next = (now - realtime::TICK_OFFSET_SECS).div_euclid(MINUTE_SECS) * MINUTE_SECS
+                + MINUTE_SECS
+                + realtime::TICK_OFFSET_SECS;
+            tokio::time::sleep(Duration::from_secs(u64::try_from(next - now).unwrap_or(0))).await;
+        }
+        let now = chrono::Utc::now().timestamp();
+        match rt.tick(now).await {
+            Ok(r) => println!(
+                "{} serve: bundle-{}.json, {} minutes, {} opened, {} settled, {} windows, {} prints{}",
+                catalog::iso(now),
+                r.seq,
+                r.minutes,
+                r.opened,
+                r.settled,
+                r.windows,
+                r.prints,
+                r.uploaded
+                    .map_or(String::new(), |n| format!(", {n} file(s) pushed")),
+            ),
+            Err(e) => eprintln!("serve: minute failed: {e:#}"),
+        }
+        if once {
+            break;
+        }
+    }
 }

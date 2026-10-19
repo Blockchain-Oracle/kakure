@@ -3,7 +3,9 @@
 
 mod api;
 mod catalog;
+mod chain;
 mod cli;
+mod deposits;
 // Shared formats (S01). Payout maths is used from S03.
 #[allow(dead_code)]
 mod domain;
@@ -14,6 +16,7 @@ mod history;
 mod ingest;
 mod lanes;
 mod lifecycle;
+mod mint;
 mod minutes;
 mod params;
 mod payouts;

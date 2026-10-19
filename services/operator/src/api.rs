@@ -1,11 +1,23 @@
-//! The trading API's HTTP surface (plan §00 REVAMP 2): `GET /ohttp-keys` and `POST /gateway`.
+//! The trading API (plan §00 REVAMP 2): `GET /ohttp-keys` and `POST /gateway` on the wire, and the
+//! mint's routes inside the encrypted requests.
 //!
-//! Nothing else is reachable from outside: every API call is an encrypted `message/ohttp-req`
-//! the data worker relays to `/gateway`, decrypted by `gateway.rs` and dispatched here by method
-//! and path. No logs record requests, addresses or timing; the server binds to
-//! `KAKURE_GATEWAY_ADDR` (default `127.0.0.1:8790`; `0.0.0.0:8790` behind Traefik on the server).
+//! Nothing else is reachable from outside: every call is a `message/ohttp-req` the data worker
+//! relays to `/gateway`, decrypted by `gateway.rs` and answered here. Nothing records requests,
+//! addresses or timing. Routes (Cashu NUT shapes where one exists; errors `{detail, code}`):
+//! - `GET  /v1/keys`: the keyset (also in every signed bundle);
+//! - `GET  /v1/deposit/<id>`: what a deposit has received, confirmed and can still mint;
+//! - `POST /v1/mint/zcash`: blinded chips signed against a confirmed deposit (NUT-04 shape);
+//! - `POST /v1/swap`: chips for chips of the same total (NUT-03);
+//! - `POST /v1/checkstate`: spent or not, by `Y` (NUT-07);
+//! - `POST /v1/melt/zcash`: chips for a shielded withdrawal at a random time (NUT-05 shape).
+//!
+//! Every spend checks the chips' signatures, then marks them spent and records its effect in one
+//! SQLite transaction, so a chip can never be spent twice, even by two requests at once.
 
-use std::sync::Arc;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU32, Ordering},
+};
 
 use anyhow::{Context, Result};
 use axum::{
@@ -16,26 +28,55 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use serde_json::json;
+use cashu::BlindedMessage;
+use serde::Deserialize;
+use serde_json::{Value, json};
 
-use crate::gateway::{Gateway, Inner, MAX_MESSAGE_BYTES, Reply};
+use crate::{
+    deposits::DEPOSIT_ID_HEX,
+    domain::{Network, check_payout_address},
+    gateway::{Gateway, Inner, MAX_MESSAGE_BYTES, Reply},
+    mint::{self, Mint, Proof},
+    payouts::{self, Window},
+    rt_store,
+    store::Store,
+};
 
 pub const DEFAULT_ADDR: &str = "127.0.0.1:8790";
+/// The smallest withdrawal: the house pays each note's fee, so dust withdrawals are refused.
+pub const MIN_WITHDRAW_ZAT: u64 = 1_000_000;
+/// Withdrawal notes go out at uniformly random times within this window (plan §00).
+pub const WITHDRAW_WINDOW: Window = Window {
+    min: 0,
+    max: 30 * 60,
+};
 
-struct Api {
-    gateway: Gateway,
-    network: &'static str,
+const NUT_TOKEN_ALREADY_SPENT: u32 = 11_001;
+const NUT_TRANSACTION_UNBALANCED: u32 = 11_005;
+const NUT_KEYSET_UNKNOWN: u32 = 12_001;
+const KAKURE_DEPOSIT_SHORT: u32 = 20_001;
+const KAKURE_BAD_ADDRESS: u32 = 20_002;
+const KAKURE_TOO_SMALL: u32 = 20_003;
+const KAKURE_BAD_REQUEST: u32 = 20_000;
+
+pub struct Api {
+    pub gateway: Gateway,
+    pub mint: Mint,
+    pub store: Mutex<Store>,
+    pub tip: Arc<AtomicU32>,
+    pub network: Network,
+    pub network_name: &'static str,
+    pub confirmations: u32,
 }
 
-/// Serves the gateway until the process ends.
-pub async fn serve(gateway: Gateway, network: &'static str) -> Result<()> {
+/// Serves the gateway until the process ends, on `KAKURE_GATEWAY_ADDR` (default `127.0.0.1:8790`).
+pub async fn serve(api: Api) -> Result<()> {
     let addr = std::env::var("KAKURE_GATEWAY_ADDR").unwrap_or_else(|_| DEFAULT_ADDR.to_string());
-    let state = Arc::new(Api { gateway, network });
     let app = Router::new()
         .route("/ohttp-keys", get(keys))
         .route("/gateway", post(relay))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_MESSAGE_BYTES))
-        .with_state(state);
+        .with_state(Arc::new(api));
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .with_context(|| format!("binding {addr}"))?;
@@ -68,24 +109,215 @@ async fn relay(State(api): State<Arc<Api>>, body: Bytes) -> Response {
     }
 }
 
-/// The inner API, by method and path.
+/// A failed call: NUT-00's `{detail, code}` with HTTP 400.
+struct Refusal(u32, String);
+
+type Answer = std::result::Result<Value, Refusal>;
+
+fn refuse(code: u32, detail: impl Into<String>) -> Refusal {
+    Refusal(code, detail.into())
+}
+
 fn route(api: &Api, inner: Inner) -> Reply {
-    match (inner.method.as_str(), inner.path.as_str()) {
-        ("GET", "/v1/ping") => json_reply(200, &json!({ "ok": true, "network": api.network })),
-        ("POST", "/v1/ping") => {
-            let echo = String::from_utf8_lossy(&inner.body).into_owned();
-            json_reply(
-                200,
-                &json!({ "ok": true, "network": api.network, "echo": echo }),
-            )
+    let path = inner.path.as_str();
+    let answer = match (inner.method.as_str(), path) {
+        ("GET", "/v1/ping") => Ok(json!({ "ok": true, "network": api.network_name })),
+        ("GET", "/v1/keys") => Ok(json!({ "keysets": [api.mint.keyset_json()] })),
+        ("GET", p) if p.starts_with("/v1/deposit/") => deposit(api, &p["/v1/deposit/".len()..]),
+        ("POST", "/v1/mint/zcash") => body(&inner.body).and_then(|r| mint_chips(api, r)),
+        ("POST", "/v1/swap") => body(&inner.body).and_then(|r| swap(api, r)),
+        ("POST", "/v1/checkstate") => body(&inner.body).and_then(|r| check_state(api, r)),
+        ("POST", "/v1/melt/zcash") => body(&inner.body).and_then(|r| withdraw(api, r)),
+        _ => {
+            return Reply {
+                status: 404,
+                body: json!({ "detail": "not found", "code": KAKURE_BAD_REQUEST })
+                    .to_string()
+                    .into_bytes(),
+            };
         }
-        _ => json_reply(404, &json!({ "error": "not found" })),
+    };
+    match answer {
+        Ok(value) => Reply {
+            status: 200,
+            body: value.to_string().into_bytes(),
+        },
+        Err(Refusal(code, detail)) => Reply {
+            status: 400,
+            body: json!({ "detail": detail, "code": code })
+                .to_string()
+                .into_bytes(),
+        },
     }
 }
 
-fn json_reply(status: u16, body: &serde_json::Value) -> Reply {
-    Reply {
-        status,
-        body: body.to_string().into_bytes(),
+fn body<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> std::result::Result<T, Refusal> {
+    serde_json::from_slice(bytes)
+        .map_err(|e| refuse(KAKURE_BAD_REQUEST, format!("bad request: {e}")))
+}
+
+fn internal(e: impl std::fmt::Display) -> Refusal {
+    eprintln!("api: {e}");
+    refuse(
+        KAKURE_BAD_REQUEST,
+        "the mint could not complete this request; nothing was spent",
+    )
+}
+
+fn valid_deposit_id(id: &str) -> bool {
+    id.len() == DEPOSIT_ID_HEX
+        && id
+            .bytes()
+            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+}
+
+fn deposit(api: &Api, id: &str) -> Answer {
+    if !valid_deposit_id(id) {
+        return Err(refuse(KAKURE_BAD_REQUEST, "bad deposit id"));
     }
+    let tip = api.tip.load(Ordering::Relaxed);
+    let store = api.store.lock().map_err(internal)?;
+    let state =
+        rt_store::deposit_state(&store.conn, id, tip, api.confirmations).map_err(internal)?;
+    let mintable = state.confirmed_zat.saturating_sub(state.issued_zat);
+    Ok(json!({
+        "state": if state.received_zat == 0 { "unseen" }
+            else if state.confirmed_zat < state.received_zat { "confirming" }
+            else { "confirmed" },
+        "receivedZat": state.received_zat.to_string(),
+        "confirmedZat": state.confirmed_zat.to_string(),
+        "mintableZat": mintable.to_string(),
+        "confirmations": state.first_height.map(|h| tip.saturating_sub(h) + 1).unwrap_or(0),
+        "needed": api.confirmations,
+    }))
+}
+
+#[derive(Deserialize)]
+struct MintRequest {
+    deposit: String,
+    outputs: Vec<BlindedMessage>,
+}
+
+fn mint_chips(api: &Api, request: MintRequest) -> Answer {
+    if !valid_deposit_id(&request.deposit) {
+        return Err(refuse(KAKURE_BAD_REQUEST, "bad deposit id"));
+    }
+    let wanted = mint::total(request.outputs.iter().map(|o| o.amount)).map_err(internal)?;
+    // Sign first (pure), commit the issuance second: a failed commit hands out nothing.
+    let signatures = api
+        .mint
+        .sign(&request.outputs)
+        .map_err(|e| refuse(NUT_KEYSET_UNKNOWN, e.to_string()))?;
+    let tip = api.tip.load(Ordering::Relaxed);
+    let mut store = api.store.lock().map_err(internal)?;
+    let tx = store.conn.transaction().map_err(internal)?;
+    let state =
+        rt_store::deposit_state(&tx, &request.deposit, tip, api.confirmations).map_err(internal)?;
+    let mintable = state.confirmed_zat.saturating_sub(state.issued_zat);
+    if wanted > mintable {
+        return Err(refuse(
+            KAKURE_DEPOSIT_SHORT,
+            format!("this deposit can mint {mintable} zat now"),
+        ));
+    }
+    rt_store::add_issued(&tx, &request.deposit, wanted).map_err(internal)?;
+    tx.commit().map_err(internal)?;
+    Ok(json!({ "signatures": signatures }))
+}
+
+#[derive(Deserialize)]
+struct SwapRequest {
+    inputs: Vec<Proof>,
+    outputs: Vec<BlindedMessage>,
+}
+
+fn swap(api: &Api, request: SwapRequest) -> Answer {
+    let ys = api
+        .mint
+        .verify(&request.inputs)
+        .map_err(|e| refuse(NUT_KEYSET_UNKNOWN, e.to_string()))?;
+    let paid = mint::total(request.inputs.iter().map(|p| p.amount)).map_err(internal)?;
+    let wanted = mint::total(request.outputs.iter().map(|o| o.amount)).map_err(internal)?;
+    if paid != wanted {
+        return Err(refuse(
+            NUT_TRANSACTION_UNBALANCED,
+            "inputs and outputs differ",
+        ));
+    }
+    let signatures = api
+        .mint
+        .sign(&request.outputs)
+        .map_err(|e| refuse(NUT_KEYSET_UNKNOWN, e.to_string()))?;
+    spend_and(api, &ys, |_| Ok(()))?;
+    Ok(json!({ "signatures": signatures }))
+}
+
+#[derive(Deserialize)]
+struct CheckRequest {
+    #[serde(rename = "Ys")]
+    ys: Vec<String>,
+}
+
+fn check_state(api: &Api, request: CheckRequest) -> Answer {
+    if request.ys.len() > mint::MAX_ITEMS {
+        return Err(refuse(KAKURE_BAD_REQUEST, "too many"));
+    }
+    let store = api.store.lock().map_err(internal)?;
+    let spent = rt_store::spent_states(&store.conn, &request.ys).map_err(internal)?;
+    let states: Vec<Value> = request
+        .ys
+        .iter()
+        .zip(spent)
+        .map(|(y, s)| json!({ "Y": y, "state": if s { "SPENT" } else { "UNSPENT" }, "witness": null }))
+        .collect();
+    Ok(json!({ "states": states }))
+}
+
+#[derive(Deserialize)]
+struct MeltRequest {
+    inputs: Vec<Proof>,
+    /// A fresh Orchard-only Unified Address of this network.
+    address: String,
+}
+
+fn withdraw(api: &Api, request: MeltRequest) -> Answer {
+    check_payout_address(&request.address, api.network)
+        .map_err(|e| refuse(KAKURE_BAD_ADDRESS, e.to_string()))?;
+    let ys = api
+        .mint
+        .verify(&request.inputs)
+        .map_err(|e| refuse(NUT_KEYSET_UNKNOWN, e.to_string()))?;
+    let zat = mint::total(request.inputs.iter().map(|p| p.amount)).map_err(internal)?;
+    if zat < MIN_WITHDRAW_ZAT {
+        return Err(refuse(
+            KAKURE_TOO_SMALL,
+            format!("withdrawals start at {MIN_WITHDRAW_ZAT} zat"),
+        ));
+    }
+    let now = chrono::Utc::now().timestamp();
+    spend_and(api, &ys, |tx| {
+        let id = rt_store::new_withdrawal(tx, zat, now)?;
+        payouts::schedule_withdrawal(tx, id, &request.address, zat, now, WITHDRAW_WINDOW)?;
+        Ok(())
+    })?;
+    Ok(json!({
+        "state": "scheduled",
+        "amountZat": zat.to_string(),
+        "withinSecs": WITHDRAW_WINDOW.max,
+    }))
+}
+
+/// Marks the chips spent and runs `effect`, all in one transaction (or neither).
+fn spend_and(
+    api: &Api,
+    ys: &[String],
+    effect: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<()>,
+) -> std::result::Result<(), Refusal> {
+    let now = chrono::Utc::now().timestamp();
+    let mut store = api.store.lock().map_err(internal)?;
+    let tx = store.conn.transaction().map_err(internal)?;
+    rt_store::spend(&tx, ys, now).map_err(|e| refuse(NUT_TOKEN_ALREADY_SPENT, e.to_string()))?;
+    effect(&tx).map_err(internal)?;
+    tx.commit().map_err(internal)?;
+    Ok(())
 }

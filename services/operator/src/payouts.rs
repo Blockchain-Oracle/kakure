@@ -212,8 +212,8 @@ pub fn settle<'a>(
 }
 
 /// Splits `zat` into canonical notes and schedules each at a random time in the window.
-#[allow(clippy::too_many_arguments)]
 /// `counted`: it settles a released ticket (N1: only those show in public state).
+#[allow(clippy::too_many_arguments)]
 pub fn schedule(
     tx: &Transaction<'_>,
     market_id: Option<&str>,
@@ -228,26 +228,75 @@ pub fn schedule(
     let Some(recipient) = receipt.payout_address.as_deref() else {
         return Ok(0);
     };
+    insert_notes(
+        tx,
+        market_id,
+        (&receipt.txid, receipt.pool, receipt.output_index),
+        (kind, reason),
+        recipient,
+        zat,
+        resolved_at,
+        window,
+        counted,
+    )
+}
+
+/// A chip withdrawal (plan §00): spent chips become canonical notes to `recipient`, each at its
+/// own random time in `window` from `now`, never part of any published state. Keyed
+/// `withdraw:<id>` so a restart can't schedule it twice.
+pub fn schedule_withdrawal(
+    tx: &Transaction<'_>,
+    withdrawal_id: u32,
+    recipient: &str,
+    zat: u64,
+    now: i64,
+    window: Window,
+) -> Result<usize> {
+    insert_notes(
+        tx,
+        None,
+        (&format!("withdraw:{withdrawal_id}"), 0, withdrawal_id),
+        ("withdraw", "withdrawal"),
+        recipient,
+        zat,
+        now,
+        window,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn insert_notes(
+    tx: &Transaction<'_>,
+    market_id: Option<&str>,
+    (receipt_txid, receipt_pool, receipt_index): (&str, u8, u32),
+    (kind, reason): (&str, &str),
+    recipient: &str,
+    zat: u64,
+    from: i64,
+    window: Window,
+    counted: bool,
+) -> Result<usize> {
     let span = u64::try_from(window.max - window.min + 1)?;
     let mut inserted = 0;
     for (i, note) in canonical_notes(zat).into_iter().enumerate() {
-        let due_at = resolved_at + window.min + i64::try_from(random_u64()? % span)?;
+        let due_at = from + window.min + i64::try_from(random_u64()? % span)?;
         inserted += tx.execute(
             "INSERT OR IGNORE INTO payouts (market_id, receipt_txid, receipt_pool, receipt_index, note_index,
                  kind, reason, recipient, amount_zat, resolved_at, window_end, due_at, status, owner, counted)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'scheduled', ?13, ?14)",
             params![
                 market_id,
-                receipt.txid,
-                receipt.pool,
-                receipt.output_index,
+                receipt_txid,
+                receipt_pool,
+                receipt_index,
                 i,
                 kind,
                 reason,
                 recipient,
                 note,
-                resolved_at,
-                resolved_at + window.max,
+                from,
+                from + window.max,
                 due_at,
                 random_owner()?.to_vec(),
                 counted

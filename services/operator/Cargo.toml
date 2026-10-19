@@ -15,6 +15,10 @@ base64 = "0.22"
 blake2b_simd = "1"
 bhttp = "0.8"
 bip0039 = { version = "0.14", features = ["std"] }
+# Chaumian e-cash (Cashu BDHKE, NUT-00/01/02/07/12), used standalone: no cdk mint, no database.
+cashu = "=0.18.2"
+# Only to name the mint keyset's derivation path (already in the tree through cashu).
+bitcoin = { version = "0.32", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["std", "now"] }
 clap = { version = "4.5", features = ["derive"] }
 ed25519-dalek = "2"

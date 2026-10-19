@@ -61,6 +61,9 @@ pub struct Realtime {
     sigma: BTreeMap<&'static str, String>,
     /// When σ was last estimated; `None` until the first estimate.
     sigma_at: Option<i64>,
+    /// What clients need to trade (keyset, gateway key, deposit address and rules), once the
+    /// trading side has started; published in every bundle.
+    trading: Option<Value>,
 }
 
 pub struct TickReport {
@@ -91,11 +94,16 @@ impl Realtime {
             network: wallet.net.name(),
             sigma: BTreeMap::new(),
             sigma_at: None,
+            trading: None,
         })
     }
 
     pub fn public_dir(&self) -> std::path::PathBuf {
         self.publisher.dir()
+    }
+
+    pub fn set_trading(&mut self, trading: Value) {
+        self.trading = Some(trading);
     }
 
     pub async fn tick(&mut self, now: i64) -> Result<TickReport> {
@@ -305,6 +313,10 @@ impl Realtime {
             "windows": windows,
             "prints": rt_store::prints_files_since(conn, now - DAY_SECS)?,
         });
+        let mut document = document;
+        if let Some(trading) = &self.trading {
+            document["trading"] = trading.clone();
+        }
         let name = format!("bundle-{seq}.json");
         let signed = sign_file(&self.key, &document)?;
         self.publisher.write(&name, &signed.bytes, true)?;
