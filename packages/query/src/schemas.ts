@@ -144,6 +144,7 @@ export const resolutionSchema = z.object({
   resolvedAt: isoTime,
   cutoffHeight: z.int().check(z.positive()),
   totals: z.partialRecord(side, resolutionSide),
+  leaves: z.optional(z.array(hexHash)),
   direction: z.union([side, z.literal("none"), z.literal("disagree")]),
   outcome: z.union([side, z.literal("refund")]),
   reason: z.enum(["majority", "chain", "thin-pool", "no-majority", "cancelled", "servers-disagree"]),

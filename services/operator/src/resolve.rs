@@ -160,6 +160,9 @@ pub struct ResolutionDoc {
     pub cutoff_height: u32,
     /// The signed final counts at `H_c`.
     pub totals: BTreeMap<String, PoolSide>,
+    /// The counted tickets' hashes, sorted: lets a receipt be checked after the bundles that listed
+    /// them are gone (bundles are kept 12 h). Already public in those bundles; nothing new is revealed.
+    pub leaves: Vec<String>,
     /// What the sources say (`U`/`D`/`Y`/`N`), or `none` when they decide nothing.
     pub direction: String,
     /// What happens to the money: the winning side, or `refund`.

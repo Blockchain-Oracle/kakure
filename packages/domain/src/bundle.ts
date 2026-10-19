@@ -158,6 +158,8 @@ export const resolutionSchema = z.object({
   /** H_c, frozen at FINALITY_CONFIRMATIONS; the totals are the signed final counts below it (released tickets only). */
   cutoffHeight: z.number().int().positive(),
   totals: z.partialRecord(side, resolutionSideSchema),
+  /** The counted tickets' hashes, sorted (added 2026-10-19), so receipts verify after bundles expire. */
+  leaves: z.array(z.string().regex(HEX_HASH)).optional(),
   /** What the sources say, or "none" (split, flat or missing votes) / "disagree" (chain servers differ). */
   direction: z.union([side, z.literal("none"), z.literal("disagree")]),
   /** What happens to the money: the winning side, or "refund". */

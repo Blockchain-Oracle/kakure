@@ -272,6 +272,12 @@ impl Engine {
                 resolved_at: catalog::iso(now),
                 cutoff_height,
                 totals,
+                leaves: {
+                    let mut leaves: Vec<String> =
+                        tickets.iter().filter_map(|t| t.leaf.clone()).collect();
+                    leaves.sort_unstable();
+                    leaves
+                },
                 direction,
                 outcome: outcome.clone(),
                 reason: reason.to_string(),
