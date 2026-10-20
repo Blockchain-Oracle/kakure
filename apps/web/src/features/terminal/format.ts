@@ -1,4 +1,4 @@
-import { PRICE_SCALE_E4, ZATOSHI_PER_ZEC } from "@kakure/domain";
+import { PRICE_SCALE_E4, type WindowPhase, ZATOSHI_PER_ZEC } from "@kakure/domain";
 import { CENTS_PER_UNIT, MONEY_MAGNITUDES } from "./constants";
 
 /**
@@ -80,3 +80,19 @@ export const clockText = (sec: number): string =>
   new Date(sec * SECOND_MS).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
 export const sideWord = (side: "U" | "D"): "Up" | "Down" => (side === "U" ? "Up" : "Down");
+
+/** Where a Window is, in a few words: "trades 0:23", "closes 0:12", "opens 0:41", "opening…". */
+export function windowStatus(w: {
+  phase: WindowPhase | null;
+  startSec: number | null;
+  cutoffSec: number | null;
+  expirySec: number | null;
+  nowSec: number;
+}): string {
+  if (w.phase === "live" && w.cutoffSec !== null) return `trades ${untilText(w.cutoffSec, w.nowSec)}`;
+  if (w.phase === "riding" && w.expirySec !== null) return `closes ${untilText(w.expirySec, w.nowSec)}`;
+  if (w.phase === "pre" && w.startSec !== null) return `opens ${untilText(w.startSec, w.nowSec)}`;
+  if (w.phase === "opening") return "opening…";
+  if (w.phase === "settled") return "settling";
+  return "no Window";
+}

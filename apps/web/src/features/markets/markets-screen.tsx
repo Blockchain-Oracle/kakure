@@ -1,151 +1,198 @@
 "use client";
 
-import type { Bundle, Network } from "@kakure/domain";
-import { nextBatchAt } from "@kakure/query";
-import { Button, Chip, EmptyState, SearchField, Tabs } from "@kakure/ui-web";
-import { ChartLine, Hourglass, RefreshCw, SearchX, Timer } from "lucide-react";
+import { type BundleV2, cadenceLabel, type LaneAsset, type Network } from "@kakure/domain";
+import { Button, EmptyState, SearchField, Tabs } from "@kakure/ui-web";
+import { Hourglass, RefreshCw, SearchX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NETWORK_LABEL } from "@/constants";
-import { DataErrorState, FreshnessStrip } from "@/features/data/data-states";
-import { useMarkets } from "@/features/data/use-markets";
-import { Terminal } from "@/features/market/terminal";
+import { DataErrorState } from "@/features/data/data-states";
+import { useRealtime } from "@/features/data/use-realtime";
+import { useFragment } from "@/features/market/fragment";
 import { switchNetwork } from "@/features/network/network-store";
-import { formatClock, formatCountdown, useNow } from "@/lib/time";
-import { isLane, LANE_LABEL, LANES, type Lane, laneMarkets } from "./filters";
-import { MarketCard } from "./market-card";
-import { featuredWindow, isBettable } from "./market-view";
+import { TradeToasts } from "@/features/terminal/toasts";
+import { useUpkeep } from "@/features/terminal/use-upkeep";
+import { LANE_SYMBOLS, useCommittedSpots } from "@/features/terminal/use-window";
+import { DepositSheet } from "@/features/wallet/deposit-sheet";
+import { useWallet } from "@/features/wallet/wallet-store";
+import { formatClock, useNow } from "@/lib/time";
+import { assetFor } from "./assets";
+import { heroPick, LENGTHS, laneCards, liveCount } from "./live-lanes";
 import { MarketsSkeleton } from "./markets-skeleton";
-
-const GRID_ID = "market-grid";
-const DEFAULT_LANE: Lane = "hourly";
-
-/** The lane lives in the fragment (`/markets#daily`), which browsers never send to the host. */
-function useLane(): [Lane, (next: Lane) => void] {
-  const [lane, setLane] = useState<Lane>(DEFAULT_LANE);
-  useEffect(() => {
-    const read = () => {
-      const hash = location.hash.slice(1);
-      setLane(isLane(hash) ? hash : DEFAULT_LANE);
-    };
-    read();
-    window.addEventListener("hashchange", read);
-    return () => window.removeEventListener("hashchange", read);
-  }, []);
-  return [
-    lane,
-    (next) => {
-      history.replaceState(null, "", `#${next}`);
-      setLane(next);
-    },
-  ];
-}
+import { WindowCard } from "./window-card";
+import { WindowHero } from "./window-hero";
+import "@/features/terminal/terminal.css";
 
 /**
- * Markets (Mitoshi's markets page, mitoshi-code-study §3.1; plan §0 R2): a live terminal hero to bet from right here,
- * then the lanes (Hourly · Daily · Range · Stocks · Zcash · Resolved, by cadence, never by date), search, Closing
- * soon, and short cards with live prices, sparklines and what each side pays.
+ * Markets (plan §00 Markets; Mitoshi's markets page, mitoshi-code-study §3.1): the shortest Window open now as a live
+ * hero you can trade from here, then the lanes by Window length (1m … 1d, never by date) with each asset's card:
+ * live price against its Line, a 24-hour sparkline, and what Up and Down pay now. A card opens the terminal on that
+ * asset and length. The length lives in the fragment (`/markets#5m`), which the host never sees.
  */
+const GRID_ID = "window-grid";
+const MS = 1000;
+
 export function MarketsScreen() {
-  const data = useMarkets();
-  const now = useNow();
-  const [lane, setLane] = useLane();
-  const [closingSoon, setClosingSoon] = useState(false);
+  const data = useRealtime();
+  const network = data.network;
+  const bundle = data.status === "ready" ? data.bundle : null;
+  const nowSec = Math.floor(useNow() / MS);
+  const spots = useCommittedSpots(LANE_SYMBOLS);
+  const wallet = useWallet(network);
+  const fragment = useFragment();
   const [query, setQuery] = useState("");
-  const markets = data.status === "ready" ? data.bundle.markets : [];
-  const hero = data.status === "ready" ? featuredWindow(markets, now) : undefined;
+  const [depositOpen, setDepositOpen] = useState(false);
+  // The hero is chosen once the bundle is in, then held (a 1-minute Window stops trading every half minute).
+  const [hero, setHero] = useState<{ asset: LaneAsset; cadenceSec: number } | null>(null);
+  useEffect(() => {
+    if (!hero && bundle && nowSec > 0) setHero(heroPick(bundle, nowSec));
+  }, [hero, bundle, nowSec]);
+
+  // A link's length (`/markets#5m`) wins; a tapped tab is written back (replaceState doesn't render, so it's held too).
+  const [picked, setPicked] = useState<number | null>(null);
+  const linked = LENGTHS.find((sec) => `#${cadenceLabel(sec)}` === fragment) ?? null;
+  const length = linked ?? picked ?? hero?.cadenceSec ?? LENGTHS[0] ?? null;
+  const pickLength = (sec: number) => {
+    setPicked(sec);
+    history.replaceState(null, "", `#${cadenceLabel(sec)}`);
+  };
+  // A position bought from the hero settles and pays out from here too.
+  useUpkeep(network, bundle?.trading ?? null, wallet.positions, wallet.status === "ready");
+  const arriving =
+    wallet.deposits.filter((d) => d.state !== "done").sort((a, b) => b.createdAt - a.createdAt)[0]?.key ?? null;
 
   return (
     <div className="flex w-full flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-page-title text-foreground">Markets</h1>
-        {data.status === "ready" ? <BatchMeta bundle={data.bundle} now={now} /> : null}
+        {bundle ? (
+          <p className="text-money-meta text-muted-foreground">
+            Signed {formatClock(bundle.publishedAt)} · every minute
+          </p>
+        ) : null}
       </div>
 
       {data.status === "ready" && hero ? (
-        <Terminal
-          hero
-          market={hero}
-          bundle={data.bundle}
-          addresses={data.addresses}
-          network={data.network}
-          now={now}
-          freshness={
-            <FreshnessStrip
-              publishedAt={data.latest.publishedAt}
-              checkedAt={data.checkedAt}
-              refreshError={data.refreshError}
-              onRetry={data.refetch}
-            />
-          }
+        <WindowHero
+          network={network}
+          bundle={bundle}
+          asset={hero.asset}
+          cadenceSec={hero.cadenceSec}
+          spot={spots.get(`${hero.asset}-USD`) ?? null}
+          nowSec={nowSec}
+          onNeedChips={() => setDepositOpen(true)}
         />
       ) : null}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Tabs
-          label="Lane"
-          controls={GRID_ID}
-          value={lane}
-          onChange={(next) => setLane(next)}
-          items={LANES.map((value) => ({
-            value,
-            label: LANE_LABEL[value],
-            ...(data.status === "ready" && value !== "resolved"
-              ? { count: laneMarkets(markets, value, "", false, now).filter((m) => isBettable(m, now)).length }
-              : {}),
-          }))}
-        />
-        <div className="flex items-center gap-2">
-          <Chip kind="toggle" selected={closingSoon} onClick={() => setClosingSoon(!closingSoon)} icon={<Timer />}>
-            Closing soon
-          </Chip>
-          <SearchField
-            label="Search markets"
-            placeholder="Search BTC, Zcash…"
-            value={query}
-            onChange={setQuery}
-            className="md:w-56"
+        {length !== null ? (
+          <Tabs
+            label="Window length"
+            controls={GRID_ID}
+            value={cadenceLabel(length)}
+            onChange={(label) => {
+              const sec = LENGTHS.find((s) => cadenceLabel(s) === label);
+              if (sec !== undefined) pickLength(sec);
+            }}
+            items={LENGTHS.map((sec) => ({
+              value: cadenceLabel(sec),
+              label: cadenceLabel(sec),
+              ...(bundle ? { count: liveCount(sec, bundle, nowSec) } : {}),
+            }))}
           />
-        </div>
+        ) : null}
+        <SearchField
+          label="Search markets"
+          placeholder="Search BTC, Zcash…"
+          value={query}
+          onChange={setQuery}
+          className="md:w-56"
+        />
       </div>
 
       <section id={GRID_ID} aria-live="polite">
         {data.status === "loading" ? <MarketsSkeleton /> : null}
         {data.status === "error" ? (
-          <DataErrorState error={data.error} network={data.network} onRetry={data.refetch} />
+          <DataErrorState error={data.error} network={network} onRetry={data.refetch} />
         ) : null}
-        {data.status === "unpublished" ? <Unpublished network={data.network} onRetry={data.refetch} /> : null}
-        {data.status === "ready" ? (
-          <MarketGrid
+        {data.status === "unpublished" ? <Unpublished network={network} onRetry={data.refetch} /> : null}
+        {data.status === "ready" && length !== null ? (
+          <WindowGrid
             bundle={data.bundle}
-            network={data.network}
-            now={now}
-            lane={lane}
+            length={length}
             query={query}
-            closingSoon={closingSoon}
-            onClear={() => {
-              setClosingSoon(false);
-              setQuery("");
-            }}
-            onLane={setLane}
+            nowSec={nowSec}
+            spots={spots}
+            onClear={() => setQuery("")}
           />
         ) : null}
       </section>
+
+      <TradeToasts />
+      {bundle?.trading ? (
+        <DepositSheet
+          open={depositOpen}
+          onClose={() => setDepositOpen(false)}
+          network={network}
+          trading={bundle.trading}
+          resume={arriving}
+        />
+      ) : null}
     </div>
   );
 }
 
-function BatchMeta({ bundle, now }: { bundle: Bundle; now: number }) {
-  const next = nextBatchAt(bundle);
+function WindowGrid({
+  bundle,
+  length,
+  query,
+  nowSec,
+  spots,
+  onClear,
+}: {
+  bundle: BundleV2;
+  length: number;
+  query: string;
+  nowSec: number;
+  spots: ReadonlyMap<string, number>;
+  onClear: () => void;
+}) {
+  const q = query.trim().toLowerCase();
+  const cards = laneCards(length, bundle, nowSec).filter((c) => {
+    if (!q) return true;
+    const name = assetFor({ kind: "close", subject: c.asset }).name.toLowerCase();
+    return c.asset.toLowerCase().includes(q) || name.includes(q);
+  });
+  if (cards.length === 0) {
+    return (
+      <EmptyState
+        icon={<SearchX />}
+        title="No market matches"
+        reason={`Nothing on the ${cadenceLabel(length)} Windows matches "${query}".`}
+        action={
+          <Button variant="secondary" size="sm" onClick={onClear}>
+            Clear search
+          </Button>
+        }
+      />
+    );
+  }
   return (
-    <p className="text-money-meta text-muted-foreground">
-      Batch {bundle.seq} · {formatClock(bundle.publishedAt)}
-      {now > 0 && next > now ? (
-        <>
-          {" "}
-          · next in <span className="tabular-nums">{formatCountdown(next - now)}</span>
-        </>
-      ) : null}
-    </p>
+    <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 wide:grid-cols-3">
+      {cards.map((card) => {
+        const sigma = bundle.pricing.sigma[card.asset];
+        return (
+          <li key={card.asset}>
+            <WindowCard
+              card={card}
+              spot={spots.get(`${card.asset}-USD`) ?? null}
+              sigma={sigma ? Number(sigma) : null}
+              nowSec={nowSec}
+              entryBufferSec={bundle.pricing.entryBufferSec}
+            />
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -153,8 +200,8 @@ function Unpublished({ network, onRetry }: { network: Network; onRetry: () => vo
   return (
     <EmptyState
       icon={<Hourglass />}
-      title="No markets published yet"
-      reason={`The operator hasn't published a signed batch for ${NETWORK_LABEL[network]} yet. Batches go out every 10 minutes, and this page checks again on its own.`}
+      title="No Windows published yet"
+      reason={`The operator hasn't published a signed bundle for ${NETWORK_LABEL[network]} yet. Bundles go out every minute, and this page checks again on its own.`}
       action={
         <>
           <Button variant="secondary" size="sm" onClick={onRetry}>
@@ -168,87 +215,5 @@ function Unpublished({ network, onRetry }: { network: Network; onRetry: () => vo
         </>
       }
     />
-  );
-}
-
-function MarketGrid({
-  bundle,
-  network,
-  now,
-  lane,
-  query,
-  closingSoon,
-  onClear,
-  onLane,
-}: {
-  bundle: Bundle;
-  network: Network;
-  now: number;
-  lane: Lane;
-  query: string;
-  closingSoon: boolean;
-  onClear: () => void;
-  onLane: (lane: Lane) => void;
-}) {
-  const inLane = laneMarkets(bundle.markets, lane, "", false, now);
-  const shown = laneMarkets(bundle.markets, lane, query, closingSoon, now);
-  const nextBatch = formatClock(nextBatchAt(bundle));
-
-  if (inLane.length === 0) {
-    if (lane === "stocks") {
-      return (
-        <EmptyState
-          icon={<ChartLine />}
-          title="Stock markets open once the price feed is connected"
-          reason="Stocks settle only when two keyed sources, Pyth and Alpaca, agree on the close."
-          action={
-            <Button variant="secondary" size="sm" onClick={() => onLane("hourly")}>
-              See hourly markets
-            </Button>
-          }
-        />
-      );
-    }
-    return (
-      <EmptyState
-        icon={<Hourglass />}
-        title={`No ${LANE_LABEL[lane].toLowerCase()} markets right now`}
-        reason={
-          lane === "range"
-            ? "Tomorrow's strike ladder is created two hours before the day opens."
-            : `The next batch is at ${nextBatch}.`
-        }
-        action={
-          <Button variant="secondary" size="sm" onClick={() => onLane(lane === "hourly" ? "daily" : "hourly")}>
-            See {lane === "hourly" ? "daily" : "hourly"} markets
-          </Button>
-        }
-      />
-    );
-  }
-
-  if (shown.length === 0) {
-    return (
-      <EmptyState
-        icon={closingSoon ? <Timer /> : <SearchX />}
-        title={closingSoon ? "Nothing closes in the next hour" : "No market matches"}
-        reason={query ? `Nothing in ${LANE_LABEL[lane]} matches "${query}".` : "These filters hide every market here."}
-        action={
-          <Button variant="secondary" size="sm" onClick={onClear}>
-            Clear filters
-          </Button>
-        }
-      />
-    );
-  }
-
-  return (
-    <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 wide:grid-cols-3">
-      {shown.map((market) => (
-        <li key={market.id}>
-          <MarketCard market={market} network={network} now={now} />
-        </li>
-      ))}
-    </ul>
   );
 }

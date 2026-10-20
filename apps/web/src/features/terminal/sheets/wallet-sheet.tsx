@@ -372,7 +372,7 @@ export function WalletSheet({
   );
 }
 
-function HistoryList({
+export function HistoryList({
   rows,
   coin,
   onShare,

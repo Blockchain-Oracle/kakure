@@ -1,6 +1,6 @@
 "use client";
 
-import { CHIP_GRID_ZAT, LANE_ASSETS, type LaneAsset, withSlippage } from "@kakure/domain";
+import { CHIP_GRID_ZAT, cadenceLabel, LANE_ASSETS, type LaneAsset, withSlippage } from "@kakure/domain";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
 import { Sheet } from "@kakure/ui-web";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -53,14 +53,17 @@ function useIsDesktop(): boolean {
   );
 }
 
-function assetOf(fragment: string | null): LaneAsset {
-  const name = (fragment ?? "").replace(/^#/, "").toUpperCase();
-  return (LANE_ASSETS as readonly string[]).includes(name) ? (name as LaneAsset) : DEFAULT_ASSET;
+/** `#BTC` or `#BTC/5m`: the asset, and the Window length a link asked for (the fragment never reaches the host). */
+function parseFragment(fragment: string | null): { asset: LaneAsset; length: string | null } {
+  const [name = "", length = null] = (fragment ?? "").replace(/^#/, "").split("/");
+  const upper = name.toUpperCase();
+  const asset = (LANE_ASSETS as readonly string[]).includes(upper) ? (upper as LaneAsset) : DEFAULT_ASSET;
+  return { asset, length };
 }
 
 export function TerminalScreen() {
   const fragment = useFragment();
-  const asset = assetOf(fragment);
+  const { asset, length } = parseFragment(fragment);
   const info = assetFor({ kind: "close", subject: asset });
   const data = useRealtime();
   const network = data.network;
@@ -95,6 +98,15 @@ export function TerminalScreen() {
   const lanes = lanesFor(asset);
   // The first-visit length (the shortest trading now) is chosen once the bundle is in, then held: Owarine re-picks it
   // every second until a tap, which here would swap the Line under you each time a 1-minute Window stops trading.
+  // A link's length (`#BTC/5m`) wins; a picked one is written back so a reload keeps it.
+  const linked = lanes.find((l) => l.label === length)?.cadenceSec ?? null;
+  useEffect(() => {
+    if (linked !== null) setCadence(linked);
+  }, [linked]);
+  const pickCadence = (sec: number) => {
+    setCadence(sec);
+    history.replaceState(null, "", `#${asset}/${cadenceLabel(sec)}`);
+  };
   const picked = cadence !== null && lanes.some((l) => l.cadenceSec === cadence) ? cadence : null;
   const fallback = picked === null && bundle && nowSec > 0 ? defaultCadence(asset, bundle, nowSec) : null;
   useEffect(() => {
@@ -305,7 +317,7 @@ export function TerminalScreen() {
     <WindowChip
       lanes={lanes}
       cadenceSec={cadenceSec}
-      onPick={setCadence}
+      onPick={pickCadence}
       phase={phase}
       startSec={screen?.window.startSec ?? null}
       cutoffSec={screen ? screen.window.expirySec - (bundle?.pricing.entryBufferSec ?? 0) : null}
@@ -343,7 +355,7 @@ export function TerminalScreen() {
       closingAll={closingAll}
       onCloseAll={() => void closeAll()}
       onPickAsset={(next) => {
-        window.location.hash = next;
+        window.location.hash = cadenceSec === null ? next : `${next}/${cadenceLabel(cadenceSec)}`;
       }}
       actions={actions}
       onAdd={addTo}

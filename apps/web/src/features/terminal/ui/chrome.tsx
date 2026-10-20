@@ -20,7 +20,7 @@ import {
 import { type PointerEvent, useRef, useState } from "react";
 import { KakureMark } from "@/features/shell/brand";
 import { PERCENT } from "../constants";
-import { untilText } from "../format";
+import { windowStatus } from "../format";
 import type { TerminalLane } from "../use-window";
 
 /**
@@ -120,18 +120,7 @@ export function WindowChip({
   expirySec: number | null;
   nowSec: number;
 }) {
-  const status =
-    phase === "live" && cutoffSec !== null
-      ? `trades ${untilText(cutoffSec, nowSec)}`
-      : phase === "riding" && expirySec !== null
-        ? `closes ${untilText(expirySec, nowSec)}`
-        : phase === "pre" && startSec !== null
-          ? `opens ${untilText(startSec, nowSec)}`
-          : phase === "opening"
-            ? "opening…"
-            : phase === "settled"
-              ? "settling"
-              : "no Window";
+  const status = windowStatus({ phase, startSec, cutoffSec, expirySec, nowSec });
   return (
     <div className="kk-glass flex max-w-full items-center gap-1 overflow-x-auto rounded-full p-1 [scrollbar-width:none]">
       {lanes.map((l) => (

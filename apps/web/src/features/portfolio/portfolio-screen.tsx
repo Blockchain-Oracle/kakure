@@ -3,6 +3,7 @@
 import { type Network, ZATOSHI_PER_ZEC } from "@kakure/domain";
 import { usePrice } from "@kakure/feeds";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
+import type { Ticket } from "@kakure/query";
 import { Mark, Pill, RollingNumber, Tabs } from "@kakure/ui-web";
 import { Clapperboard, Eye, EyeOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -10,6 +11,7 @@ import { NETWORK_COIN } from "@/constants";
 import { useMarkets } from "@/features/data/use-markets";
 import { assetFor } from "@/features/markets/assets";
 import { sideWord, WINDOW_LABEL } from "@/features/markets/market-view";
+import { useNetwork } from "@/features/network/network-store";
 import { TicketSheet } from "@/features/receipts/ticket-sheet";
 import { setPrefs, usePrefs } from "@/features/settings/prefs-store";
 import { STATUS_LABEL, STATUS_TONE } from "@/features/tickets/status";
@@ -19,10 +21,11 @@ import { formatShortWhen, useNow } from "@/lib/time";
 import { useAmounts } from "./amounts";
 import { type Position, positionsOf, totalsOf } from "./money";
 import { SoundLadder } from "./sound-ladder";
+import { TradingSection } from "./trading-section";
 
 /**
- * The portfolio (C9, surfaces.md; plan §00 Portfolio): the chip wallet first (balance, deposit, withdraw), then this
- * device's tickets. Open and settled lists, P&L in ZEC with fiat as
+ * The portfolio (C9, surfaces.md; plan §00 Portfolio): the chip wallet first (balance, deposit, withdraw), then
+ * trading (open positions valued live, and this device's history), then any tickets from the earlier per-bet design. Open and settled lists, P&L in ZEC with fiat as
  * secondary (mainnet only: TAZ has no value), the privacy eye, the sound ladder while a position is open, and an
  * honest Replay state until the web reads the signed price history.
  */
@@ -31,18 +34,41 @@ const ZEC_STREAM: StreamSymbol = "ZEC-USD";
 const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 export function PortfolioScreen() {
+  const network = useNetwork();
+  const tickets = useTickets(network);
+  const prefs = usePrefs();
+
+  return (
+    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-display text-page-title text-foreground">Portfolio</h1>
+        <button
+          type="button"
+          onClick={() => setPrefs({ hideAmounts: !prefs.hideAmounts })}
+          aria-pressed={prefs.hideAmounts}
+          className="flex items-center gap-2 rounded-full bg-secondary px-3.5 py-2 text-chip-label text-secondary-foreground outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {prefs.hideAmounts ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
+          {prefs.hideAmounts ? "Amounts hidden" : "Hide amounts"}
+        </button>
+      </div>
+
+      <WalletSection />
+      <TradingSection network={network} />
+      {/* Tickets from the earlier per-bet design, only while any are on this device (they read the batch data). */}
+      {Array.isArray(tickets) && tickets.length > 0 ? <LegacyTickets tickets={tickets} /> : null}
+    </div>
+  );
+}
+
+function LegacyTickets({ tickets }: { tickets: Ticket[] }) {
   const data = useMarkets();
   const network = data.network;
-  const tickets = useTickets(network);
   const now = useNow();
-  const prefs = usePrefs();
   const [tab, setTab] = useState<Tab>("open");
   const [selected, setSelected] = useState<string | null>(null);
   const bundle = data.status === "ready" ? data.bundle : null;
-  const positions = useMemo(
-    () => (Array.isArray(tickets) ? positionsOf(tickets, bundle, now) : []),
-    [tickets, bundle, now],
-  );
+  const positions = useMemo(() => positionsOf(tickets, bundle, now), [tickets, bundle, now]);
   const totals = totalsOf(positions);
   const shown = positions.filter((position) => position.open === (tab === "open"));
   const chosen = positions.find((position) => position.ticket.hash === selected) ?? null;
@@ -84,65 +110,39 @@ export function PortfolioScreen() {
     });
 
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-page-title text-foreground">Portfolio</h1>
-        <button
-          type="button"
-          onClick={() => setPrefs({ hideAmounts: !prefs.hideAmounts })}
-          aria-pressed={prefs.hideAmounts}
-          className="flex items-center gap-2 rounded-full bg-secondary px-3.5 py-2 text-chip-label text-secondary-foreground outline-none hover:bg-row-pressed focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {prefs.hideAmounts ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
-          {prefs.hideAmounts ? "Amounts hidden" : "Hide amounts"}
-        </button>
-      </div>
-
-      <WalletSection />
-
-      {/* Tickets from the earlier per-bet design, while any are on this device; the wallet above speaks for the vault. */}
-      {!Array.isArray(tickets) || tickets.length === 0 ? null : (
-        <>
-          <Hero
-            network={network}
-            atRisk={totals.atRisk}
-            pnl={totals.pnl}
-            pending={totals.pending}
-            open={voices.length}
-          />
-          <Tabs
-            label="Tickets"
-            value={tab}
-            onChange={setTab}
-            items={[
-              { value: "open", label: "Open", count: positions.filter((p) => p.open).length },
-              { value: "settled", label: "Settled", count: positions.filter((p) => !p.open).length },
-            ]}
-          />
-          {shown.length === 0 ? (
-            <p className="rounded-group border border-border bg-card p-5 text-row-detail text-muted-foreground">
-              {tab === "open" ? "No open tickets. Settled ones are in the other tab." : "Nothing has settled yet."}
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {shown.map((position) => (
-                <Row
-                  key={position.ticket.hash}
-                  position={position}
-                  now={now}
-                  onOpen={() => setSelected(position.ticket.hash)}
-                />
-              ))}
-            </ul>
-          )}
-          <ReplayCard />
-          <SoundLadder voices={voices} />
-        </>
+    <>
+      <Hero network={network} atRisk={totals.atRisk} pnl={totals.pnl} pending={totals.pending} open={voices.length} />
+      <Tabs
+        label="Tickets"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: "open", label: "Open", count: positions.filter((p) => p.open).length },
+          { value: "settled", label: "Settled", count: positions.filter((p) => !p.open).length },
+        ]}
+      />
+      {shown.length === 0 ? (
+        <p className="rounded-group border border-border bg-card p-5 text-row-detail text-muted-foreground">
+          {tab === "open" ? "No open tickets. Settled ones are in the other tab." : "Nothing has settled yet."}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {shown.map((position) => (
+            <Row
+              key={position.ticket.hash}
+              position={position}
+              now={now}
+              onOpen={() => setSelected(position.ticket.hash)}
+            />
+          ))}
+        </ul>
       )}
+      <ReplayCard />
+      <SoundLadder voices={voices} />
       {chosen ? (
         <TicketSheet ticket={chosen.ticket} view={chosen.view} bundle={bundle} onClose={() => setSelected(null)} />
       ) : null}
-    </div>
+    </>
   );
 }
 
