@@ -1,3 +1,4 @@
+import { formatUsd, priceDecimals } from "@kakure/chart";
 import { PRICE_SCALE_E4, type WindowPhase, ZATOSHI_PER_ZEC } from "@kakure/domain";
 import { CENTS_PER_UNIT, MONEY_MAGNITUDES } from "./constants";
 
@@ -96,3 +97,17 @@ export function windowStatus(w: {
   if (w.phase === "settled") return "settling";
   return "no Window";
 }
+
+const usd = (n: number) => formatUsd(n, priceDecimals(n));
+
+/** A band in words: "Inside $81,250–$81,350", "Outside …", "At or above $82,000", "Below $80,500". */
+export function bandText(band: { lo: number | null; hi: number | null; side: "in" | "out" }): string {
+  const { lo, hi, side } = band;
+  if (lo !== null && hi !== null) return `${side === "in" ? "Inside" : "Outside"} ${usd(lo)}–${usd(hi)}`;
+  if (lo !== null) return side === "in" ? `At or above ${usd(lo)}` : `Below ${usd(lo)}`;
+  if (hi !== null) return side === "in" ? `At or below ${usd(hi)}` : `Above ${usd(hi)}`;
+  return "";
+}
+
+/** An ROI with its sign, one decimal: "+4.1%", "−23.7%". */
+export const signedPct = (roi: number): string => `${roi >= 0 ? "+" : "−"}${Math.abs(roi).toFixed(1)}%`;

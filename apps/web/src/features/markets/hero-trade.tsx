@@ -13,6 +13,7 @@ import { useUpkeep } from "@/features/terminal/use-upkeep";
 import type { ScreenWindow } from "@/features/terminal/use-window";
 import { whyNotTrading } from "@/features/terminal/why";
 import { DepositSheet } from "@/features/wallet/deposit-sheet";
+import { upDownOf } from "@/features/wallet/records";
 import { useWallet } from "@/features/wallet/wallet-store";
 import { tradeHref } from "./live-lanes";
 
@@ -66,20 +67,24 @@ export default function HeroTrade({
     vault: wallet.status,
     hasQuote: upAsk !== null || downAsk !== null,
   });
+  // The hero is Up and Down: only a single on this Window counts (a band on it is managed from Range).
   const mine = screen
-    ? wallet.positions.find((p) => p.certificate?.window === screen.window.id && p.state !== "paid")
+    ? wallet.positions.find(
+        (p) => p.certificate?.window === screen.window.id && p.state !== "paid" && upDownOf(p.certificate),
+      )
     : undefined;
+  const mineSide = upDownOf(mine?.certificate);
   const arriving =
     wallet.deposits.filter((d) => d.state !== "done").sort((a, b) => b.createdAt - a.createdAt)[0]?.key ?? null;
 
   return (
     <>
-      {mine?.certificate?.side ? (
+      {mineSide ? (
         <Link
           href={tradeHref(asset, cadenceSec)}
           className="flex h-12 items-center justify-between gap-2 rounded-full bg-secondary px-4 text-row-strong text-foreground hover:bg-row-pressed"
         >
-          <span>You hold {sideWord(mine.certificate.side)} on this Window</span>
+          <span>You hold {sideWord(mineSide)} on this Window</span>
           <span className="flex items-center gap-1 text-meta text-muted-foreground">
             Manage <ArrowRight aria-hidden className="size-4" />
           </span>

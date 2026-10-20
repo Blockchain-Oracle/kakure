@@ -182,6 +182,7 @@ export function TerminalScreen() {
     onAdd: (p: LivePosition) => openSheet("add", p),
     onReduce: (p: LivePosition) => openSheet("reduce", p),
     onExits: (p: LivePosition) => openSheet("exits", p),
+    onSell: (p: LivePosition) => void trade.close(p),
   };
   const addTo = (p: LivePosition, amount: number) => {
     if (!trading || !p.window || !p.side) return;

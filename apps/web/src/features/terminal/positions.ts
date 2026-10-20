@@ -9,12 +9,13 @@ import {
   type LaneWindow,
   PRE_OPEN_PROBABILITY,
   parseWindowId,
+  quoteBand,
   quoteWindow,
   type WindowPhase,
   windowPhase,
 } from "@kakure/domain";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
-import type { PositionRecord } from "@/features/wallet/records";
+import { bandSideOf, type PositionRecord, upDownOf } from "@/features/wallet/records";
 
 /**
  * This device's positions valued live (Owarine `PositionsPanel.tsx` + `position-return.ts`): what closing pays now at
@@ -27,7 +28,7 @@ export type PositionStatus = "buying" | "priced" | "locked" | "settling" | "unpr
 export interface LivePosition {
   record: PositionRecord;
   key: string;
-  kind: "single" | "parlay";
+  kind: "single" | "parlay" | "band";
   asset: LaneAsset | null;
   side: "U" | "D" | null;
   window: LaneWindow | null;
@@ -45,6 +46,8 @@ export interface LivePosition {
   roiPct: number | null;
   /** The last moment any of its Windows settles (unix s). */
   settlesSec: number;
+  /** A band's edges (unbounded when null) and side; null for anything else. */
+  band: { lo: number | null; hi: number | null; side: "in" | "out" } | null;
 }
 
 export type Spots = (symbol: StreamSymbol) => number | null;
@@ -80,14 +83,57 @@ export function valuePositions(
     }
     const parsed = cert.window ? parseWindowId(cert.window) : null;
     const asset = parsed ? assetOf(parsed.lane) : null;
-    if (!parsed || !asset || !cert.side) {
+    const bandSide = bandSideOf(cert);
+    if (cert.kind === "band" && parsed && asset && bandSide) {
+      const state = states.get(parsed.window.id) ?? null;
+      const phase = windowPhase(parsed.window, state, nowSec);
+      const edges = { lo: cert.lo ? Number(cert.lo) : null, hi: cert.hi ? Number(cert.hi) : null };
+      const s = spot(`${asset}-USD`);
+      const sigma = sigmaOf(asset);
+      // Absolute edges need no reference: a band trades while its Window is pre-listed, opening or live.
+      const trades = phase === "pre" || phase === "opening" || phase === "live";
+      const bidE4 =
+        trades && s !== null && sigma !== null
+          ? quoteBand(s, edges, bandSide, sigma, parsed.window.expirySec - nowSec).bidE4
+          : null;
+      const valueZat = bidE4 === null ? null : closeValueZat(payoutZat, bidE4);
+      const pnlZat = valueZat === null ? null : valueZat - stakeZat;
+      out.push({
+        record,
+        key: record.key,
+        kind: "band",
+        asset,
+        side: null,
+        window: parsed.window,
+        cadenceSec: parsed.lane.cadenceSec,
+        phase,
+        stakeZat,
+        payoutZat,
+        askE4: cert.askE4 ?? null,
+        bidE4,
+        status:
+          valueZat !== null
+            ? "priced"
+            : phase === "settled" || nowSec >= parsed.window.expirySec
+              ? "settling"
+              : "locked",
+        valueZat,
+        pnlZat,
+        roiPct: pnlZat === null || stakeZat === 0 ? null : (pnlZat / stakeZat) * PERCENT,
+        settlesSec: parsed.window.expirySec,
+        band: { ...edges, side: bandSide },
+      });
+      continue;
+    }
+    const side = upDownOf(cert);
+    if (!parsed || !asset || !side) {
       out.push({ ...buying(record), status: "unpriced" });
       continue;
     }
     const state = states.get(parsed.window.id) ?? null;
     const phase = windowPhase(parsed.window, state, nowSec);
     const quote = quoteWindow(parsed.window, state, { spot: spot(`${asset}-USD`), sigma: sigmaOf(asset) }, nowSec);
-    const bidE4 = (cert.side === "U" ? quote.up : quote.down).bidE4;
+    const bidE4 = (side === "U" ? quote.up : quote.down).bidE4;
     const valueZat = bidE4 === null ? null : closeValueZat(payoutZat, bidE4);
     const pnlZat = valueZat === null ? null : valueZat - stakeZat;
     out.push({
@@ -95,7 +141,7 @@ export function valuePositions(
       key: record.key,
       kind: "single",
       asset,
-      side: cert.side,
+      side,
       window: parsed.window,
       cadenceSec: parsed.lane.cadenceSec,
       phase,
@@ -109,6 +155,7 @@ export function valuePositions(
       pnlZat,
       roiPct: pnlZat === null || stakeZat === 0 ? null : (pnlZat / stakeZat) * PERCENT,
       settlesSec: parsed.window.expirySec,
+      band: null,
     });
   }
   return out;
@@ -133,6 +180,7 @@ function buying(record: PositionRecord): LivePosition {
     pnlZat: null,
     roiPct: null,
     settlesSec: 0,
+    band: null,
   };
 }
 
@@ -196,6 +244,7 @@ function parlay(
     pnlZat,
     roiPct: pnlZat === null || stakeZat === 0 ? null : (pnlZat / stakeZat) * PERCENT,
     settlesSec: settles,
+    band: null,
   };
 }
 

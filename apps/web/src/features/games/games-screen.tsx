@@ -1,26 +1,38 @@
 import { buttonClass } from "@kakure/ui-web";
-import { Gamepad2 } from "lucide-react";
+import { ArrowRight, Gamepad2 } from "lucide-react";
 import Link from "next/link";
 
 /**
- * The games hall's honest empty state (plan §0 Games): the seven modes and what each will be, with no scores, boards
- * or prices until the arcade ships in R4. Practice and arcade games have no stake; Lucky opens a normal bet.
+ * The games hall (plan §0 Games, §00 T5a): Range and Moonshot are live, priced by the house on the same Windows as the
+ * terminal; the arcade modes (Practice, Line Rider, Candle Hop), Lucky and Duel open in R4–R5, so they show what each
+ * will be, with no scores, boards or prices until then.
  */
-const MODES: ReadonlyArray<{ name: string; line: string; stake: string }> = [
+const LIVE: ReadonlyArray<{ name: string; line: string; href: string }> = [
+  {
+    name: "Range",
+    line: "Call where a Window closes: inside a band, or outside it. Tighter pays more.",
+    href: "/games/range",
+  },
+  {
+    name: "Moonshot",
+    line: "Pick a direction and a reach, ×2 to ×25. The house sets the level.",
+    href: "/games/moonshot",
+  },
+];
+
+const SOON: ReadonlyArray<{ name: string; line: string; stake: string }> = [
   { name: "Practice: Beat the coin", line: "Swipe five live cards and beat a seeded coin.", stake: "Free" },
   { name: "Line Rider", line: "Ride a real one-minute price tape from the signed history.", stake: "Free" },
   { name: "Candle Hop", line: "Hop the same real candles, one at a time.", stake: "Free" },
   {
     name: "Lucky",
-    line: "Reels draw a market, side and size on your device, then open a normal bet.",
+    line: "Reels draw a market, a side and a reach on your device, then buy it in a tap with your chips.",
     stake: "Your stake",
   },
   { name: "Duel", line: "Three short calls against another player; picks stay sealed until lock.", stake: "Free" },
-  { name: "Range", line: "A ladder of “above $X at close?” markets, grouped as bands.", stake: "Pool pays" },
-  { name: "Moonshot", line: "The ladder's far rungs, with pays × as the pools stand.", stake: "Pool pays" },
 ];
 
-/** Mode numbers read 01–07. */
+/** Mode numbers read 01–05. */
 const INDEX_DIGITS = 2;
 
 export function GamesScreen() {
@@ -29,9 +41,29 @@ export function GamesScreen() {
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-page-title text-foreground">Games</h1>
         <p className="max-w-2xl text-body text-muted-foreground">
-          The games hall opens in R4. Nothing here is live yet, so nothing here is scored or priced.
+          Range and Moonshot are open, on the same live Windows and private chips as the terminal.
         </p>
       </header>
+
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {LIVE.map((mode) => (
+          <li key={mode.name}>
+            <Link
+              href={mode.href}
+              className="kk-press flex h-full items-start gap-3 rounded-group border border-border bg-card p-5 outline-none hover:border-border-strong focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="flex items-center gap-2">
+                  <span className="font-display text-sheet-heading text-foreground">{mode.name}</span>
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-label text-foreground">Live</span>
+                </span>
+                <span className="text-row-detail text-muted-foreground">{mode.line}</span>
+              </span>
+              <ArrowRight aria-hidden className="mt-1 size-5 shrink-0 text-muted-foreground" />
+            </Link>
+          </li>
+        ))}
+      </ul>
 
       <section
         aria-labelledby="games-coming"
@@ -43,13 +75,15 @@ export function GamesScreen() {
           </span>
           <div>
             <h2 id="games-coming" className="font-display text-sheet-heading text-foreground">
-              Games hall coming in R4
+              The arcade opens next
             </h2>
-            <p className="text-row-detail text-muted-foreground">Seven modes, all on real prices and signed data.</p>
+            <p className="text-row-detail text-muted-foreground">
+              Five more modes, all on real prices and signed data.
+            </p>
           </div>
         </div>
         <ol className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {MODES.map((mode, i) => (
+          {SOON.map((mode, i) => (
             <li key={mode.name} className="flex items-start gap-3 rounded-row bg-secondary p-4">
               <span className="numbers pt-0.5 text-money-meta text-muted-foreground">
                 {String(i + 1).padStart(INDEX_DIGITS, "0")}
@@ -69,8 +103,8 @@ export function GamesScreen() {
       </section>
 
       <div className="flex flex-wrap gap-3">
-        <Link href="/markets" className={buttonClass("primary", "md")}>
-          Bet on a live window
+        <Link href="/trade" className={buttonClass("primary", "md")}>
+          Trade a live Window
         </Link>
         <Link href="/privacy" className={buttonClass("secondary", "md")}>
           How privacy works

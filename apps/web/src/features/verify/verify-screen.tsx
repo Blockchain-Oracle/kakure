@@ -2,6 +2,7 @@
 
 import {
   type BundleV2,
+  bandOutcomeOf,
   cadenceLabel,
   type Network,
   parlayPayoutZat,
@@ -23,8 +24,8 @@ import { DATA_SOURCE, NETWORK_COIN } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
 import { useRealtime } from "@/features/data/use-realtime";
 import { recompute } from "@/features/proof/recompute";
-import { centsOf, clockText, sideWord, zecText } from "@/features/terminal/format";
-import type { PositionRecord } from "@/features/wallet/records";
+import { bandText, centsOf, clockText, sideWord, zecText } from "@/features/terminal/format";
+import { bandSideOf, type PositionRecord, upDownOf } from "@/features/wallet/records";
 import { useWallet } from "@/features/wallet/wallet-store";
 
 /**
@@ -198,6 +199,7 @@ function PositionChecks({
     );
   } else {
     const parsed = cert.window ? parseWindowId(cert.window) : null;
+    const bandSide = bandSideOf(cert);
     checks.push(priceCheck(record, coin));
     const state = cert.window ? states.get(cert.window) : undefined;
     if (record.state === "paid" && record.how && record.how !== "redeem" && record.how !== "settled") {
@@ -205,13 +207,27 @@ function PositionChecks({
         ok: true,
         text: `Sold back before the close at the house's bid: ${zecText(Number(record.paidZat ?? 0))} ${coin}`,
       });
+    } else if (state?.outcome && bandSide) {
+      // A band settles on the venues' closing prints against its edges, two of three (no reference needed).
+      const lane = parsed ? lanes.get(parsed.lane.id) : undefined;
+      const outcome = lane ? bandOutcomeOf(lane.venues, state.closing ?? {}, cert.lo ?? null, cert.hi ?? null) : null;
+      checks.push({
+        ok: outcome !== null,
+        text:
+          outcome === "refund"
+            ? "Refunded: the venues' closing prints didn't agree two to one"
+            : `Closed ${outcome === "in" ? "inside" : "outside"} the band on two of three venues, from their signed closing prints`,
+      });
+      if (outcome !== null) {
+        checks.push(paidCheck(record, outcome === "refund" ? stake : outcome === bandSide ? payout : 0, coin));
+      }
     } else if (state?.outcome) {
       const r = recompute(state, lanes);
       checks.push({
         ok: r?.ok ?? false,
         text: `${state.outcome === "refund" ? "Refunded" : `${state.outcome === "U" ? "UP" : "DOWN"} won`}, recomputed from the venues' signed prints`,
       });
-      const expected = state.outcome === "refund" ? stake : state.outcome === cert.side ? payout : 0;
+      const expected = state.outcome === "refund" ? stake : state.outcome === upDownOf(cert) ? payout : 0;
       checks.push(paidCheck(record, expected, coin));
     } else {
       checks.push(pendingCheck(parsed?.window.expirySec ?? 0, printsLoading));
@@ -220,7 +236,14 @@ function PositionChecks({
     title = (
       <span className="flex items-center gap-2">
         <Mark mark={`mark-${asset.toLowerCase()}`} label={asset} size="inline" />
-        {asset} {cert.side ? sideWord(cert.side) : ""} · {parsed ? cadenceLabel(parsed.lane.cadenceSec) : ""}
+        {asset}{" "}
+        {bandSide
+          ? bandText({ lo: cert.lo ? Number(cert.lo) : null, hi: cert.hi ? Number(cert.hi) : null, side: bandSide })
+          : (() => {
+              const side = upDownOf(cert);
+              return side ? sideWord(side) : "";
+            })()}{" "}
+        · {parsed ? cadenceLabel(parsed.lane.cadenceSec) : ""}
       </span>
     );
   }

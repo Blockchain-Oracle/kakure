@@ -60,10 +60,14 @@ export interface SpendRecord {
 /** What the operator signs when a trade or a parlay buys a position (services/operator/src/positions.rs). */
 export interface PositionCertificate {
   id: string;
-  kind: "single" | "parlay";
+  kind: "single" | "parlay" | "band";
   window?: string;
-  side?: "U" | "D";
+  /** A single's Up or Down, or a band's in or out. */
+  side?: "U" | "D" | "in" | "out";
   legs?: { window: string; side: "U" | "D"; askE4: number; expiry: number }[];
+  /** A band's edges (decimal strings); a missing edge is unbounded. */
+  lo?: string | null;
+  hi?: string | null;
   stakeZat: string;
   askE4?: number;
   priceE8?: number;
@@ -72,6 +76,14 @@ export interface PositionCertificate {
   lock: string;
   sig: string;
 }
+
+/** A single's Up or Down; null for a band or a parlay. */
+export const upDownOf = (cert: Pick<PositionCertificate, "kind" | "side"> | undefined): "U" | "D" | null =>
+  cert?.kind === "single" && (cert.side === "U" || cert.side === "D") ? cert.side : null;
+
+/** A band's side; null for anything else. */
+export const bandSideOf = (cert: Pick<PositionCertificate, "kind" | "side"> | undefined): "in" | "out" | null =>
+  cert?.kind === "band" && (cert.side === "in" || cert.side === "out") ? cert.side : null;
 
 /** The exits a position can carry (Owarine's trail, stop and take-profit). */
 export interface ExitPlan {
@@ -101,7 +113,7 @@ export interface PositionRecord {
   /** Blank outputs left with the mint for an armed exit's proceeds. */
   exitBlank?: StoredPending;
   pending?: {
-    path: "/v1/trade" | "/v1/parlay" | "/v1/close" | "/v1/redeem" | "/v1/exit";
+    path: "/v1/trade" | "/v1/parlay" | "/v1/band" | "/v1/close" | "/v1/redeem" | "/v1/exit";
     request: string;
     /** A buy's inputs (out of the balance until it's answered) and change outputs. */
     inputs?: Proof[];

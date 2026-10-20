@@ -73,6 +73,18 @@ export interface SingleOrder {
   entrySpot?: number;
 }
 
+/** A band (Range, Moonshot): the close inside [lo, hi] or outside it; a missing edge is unbounded. */
+export interface BandOrder {
+  window: string;
+  lo: string | null;
+  hi: string | null;
+  side: "in" | "out";
+  stakeZat: number;
+  /** The worst ask accepted: the quote plus the slippage tolerance (`withSlippage`). */
+  maxAskE4: number;
+  entrySpot?: number;
+}
+
 export interface ParlayOrder {
   legs: { window: string; side: "U" | "D" }[];
   stakeZat: number;
@@ -85,6 +97,12 @@ export function buy(network: Network, trading: Trading, order: SingleOrder): Pro
   return exclusive(network, () => place(network, trading, "/v1/trade", rest, stakeZat, entrySpot));
 }
 
+/** Buys a band side. Throws a MintError on a refusal (the chips are back in the balance). */
+export function buyBand(network: Network, trading: Trading, order: BandOrder): Promise<PositionRecord> {
+  const { stakeZat, entrySpot, ...rest } = order;
+  return exclusive(network, () => place(network, trading, "/v1/band", rest, stakeZat, entrySpot));
+}
+
 /** Buys a parlay of 2–3 legs, all or nothing. */
 export function buyParlay(network: Network, trading: Trading, order: ParlayOrder): Promise<PositionRecord> {
   const { stakeZat, ...rest } = order;
@@ -94,7 +112,7 @@ export function buyParlay(network: Network, trading: Trading, order: ParlayOrder
 async function place(
   network: Network,
   trading: Trading,
-  path: "/v1/trade" | "/v1/parlay",
+  path: "/v1/trade" | "/v1/parlay" | "/v1/band",
   body: object,
   stakeZat: number,
   entrySpot?: number,
@@ -150,7 +168,7 @@ async function settle(network: Network, trading: Trading, record: PositionRecord
       signatures?: BlindSignature[];
       state?: string;
     }>(network, trading, "POST", pending.path, pending.request);
-    if (pending.path === "/v1/trade" || pending.path === "/v1/parlay") {
+    if (pending.path === "/v1/trade" || pending.path === "/v1/parlay" || pending.path === "/v1/band") {
       const certificate = verified(network, answer.position);
       const change = pending.change ? finishOutputs(keyset, restore(pending.change), answer.change ?? []) : [];
       const next: PositionRecord = { ...rest, state: "open", certificate };

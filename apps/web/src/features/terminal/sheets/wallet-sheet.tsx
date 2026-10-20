@@ -23,9 +23,9 @@ import { type ReactNode, useState } from "react";
 import { assetFor } from "@/features/markets/assets";
 import { setPrefs, usePrefs } from "@/features/settings/prefs-store";
 import { KakureMark } from "@/features/shell/brand";
-import type { PositionRecord } from "@/features/wallet/records";
+import { bandSideOf, type PositionRecord, upDownOf } from "@/features/wallet/records";
 import { BPS, MUSIC_TRACKS, PERCENT } from "../constants";
-import { livePnlText, sideWord, zatToNumber, zecText } from "../format";
+import { bandText, livePnlText, sideWord, zatToNumber, zecText } from "../format";
 import { setTradeSettings, useTradeSettings } from "../settings";
 
 /**
@@ -43,6 +43,8 @@ export interface HistoryRow {
   side: "U" | "D" | null;
   cadenceSec: number | null;
   parlay: boolean;
+  /** A band in words ("Inside $81,250–$81,350"); null for anything else. */
+  band: string | null;
   stakeZat: number;
   paidZat: number;
   pnlZat: number;
@@ -66,11 +68,15 @@ export function historyOf(records: readonly PositionRecord[]): HistoryRow[] {
     const cert = r.certificate;
     if (!cert) continue;
     const parsed = cert.window ? parseWindowId(cert.window) : null;
+    const bandSide = bandSideOf(cert);
     const base = {
       asset: parsed?.lane.asset ?? "",
-      side: cert.side ?? null,
+      side: upDownOf(cert),
       cadenceSec: parsed?.lane.cadenceSec ?? null,
       parlay: cert.kind === "parlay",
+      band: bandSide
+        ? bandText({ lo: cert.lo ? Number(cert.lo) : null, hi: cert.hi ? Number(cert.hi) : null, side: bandSide })
+        : null,
     };
     for (const [i, cut] of (r.reductions ?? []).entries()) {
       const paid = Number(cut.paidZat);
@@ -430,7 +436,11 @@ export function HistoryList({
             )}
             <span className="min-w-0 flex-1">
               <span className="block text-row-strong">
-                {r.parlay ? "Parlay" : `${r.asset} ${r.side ? sideWord(r.side) : ""}`}
+                {r.parlay
+                  ? "Parlay"
+                  : r.band
+                    ? `${r.asset} · ${r.band}`
+                    : `${r.asset} ${r.side ? sideWord(r.side) : ""}`}
                 {r.cadenceSec ? ` · ${cadenceLabel(r.cadenceSec)}` : ""}
               </span>
               <span className="block text-[0.6875rem] text-muted-foreground">

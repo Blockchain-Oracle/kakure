@@ -12,13 +12,24 @@ import {
   LoaderCircle,
   Lock,
   Minus,
+  MoveHorizontal,
   Plus,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { assetFor } from "@/features/markets/assets";
 import type { ExitPlan } from "@/features/wallet/records";
 import { PERCENT } from "../constants";
-import { centsOf, clockText, livePnlText, multipleOf, sideWord, zatToNumber, zecText } from "../format";
+import {
+  bandText,
+  centsOf,
+  clockText,
+  livePnlText,
+  multipleOf,
+  sideWord,
+  signedPct,
+  zatToNumber,
+  zecText,
+} from "../format";
 import type { LivePosition, Totals } from "../positions";
 
 /**
@@ -27,10 +38,6 @@ import type { LivePosition, Totals } from "../positions";
  * fair value and can't be sold back. A position with no bid is shown as locked, never as zero.
  */
 const markOf = (asset: string) => assetFor({ kind: "close", subject: asset }).mark;
-
-function signedPct(roi: number): string {
-  return `${roi >= 0 ? "+" : "−"}${Math.abs(roi).toFixed(1)}%`;
-}
 
 export function UnrealizedCard({
   totals,
@@ -99,6 +106,8 @@ export interface RowActions {
   onAdd: (p: LivePosition) => void;
   onReduce: (p: LivePosition) => void;
   onExits: (p: LivePosition) => void;
+  /** Sells a band back at the bid (a single's Close is the terminal's big button). */
+  onSell?: (p: LivePosition) => void;
 }
 
 export function PositionsList({
@@ -196,13 +205,16 @@ function PositionRow({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1 text-row-strong">
             {asset || "…"}
-            {p.side ? (
+            {p.band ? (
+              <MoveHorizontal aria-hidden className="size-4 text-muted-foreground" strokeWidth={2.75} />
+            ) : p.side ? (
               <Dir aria-hidden className={cx("size-4", up ? "text-up" : "text-down")} strokeWidth={2.75} />
             ) : null}
           </span>
           <span className="block truncate text-[0.6875rem] text-muted-foreground">
             {p.cadenceSec ? cadenceLabel(p.cadenceSec) : ""}
             {p.cadenceSec ? " · " : ""}
+            {p.band ? `${bandText(p.band)} · ` : ""}
             {locked ? `settles ${clockText(p.settlesSec)}` : p.askE4 ? `pays ${multipleOf(p.askE4)}` : ""}
           </span>
           {status ? <span className="block text-[0.6875rem] text-muted-foreground">{status}</span> : null}
@@ -238,35 +250,57 @@ function PositionRow({
       >
         <div className="overflow-hidden">
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 px-3 pb-2 text-meta">
-            <Row
-              k="Direction"
-              v={
-                <span className={up ? "text-up" : "text-down"}>
-                  {p.side ? `${sideWord(p.side)} / ${p.cadenceSec ? cadenceLabel(p.cadenceSec) : ""}` : "—"}
-                </span>
-              }
-            />
+            {p.band ? (
+              <Row k="Band" v={bandText(p.band)} />
+            ) : (
+              <Row
+                k="Direction"
+                v={
+                  <span className={up ? "text-up" : "text-down"}>
+                    {p.side ? `${sideWord(p.side)} / ${p.cadenceSec ? cadenceLabel(p.cadenceSec) : ""}` : "—"}
+                  </span>
+                }
+              />
+            )}
             <Row k="ROI" v={p.roiPct === null ? "—" : signedPct(p.roiPct)} />
             <Row k="Avg in" v={p.askE4 ? centsOf(p.askE4) : "—"} />
             <Row k="Now" v={p.bidE4 ? centsOf(p.bidE4) : "—"} />
             <Row k="Entry" v={p.record.entrySpot ? `$${formatPrice(p.record.entrySpot)}` : "—"} />
-            <Row k="Line" v={<span className="text-down">{line ? `$${formatPrice(Number(line))}` : "—"}</span>} />
+            {p.band ? null : (
+              <Row k="Line" v={<span className="text-down">{line ? `$${formatPrice(Number(line))}` : "—"}</span>} />
+            )}
             <Row k="Staked" v={`${zecText(p.stakeZat)} ${coin}`} />
             <Row k="Pays if right" v={`${zecText(p.payoutZat)} ${coin}`} />
             <Row k="Settles" v={`${clockText(p.settlesSec)}${p.settlesSec > nowSec ? "" : " · settling"}`} />
             {exit ? <Row k="Exit" v={exit} /> : null}
           </dl>
-          <div className="grid grid-cols-3 gap-2 px-3 pb-3">
-            <ActionButton disabled={!canTrade} onClick={() => actions.onAdd(p)} className="kk-up-soft">
-              <Plus aria-hidden className="size-4" /> Add
-            </ActionButton>
-            <ActionButton disabled={!canTrade} onClick={() => actions.onReduce(p)} className="bg-secondary">
-              <Minus aria-hidden className="size-4" /> Reduce
-            </ActionButton>
-            <ActionButton disabled={!canTrade} onClick={() => actions.onExits(p)} className="bg-secondary">
-              {hasTpSl ? "Edit TP / SL" : "TP / SL"}
-            </ActionButton>
-          </div>
+          {p.band ? (
+            // A band sells back at its bid or rides; it has no Add and no exits (T5a contract).
+            <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+              <ActionButton
+                disabled={!canTrade || !actions.onSell}
+                onClick={() => actions.onSell?.(p)}
+                className="kk-down-soft"
+              >
+                Sell back
+              </ActionButton>
+              <ActionButton disabled={!canTrade} onClick={() => actions.onReduce(p)} className="bg-secondary">
+                <Minus aria-hidden className="size-4" /> Reduce
+              </ActionButton>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 px-3 pb-3">
+              <ActionButton disabled={!canTrade} onClick={() => actions.onAdd(p)} className="kk-up-soft">
+                <Plus aria-hidden className="size-4" /> Add
+              </ActionButton>
+              <ActionButton disabled={!canTrade} onClick={() => actions.onReduce(p)} className="bg-secondary">
+                <Minus aria-hidden className="size-4" /> Reduce
+              </ActionButton>
+              <ActionButton disabled={!canTrade} onClick={() => actions.onExits(p)} className="bg-secondary">
+                {hasTpSl ? "Edit TP / SL" : "TP / SL"}
+              </ActionButton>
+            </div>
+          )}
         </div>
       </div>
     </div>
