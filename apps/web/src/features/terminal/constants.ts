@@ -70,3 +70,6 @@ export const CENTS_PER_UNIT = 100;
 
 /** The tour's illustrated steps (0-based): the PnL pill shows on 2 and 4, the trail line and chip on 3, Close on 4. */
 export const TOUR_STEP = { buttons: 1, pnl: 2, trail: 3, close: 4 } as const;
+
+/** The parlay slip's stake chips in zatoshi: 0.01, 0.05, 0.1 and 0.5 of the coin (Owarine's four chips). */
+export const PARLAY_STAKE_CHIPS_ZAT = [1_000_000, 5_000_000, 10_000_000, 50_000_000] as const;

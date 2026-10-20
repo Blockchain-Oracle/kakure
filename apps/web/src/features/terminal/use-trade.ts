@@ -26,7 +26,7 @@ function assetOfWindow(id: string): string {
 }
 
 /** A refusal in the terminal's words (Owarine's), or null to say the generic failure. */
-function refusalWords(error: MintError, coin: string): { title: string; description: string } {
+export function refusalWords(error: MintError, coin: string): { title: string; description: string } {
   switch (error.code) {
     case MINT_CODES.priceMoved:
       return { title: "Price moved", description: "Tap again to take the new price." };

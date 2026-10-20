@@ -205,6 +205,8 @@ export const PRICE_SCALE_E8 = 100_000_000;
 export const PARLAY_CORRELATION_FLOOR_BPS = 5_000;
 /** A combined price under 1 % is too long a shot for the house. */
 export const PARLAY_MIN_PRICE_E8 = 1_000_000;
+/** A leg joins only with this long left before its Window stops trading (operator `trading.rs` PARLAY_LEG_MIN_LEFT_SECS). */
+export const PARLAY_LEG_MIN_LEFT_SEC = 30;
 
 /** Venues vote on the close of each 1-minute candle; two of three decide (plan §3, PD20). */
 export const VENUE_KEYS = ["coinbase", "kraken", "bitstamp", "gemini"] as const;

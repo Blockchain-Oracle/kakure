@@ -2,6 +2,7 @@
 
 import { CHIP_GRID_ZAT, LANE_ASSETS, type LaneAsset, withSlippage } from "@kakure/domain";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
+import { Sheet } from "@kakure/ui-web";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { NETWORK_COIN } from "@/constants";
 import { useRealtime } from "@/features/data/use-realtime";
@@ -12,7 +13,8 @@ import { useWallet } from "@/features/wallet/wallet-store";
 import { useNow } from "@/lib/time";
 import { type ChartHandle, LiveChart } from "./chart/live-chart";
 import { BPS, DESKTOP_QUERY, PERCENT } from "./constants";
-import { clockText, multipleOf, zecText } from "./format";
+import { clockText, equityText, multipleOf, zecText } from "./format";
+import { useTerminalParlay } from "./parlay/use-parlay";
 import { type LivePosition, totalsOf, valuePositions } from "./positions";
 import { stakeFor, useTradeSettings, useTradeSettingsState } from "./settings";
 import { type SheetName, TerminalSheets } from "./terminal-sheets";
@@ -27,6 +29,7 @@ import { useChartOverlay } from "./use-overlay";
 import { useTerminalTrade } from "./use-trade";
 import { useUpkeep } from "./use-upkeep";
 import { defaultCadence, LANE_SYMBOLS, lanesFor, pickWindow, useCommittedSpots, useQuote } from "./use-window";
+import { whyNotTrading } from "./why";
 import "./terminal.css";
 
 /**
@@ -117,7 +120,7 @@ export function TerminalScreen() {
   const openValue = positions.reduce((s, p) => s + (p.valueZat ?? 0), 0);
   const equity =
     wallet.status === "ready" && (wallet.balanceZat > 0 || positions.length > 0)
-      ? zecText(wallet.balanceZat + openValue)
+      ? equityText(wallet.balanceZat + openValue)
       : null;
   const { overlay, canTrail } = useChartOverlay({
     active,
@@ -228,29 +231,50 @@ export function TerminalScreen() {
     active && (active.status === "locked" || phase === "riding")
       ? `Locked · pays at ${clockText(active.settlesSec)}`
       : null;
-  const buttons = active ? (
-    <TradeButtons
-      mode="open"
-      trailActive={active.record.state === "armed" && active.record.exit?.trail !== undefined}
-      trailEligible={canTrail}
-      trailPct={settings.trailPct}
-      onTrail={() => void trade.toggleTrail(active, settings.trailPct)}
-      onClose={() => void trade.close(active)}
-      busy={trade.busy}
-      lockedText={lockedText}
-    />
-  ) : (
-    <TradeButtons
-      mode="flat"
-      onUp={() => void trade.open("U")}
-      onDown={() => void trade.open("D")}
-      busy={trade.busy}
-      disabled={why !== null}
-      why={why}
-      upSub={upAsk ? `pays ${multipleOf(upAsk)}` : downAsk ? "not offered" : undefined}
-      downSub={downAsk ? `pays ${multipleOf(downAsk)}` : upAsk ? "not offered" : undefined}
-    />
-  );
+  const parlay = useTerminalParlay({
+    network,
+    trading,
+    bundle,
+    screen,
+    asset,
+    spots,
+    nowSec,
+    screenStakeZat: stakeZat,
+    minStakeZat,
+    availableZat: wallet.balanceZat,
+    slippageBps: settings.slippageBps,
+    coin,
+    canAdd: why === null,
+    onNeedChips: () => openSheet("deposit"),
+    onAddMarket: () => openSheet("markets"),
+    onPlaced: () => setSheet((s) => (s === "parlay" ? null : s)),
+  });
+  // Parlay mode takes the buttons over: UP and DOWN add the Window on screen to the slip.
+  const buttons =
+    parlay.buttons ??
+    (active ? (
+      <TradeButtons
+        mode="open"
+        trailActive={active.record.state === "armed" && active.record.exit?.trail !== undefined}
+        trailEligible={canTrail}
+        trailPct={settings.trailPct}
+        onTrail={() => void trade.toggleTrail(active, settings.trailPct)}
+        onClose={() => void trade.close(active)}
+        busy={trade.busy}
+        lockedText={lockedText}
+      />
+    ) : (
+      <TradeButtons
+        mode="flat"
+        onUp={() => void trade.open("U")}
+        onDown={() => void trade.open("D")}
+        busy={trade.busy}
+        disabled={why !== null}
+        why={why}
+        upSub={upAsk ? `pays ${multipleOf(upAsk)}` : downAsk ? "not offered" : undefined}
+        downSub={downAsk ? `pays ${multipleOf(downAsk)}` : upAsk ? "not offered" : undefined}
+      />
+    ));
 
   // The reactions overlay sits exactly over the chart: it places callouts in the canvas's own coordinates.
   const chart = (
@@ -333,7 +357,7 @@ export function TerminalScreen() {
 
   if (desktop) {
     return (
-      <div className="kk-terminal-surface kk-terminal grid h-full min-h-0 grid-cols-[minmax(0,1fr)_20rem] overflow-hidden">
+      <div className="kk-terminal-surface kk-terminal grid h-full min-h-0 grid-cols-[minmax(0,1fr)_20rem] grid-rows-[minmax(0,1fr)] overflow-hidden">
         <section className="relative min-w-0 overflow-hidden">
           {chart}
           <div className="absolute top-4 left-4 z-20 flex max-w-[calc(100%-2rem)] flex-col items-start gap-2">
@@ -368,14 +392,18 @@ export function TerminalScreen() {
             closingAll={closingAll}
           />
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-            <PositionsList
-              positions={positions}
-              nowSec={nowSec}
-              coin={coin}
-              references={references}
-              actions={actions}
-            />
+            {parlay.on && positions.length === 0 ? null : (
+              <PositionsList
+                positions={positions}
+                nowSec={nowSec}
+                coin={coin}
+                references={references}
+                actions={actions}
+              />
+            )}
+            {parlay.on ? <div className="shrink-0">{parlay.slip}</div> : null}
           </div>
+          {parlay.tabs}
           {buttons}
         </aside>
         <TradeToasts />
@@ -402,35 +430,16 @@ export function TerminalScreen() {
         {positions.length > 0 ? (
           <ViewPositionPill count={positions.length} roiPct={roiPct} onOpen={() => openSheet("positions")} />
         ) : null}
+        {parlay.on ? parlay.pill(() => openSheet("parlay")) : null}
+        {parlay.tabs}
         {buttons}
       </footer>
       <TradeToasts />
       {sheets}
+      <Sheet open={sheet === "parlay"} onClose={() => setSheet(null)} title="Parlay">
+        {parlay.slip}
+      </Sheet>
       {title}
     </div>
   );
-}
-
-/** Why the buttons are off, in one plain sentence (Owarine `why.ts`); null while the Window trades. */
-function whyNotTrading(input: {
-  phase: string | null;
-  trading: boolean;
-  vault: string;
-  hasQuote: boolean;
-}): string | null {
-  if (!input.trading) return "Trading isn't published on this network yet. Prices stay live.";
-  if (input.vault === "locked") return "Your vault is locked. Unlock it on Portfolio to trade.";
-  if (input.vault === "unavailable") return "This browser can't open your vault (a private window?). Trading needs it.";
-  switch (input.phase) {
-    case null:
-      return "No Window open for this market right now.";
-    case "opening":
-      return "Waiting for this Window's opening print. Up and Down open in a few seconds.";
-    case "riding":
-      return "This Window has stopped taking trades. The next one opens shortly.";
-    case "settled":
-      return "This Window has settled. The next one opens shortly.";
-    default:
-      return input.hasQuote ? null : "Waiting for a live price.";
-  }
 }

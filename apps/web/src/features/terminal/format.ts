@@ -40,6 +40,12 @@ export function zecText(zat: number | bigint): string {
   return `${whole}.${frac.padEnd(MIN_ZEC_DECIMALS, "0")}`;
 }
 
+/** Equity (chips plus open positions at their live value) at the magnitude decimals: "0.9454", "12.304". */
+export function equityText(zat: number): string {
+  const zec = zatToNumber(zat);
+  return fixedText(zec, moneyDecimals(zec));
+}
+
 /** A live PnL in ZEC, signed at the magnitude decimals ("+0.0412", "−1.204"). */
 export function livePnlText(zec: number): string {
   const dp = moneyDecimals(zec);

@@ -34,7 +34,8 @@ export type SheetName =
   | "share"
   | "tutorial"
   | "deposit"
-  | "withdraw";
+  | "withdraw"
+  | "parlay";
 
 export interface SheetsProps {
   open: SheetName | null;
