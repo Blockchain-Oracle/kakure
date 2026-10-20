@@ -37,3 +37,11 @@ export const HOUR_SEC = 3_600;
 export const DUEL_OUTCOME_GRACE_SEC = 3 * HOUR_SEC;
 export const DAY_SEC = 86_400;
 export const WEEK_DAYS = 7;
+
+/**
+ * Sign in with X (plan §0 R7): the X app's client id and the callback registered with it (the site's `/x` page). The
+ * secret is set only for a confidential client. Unset, the sign-in stays off.
+ */
+export const X_CLIENT_ID = process.env.X_CLIENT_ID || null;
+export const X_CLIENT_SECRET = process.env.X_CLIENT_SECRET || null;
+export const X_REDIRECT_URI = process.env.X_REDIRECT_URI || null;

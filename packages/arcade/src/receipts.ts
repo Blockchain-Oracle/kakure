@@ -61,6 +61,8 @@ export function receiptId(lock: string): string {
 /** `POST /arcade/v1/profile` with `{ nickname }`: what a nickname has done in public, and the badges it earns. */
 export interface Profile {
   nickname: string;
+  /** Signed in with X: the nickname is this X handle. */
+  x: boolean;
   duel: { rating: number; won: number; finished: number } | null;
   arcade: Partial<Record<ArcadeGame, { best: number; rank: number }>>;
   bets: { right: number; calls: number } | null;

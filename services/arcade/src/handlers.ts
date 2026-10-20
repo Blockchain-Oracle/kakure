@@ -145,6 +145,10 @@ export function register(store: ArcadeStore, raw: unknown): Verdict<{ nickname: 
     return { ok: false, status: 400, error: "the claim is stale; try again" };
   }
   if (!powMeets(claim, claim.nonce)) return { ok: false, status: 422, error: "the claim's work falls short" };
+  const handle = store.x.handleOf(claim.player);
+  if (handle !== null && handle.toLowerCase() !== claim.nickname.toLowerCase()) {
+    return { ok: false, status: 409, error: `this device signed in with X: its name is ${handle}` };
+  }
   if (!store.claim(claim.player, claim.nickname)) return { ok: false, status: 409, error: "that nickname is taken" };
   return { ok: true, body: { nickname: claim.nickname } };
 }

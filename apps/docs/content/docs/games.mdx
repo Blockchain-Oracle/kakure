@@ -106,6 +106,11 @@ claim is signed and dated, so an old one can't be sent again to undo a rename.
   time. No address, wallet or IP is ever attached.
 - The key and nickname live in this browser. **Forget this device** clears them; the nickname then can't be posted to
   from here again.
+- **Sign in with X** (where it's switched on) names the device with your X handle instead. Your browser makes the
+  PKCE pair and goes to X; X sends you back to `/x` with a code that's good for 30 seconds; the arcade exchanges it,
+  reads your handle, revokes the token at once and keeps only the handle and a salted hash of your X id. One X account
+  names one device, a handle that's already someone's nickname can't be taken, and a device named by X keeps that
+  name. The `/x` page drops the code from the address bar before anything else and is never cached.
 
 ## Bets board and profiles
 

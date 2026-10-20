@@ -17,6 +17,7 @@ import {
 } from "./handlers";
 import { betsBoard, isBetsPeriod, publishReceipt, readProfile, retractReceipt } from "./receipts";
 import { ArcadeStore } from "./store";
+import { linkX, xConfig } from "./x";
 
 /**
  * Kakure's arcade service (plan §0 R4). It is reached only through the site worker's `/arcade/` path, which forwards a
@@ -37,6 +38,8 @@ import { ArcadeStore } from "./store";
  *   POST /arcade/v1/receipt | receipt/retract   publish a paid position's certificate, or take it back (signed)
  *   GET  /arcade/v1/bets/<week|all>         right calls per nickname with five receipts or more
  *   POST /arcade/v1/profile                 a nickname's public play and badges ({ nickname })
+ *   GET  /arcade/v1/x/config                whether Sign in with X is on, and its client id and callback
+ *   POST /arcade/v1/x/link                  an X sign-in's code and verifier: the handle becomes the name (signed)
  *
  * A device key travels only in request bodies, never in a path.
  */
@@ -111,6 +114,12 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   }
   if (request.method === "POST" && what === "profile" && parts.length === ONE) {
     return answer(response, readProfile(store, await body(request)));
+  }
+  if (request.method === "GET" && what === "x" && a === "config" && parts.length === TWO) {
+    return send(response, HTTP_OK, xConfig());
+  }
+  if (request.method === "POST" && what === "x" && a === "link" && parts.length === TWO) {
+    return answer(response, await linkX(store, await body(request)));
   }
   if (what === "duel") return duelRoute(request, response, parts.slice(ONE));
   return send(response, HTTP_NOT_FOUND, { error: "not found" });

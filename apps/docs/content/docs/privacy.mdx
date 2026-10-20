@@ -26,6 +26,7 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
 | Kakure's arcade service | Your nickname, the key your device made for it, your runs (game, score, inputs, the day), your duels (calls once both are locked in, result, the day) and any call you publish to the Bets board (checked, then kept as right or wrong and the day) | Your IP or any header of yours, your wallet, chips, or any trade you don't publish; Practice and Lucky never reach it |
 | Kakure's price relay | Your IP, when a tab showing prices is open, and which candle interval your chart shows and how far back | Which asset you watch |
 | Your wallet's server | Your IP, when your wallet syncs and broadcasts, and which transactions it fetches, unless your wallet uses Tor | The memo or the amount |
+| X, only if you sign in with it | That your X account signed in to Kakure's arcade, and when | Anything you do on Kakure (the arcade reads your handle once and revokes X's token) |
 | An exchange where you cash out | The amounts it receives | Which trades they came from |
 
 ## How the design gets there
@@ -90,6 +91,9 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
    already paid can't be used again.
 1. **The arcade isn't sealed.** The site sees your arcade calls (nickname and scores) with your IP, though it keeps no
    logs; the arcade service never sees the IP. A nickname is public, so pick one that doesn't name you.
+1. **Sign in with X.** Optional. It names you on the boards with your X handle, so your runs, duels and published
+   calls sit under a name the world can tie to you. The arcade keeps the handle and a salted hash of your X id, never
+   a token.
 1. **Publishing a call.** The Bets board is opt-in, one paid call at a time. Publishing tells Kakure which trade was
    yours, under your nickname: Kakure's operator can match the certificate to its Window, side and stake. The board
    shows only right calls and calls, from five on, the day after. Turning it off takes the call back; anyone who saw

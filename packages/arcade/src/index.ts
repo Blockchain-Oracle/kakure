@@ -18,3 +18,4 @@ export * from "./sled-world";
 export * from "./tape";
 export * from "./trace";
 export * from "./wire";
+export * from "./x";

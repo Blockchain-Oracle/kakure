@@ -28,8 +28,11 @@ const PREFETCH_EVERY_MS = 60000;
 const FETCHED_AT = "x-kakure-fetched-at";
 const NOT_FOUND = 404;
 const IMMUTABLE = /^\/_next\/static\/|^\/sounds\/[a-z-]+\.mp3$/;
-/** The arcade's API (boards, seeds, scores) is live and per request: never cached, never answered offline. */
-const PASS_THROUGH = /^\/(arcade|ohttp)\//;
+/**
+ * The arcade's API (boards, seeds, scores) is live and per request: never cached, never answered offline. Nor is the
+ * Sign in with X callback page, whose address carries a one-time code.
+ */
+const PASS_THROUGH = /^\/(arcade|ohttp)\/|^\/x\/?$/;
 const DATA = /^\/data\/(mainnet|testnet)\/[a-z0-9][a-z0-9._-]*\.json$/;
 const SERIES = /^\/data\/(mainnet|testnet)\/(bundle|prints)-(\d+)\.json$/;
 const KEEP = { bundle: 2, prints: 25 };
@@ -106,11 +109,13 @@ async function trimData(cache) {
   }
 }
 
+/** A page is cached under its path alone: a query (an OAuth code, a search) never lands in Cache Storage. */
 async function networkFirst(request) {
   const cache = await caches.open(SHELL_CACHE);
   try {
     const response = await fetch(request);
-    if (response.ok) await cache.put(request, response.clone());
+    const url = new URL(request.url);
+    if (response.ok) await cache.put(url.origin + url.pathname, response.clone());
     return response;
   } catch (error) {
     const cached = (await cache.match(request, { ignoreSearch: true })) ?? (await cache.match("/markets"));

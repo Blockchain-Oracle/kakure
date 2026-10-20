@@ -31,6 +31,7 @@ export const BETS = {
   },
   profile: {
     title: "Profile",
+    onX: (handle: string) => `Signed in with X as @${handle}`,
     missing: "No such nickname",
     missingDetail: "Nicknames are claimed in the games. Check the spelling, or pick one from a board.",
     duel: "Duel",

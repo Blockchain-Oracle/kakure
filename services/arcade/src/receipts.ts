@@ -154,5 +154,6 @@ export function readProfile(store: ArcadeStore, raw: unknown): Verdict<Profile> 
     arcade,
     bets: tally.calls >= BETS_MIN_RECEIPTS ? tally : null,
   };
-  return { ok: true, body: { nickname: found.nickname, ...figures, badges: profileBadges(figures) } };
+  const x = store.x.handleOf(found.player) !== null;
+  return { ok: true, body: { nickname: found.nickname, x, ...figures, badges: profileBadges(figures) } };
 }

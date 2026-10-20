@@ -23,7 +23,8 @@ const LOAD_ATTRIBUTE = /\s(src|srcset|data|href)=["']([^"']+)["']/gi;
 const REL_ATTRIBUTE = /\srel=["']([^"']+)["']/i;
 /** <link rel> values browsers fetch on their own; anything else (canonical, alternate, author…) is not a load. */
 const LOADING_REL = /(stylesheet|preload|modulepreload|prefetch|icon|manifest|preconnect|dns-prefetch)/i;
-const CSS_URL = /url\(\s*["']?(https?:\/\/[^"')\s]+)/gi;
+/** CSS url(), in any case; `new URL(...)` in a script builds a URL object and loads nothing, so it isn't one. */
+const CSS_URL = /(?<!new\s)url\(\s*["']?(https?:\/\/[^"')\s]+)/gi;
 const JS_LOAD =
   /(?:fetch\(\s*|new\s+WebSocket\(\s*|new\s+EventSource\(\s*|import\(\s*|importScripts\(\s*)["'`]((?:https?|wss?):\/\/[^"'`]+)/gi;
 const PUSH_TOKEN_API = /\b(getExpoPushTokenAsync|getDevicePushTokenAsync|registerForPushNotificationsAsync)\b/;

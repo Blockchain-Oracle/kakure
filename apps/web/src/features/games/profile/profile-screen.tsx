@@ -81,6 +81,16 @@ export function ProfileScreen() {
             <span className="flex min-w-0 flex-col">
               <span className="text-label-micro uppercase tracking-wider text-muted-foreground">{P.title}</span>
               <h1 className="truncate font-display text-page-title text-foreground">{profile.data.nickname}</h1>
+              {profile.data.x ? (
+                <a
+                  href={`https://x.com/${profile.data.nickname}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-meta text-muted-foreground hover:underline"
+                >
+                  {P.onX(profile.data.nickname)}
+                </a>
+              ) : null}
             </span>
           </header>
           <Figures profile={profile.data} />

@@ -63,6 +63,11 @@ export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: stri
     never: "The memo or the amount.",
   },
   {
+    party: "X, only if you sign in with it",
+    learns: "That your X account signed in to Kakure's arcade, and when.",
+    never: "Anything you do on Kakure: the arcade reads your handle once and lets go of X's token at once.",
+  },
+  {
     party: "An exchange where you cash out",
     learns: "The amounts it receives.",
     never:
@@ -85,6 +90,7 @@ export const RESIDUALS = [
   "The gateway key changes every hour, and the old one is deleted ten minutes later. If the operator were ever broken into, requests recorded on the way in the last hour or so could be read, never older ones. In those ten minutes, a request's key also shows whether its device had fetched the new key yet.",
   "The operator keeps deposit records and the fingerprints of spent chips for good: they are what stop a deposit minting twice or a chip spending twice. A withdrawal's address and amount are deleted a week after it is paid, and an address already paid can't be used again.",
   "The arcade isn't sealed like trades: the site sees your arcade calls (your nickname and scores) along with your IP, though it keeps no logs, and the arcade service never sees the IP. A nickname is public, so pick one that doesn't name you.",
+  "Signing in with X is optional: it names you on the boards with your X handle, so your runs, duels and published calls sit under a name the world can tie to you. Kakure's arcade keeps the handle and a salted hash of your X id, never a token.",
   "Publishing a call to the Bets board is your choice, one paid call at a time. It tells Kakure which trade was yours, under your nickname: Kakure's operator can match the certificate to its Window, side and stake. The board itself shows only right calls and calls, from five on, the day after. Turn it off to take the call back; anyone who saw the board may remember it.",
   "This browser keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and runs and Practice's tally, and its history keeps the pages you opened. Lucky's draws, like your chips and positions, are kept encrypted in its vault. Forget this device clears the app's part, nickname included.",
   "Your own funding history and your wallet's server are outside Kakure's control.",

@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { ArcadeGame, BoardRow, Tape } from "@kakure/arcade";
 import { DuelStore } from "./duel-store";
 import { ReceiptStore } from "./receipts-store";
+import { XStore } from "./x-store";
 
 /**
  * The arcade's book (Mitoshi `@cwf/db` arcade store, in one SQLite file): players (a device key and its nickname),
@@ -67,6 +68,8 @@ export class ArcadeStore {
   readonly duels: DuelStore;
   /** Published receipts for the Bets board, in the same file. */
   readonly receipts: ReceiptStore;
+  /** Sign in with X's links, in the same file. */
+  readonly x: XStore;
 
   constructor(path: string) {
     this.db = new DatabaseSync(path);
@@ -78,6 +81,7 @@ export class ArcadeStore {
     this.db.exec(SCHEMA);
     this.duels = new DuelStore(this.db);
     this.receipts = new ReceiptStore(this.db);
+    this.x = new XStore(this.db);
   }
 
   nicknameOf(player: string): string | null {

@@ -68,6 +68,7 @@ export const PLACES: readonly NavEntry[] = [
     href: "/games",
     description: "Practice, Line Rider, Candle Hop, Lucky, Duel, Range and Moonshot.",
     keywords: "practice line rider candle hop lucky duel range moonshot arcade",
+    paths: ["/games", "/x"],
   },
   {
     id: "leaderboard",

@@ -2,7 +2,7 @@
 
 import { NICKNAME_PATTERN } from "@kakure/arcade";
 import { Sheet } from "@kakure/ui-web";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ARCADE } from "../arcade/copy";
@@ -11,14 +11,18 @@ import { ArcadeError, claimNickname } from "./api";
 import { NICKNAME_MAX } from "./constants";
 import { setNickname } from "./player-store";
 import { arcadeKeys } from "./queries";
+import { readXConfig, startXSignIn } from "./x-sign-in";
 
 /** The service's answer when another key holds the name. */
 const TAKEN = 409;
+/** Whether Sign in with X is on changes only with a deploy. */
+const X_CONFIG_STALE_MS = 3_600_000;
 
 /**
  * Claiming a nickname (plan §0 R4): the name the boards show for this device's key. No account, no address and no
  * captcha: the browser does a small proof of work, signs the claim with the device key, and the site worker forwards it
- * with nothing of yours attached.
+ * with nothing of yours attached. Where the arcade has Sign in with X on (plan §0 R7), the X handle can be the name
+ * instead, and the sheet says what that tells whom.
  */
 export function NicknameSheet({
   open,
@@ -38,6 +42,13 @@ export function NicknameSheet({
   });
   const valid = NICKNAME_PATTERN.test(name);
   const working = state.kind === "working";
+  const x = useQuery({
+    queryKey: ["arcade", "x", "config"],
+    queryFn: readXConfig,
+    enabled: open,
+    staleTime: X_CONFIG_STALE_MS,
+  });
+  const xConfig = x.data?.clientId ? x.data : null;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -101,6 +112,24 @@ export function NicknameSheet({
           )}
         </button>
         <p className="text-meta text-muted-foreground">{ARCADE.nickname.note}</p>
+        {xConfig ? (
+          <div className="flex flex-col gap-2 border-t border-border pt-4">
+            <button
+              type="button"
+              className="gm-cta gm-cta--quiet"
+              disabled={working}
+              onClick={() => {
+                setState({ kind: "working" });
+                void startXSignIn(xConfig).catch((cause: unknown) =>
+                  setState({ kind: "error", message: cause instanceof Error ? cause.message : String(cause) }),
+                );
+              }}
+            >
+              {ARCADE.nickname.x.button}
+            </button>
+            <p className="text-meta text-muted-foreground">{ARCADE.nickname.x.note}</p>
+          </div>
+        ) : null}
         <p className="text-meta text-muted-foreground">{ARCADE.nickname.forget}</p>
       </form>
     </Sheet>
