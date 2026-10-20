@@ -11,7 +11,7 @@ import {
   vote,
   zatToZec,
 } from "@kakure/domain";
-import { OPERATOR_PUBLIC_KEYS, previousBundleQuery, printsQuery } from "@kakure/query";
+import { OPERATOR_PUBLIC_KEYS, previousBundleQuery, useUniformPrints } from "@kakure/query";
 import { Button, EmptyState, Mark, Skeleton } from "@kakure/ui-web";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, FileJson, Loader2, XCircle } from "lucide-react";
@@ -285,7 +285,7 @@ function Settled({ bundle }: { bundle: BundleV2 }) {
 
 function Hourly({ bundle, network }: { bundle: BundleV2; network: Network }) {
   const [wanted, setWanted] = useState(false);
-  const prints = useQuery({ ...printsQuery(DATA_SOURCE, network, bundle), enabled: wanted });
+  const prints = useUniformPrints(DATA_SOURCE, network, wanted);
   const lanes = new Map(bundle.lanes.map((lane) => [lane.id, lane]));
   const results = (prints.data ?? []).map((file: Prints) => {
     const checks = file.windows.map((w) => recompute(w, lanes));

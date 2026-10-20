@@ -12,6 +12,9 @@
  * - On each app start the page asks for a prefetch: this worker loads latest.json, its bundle and its address list
  *   for BOTH networks, whichever one you use, so the host sees the same requests from every visitor (PD14) and
  *   nothing about which network or market you look at. The app also polls both networks on the same clock (O8).
+ * - The data cache keeps only what the app can use: each network's two newest bundles (the one on screen and the one
+ *   before it, for the chain check) and its last day of prints files. Every older bundle goes, so the cache is never a
+ *   minute-by-minute log of when this device had the app open (privacy re-audit V8).
  */
 const PRECACHE = self.__KAKURE_PRECACHE__ ?? [];
 const BUILD = self.__KAKURE_BUILD__ ?? "dev";
@@ -25,6 +28,8 @@ const FETCHED_AT = "x-kakure-fetched-at";
 const NOT_FOUND = 404;
 const IMMUTABLE = /^\/_next\/static\//;
 const DATA = /^\/data\/(mainnet|testnet)\/[a-z0-9][a-z0-9._-]*\.json$/;
+const SERIES = /^\/data\/(mainnet|testnet)\/(bundle|prints)-(\d+)\.json$/;
+const KEEP = { bundle: 2, prints: 25 };
 let lastPrefetch = 0;
 
 self.addEventListener("install", (event) => {
@@ -75,8 +80,27 @@ async function cacheFirst(request, cacheName) {
   const cached = await cache.match(request);
   if (cached) return cached;
   const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
+  if (response.ok) {
+    await cache.put(request, response.clone());
+    if (cacheName === DATA_CACHE) await trimData(cache);
+  }
   return response;
+}
+
+/** Keeps each network's newest bundles and prints files (`KEEP`), dropping the rest. */
+async function trimData(cache) {
+  const groups = new Map();
+  for (const request of await cache.keys()) {
+    const match = SERIES.exec(new URL(request.url).pathname);
+    if (!match) continue;
+    const key = `${match[1]}:${match[2]}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ request, n: Number(match[3]) });
+  }
+  for (const [key, items] of groups) {
+    items.sort((a, b) => b.n - a.n);
+    for (const item of items.slice(KEEP[key.split(":")[1]])) await cache.delete(item.request);
+  }
 }
 
 async function networkFirst(request) {

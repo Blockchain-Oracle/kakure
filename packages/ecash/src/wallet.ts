@@ -186,6 +186,12 @@ export function finishBlank(
     return { amount: signature.amount, id: keyset.id, secret, C: unblind(signature.C_, r, key) };
   });
   if (total(chips) !== value) throw new Error("the signed chips don't add up to the value");
+  // The mint must pay in the canonical split, largest first, as everyone is paid: a rare mix of amounts could mark
+  // whoever receives it, and DLEQ alone can't stop that (privacy re-audit V9).
+  const canonical = split(keyset, value);
+  if (!canonical || canonical.length !== chips.length || canonical.some((amount, i) => amount !== chips[i]?.amount)) {
+    throw new Error("the mint paid in an unusual mix of chips");
+  }
   return chips;
 }
 

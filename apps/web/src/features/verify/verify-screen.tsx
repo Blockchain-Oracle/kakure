@@ -14,10 +14,9 @@ import {
   sidePayoutZat,
   type WindowState,
 } from "@kakure/domain";
-import { operatorKey, printsQuery } from "@kakure/query";
+import { operatorKey, useUniformPrints } from "@kakure/query";
 import { verifyDocument } from "@kakure/signing";
 import { EmptyState, Mark, Skeleton } from "@kakure/ui-web";
-import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, CircleDashed, Layers, ShieldCheck, XCircle } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useMemo } from "react";
@@ -88,10 +87,7 @@ export function VerifyScreen() {
   const bundle = data.status === "ready" ? data.bundle : null;
   const wallet = useWallet(network);
   const held = wallet.positions.filter((p) => p.certificate);
-  const prints = useQuery({
-    ...printsQuery(DATA_SOURCE, network, bundle ?? undefined),
-    enabled: bundle !== null && held.length > 0,
-  });
+  const prints = useUniformPrints(DATA_SOURCE, network);
   const states = useMemo(() => {
     const map = new Map<string, WindowState>();
     for (const file of prints.data ?? []) for (const w of file.windows) map.set(w.id, w);

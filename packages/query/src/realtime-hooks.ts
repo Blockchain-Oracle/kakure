@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createElement } from "react";
 import { DataError, isDataError } from "./errors";
 import type { DataSource } from "./fetch";
-import { bundleV2Query, latestV2Query } from "./realtime";
+import { bundleV2Query, latestV2Query, printsQuery } from "./realtime";
 
 export type RealtimeData =
   | { status: "loading" }
@@ -62,4 +62,23 @@ function NetworkLoad({ source, network }: { source: DataSource; network: Network
  */
 export function UniformRealtimeLoad({ source }: { source: DataSource }) {
   return NETWORKS.map((network) => createElement(NetworkLoad, { key: network, source, network }));
+}
+
+/**
+ * Both networks' prints files, loaded together whenever `enabled` (a page that recomputes settlements opens, or asks),
+ * whichever network is on screen and whatever this device holds, so the host learns neither (privacy re-audit V10).
+ * Returns the query for `network`.
+ */
+export function useUniformPrints(source: DataSource, network: Network, enabled = true) {
+  const testnet = useRealtimeData(source, "testnet");
+  const mainnet = useRealtimeData(source, "mainnet");
+  const testnetPrints = useQuery({
+    ...printsQuery(source, "testnet", testnet.status === "ready" ? testnet.bundle : null),
+    enabled,
+  });
+  const mainnetPrints = useQuery({
+    ...printsQuery(source, "mainnet", mainnet.status === "ready" ? mainnet.bundle : null),
+    enabled,
+  });
+  return network === "testnet" ? testnetPrints : mainnetPrints;
 }

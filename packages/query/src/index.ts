@@ -12,7 +12,7 @@ export {
   resolutionsQuery,
 } from "./options";
 export { bundleV2Query, latestV2Query, previousBundleQuery, printsQuery, realtimeKeys } from "./realtime";
-export { type RealtimeData, UniformRealtimeLoad, useRealtimeData } from "./realtime-hooks";
+export { type RealtimeData, UniformRealtimeLoad, useRealtimeData, useUniformPrints } from "./realtime-hooks";
 export { SCHEMA_VERSION } from "./schemas";
 export {
   decodeReceipt,
