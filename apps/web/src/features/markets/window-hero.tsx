@@ -61,10 +61,10 @@ export function WindowHero({
       <header className="flex items-center gap-3">
         <Mark mark={info.mark} label={asset} size="token" />
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-title text-foreground">
+          <h2 className="truncate font-display text-title text-foreground">
             {asset} · {cadenceLabel(cadenceSec)} Window
           </h2>
-          <p className="numbers text-meta text-muted-foreground">
+          <p className="numbers truncate text-meta text-muted-foreground">
             {windowStatus({
               phase: screen?.phase ?? null,
               startSec: screen?.window.startSec ?? null,
@@ -77,19 +77,20 @@ export function WindowHero({
         </div>
         <Link
           href={href}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 text-chip-label text-foreground hover:bg-row-pressed"
+          aria-label="Open the terminal"
+          className="flex size-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-secondary text-chip-label text-foreground hover:bg-row-pressed sm:w-auto sm:px-3.5"
         >
-          Terminal <ArrowRight aria-hidden className="size-4" />
+          <span className="hidden sm:inline">Terminal</span> <ArrowRight aria-hidden className="size-4" />
         </Link>
       </header>
 
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="numbers font-display text-page-title text-foreground">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="numbers whitespace-nowrap font-display text-page-title text-foreground">
           {spot === null ? "—" : formatUsd(spot, priceDecimals(spot))}
         </span>
         <span
           className={cx(
-            "numbers text-row-strong",
+            "numbers whitespace-nowrap text-row-strong",
             away === null ? "text-muted-foreground" : away >= 0 ? "text-up" : "text-down",
           )}
         >

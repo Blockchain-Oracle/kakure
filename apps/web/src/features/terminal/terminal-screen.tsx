@@ -309,7 +309,7 @@ export function TerminalScreen() {
     <SettingsStack
       asset={asset}
       size={zecText(stakeZat)}
-      pays={upAsk && downAsk ? `${multipleOf(upAsk)}·${multipleOf(downAsk)}` : "—"}
+      pays={upAsk || downAsk ? `${upAsk ? multipleOf(upAsk) : "–"}·${downAsk ? multipleOf(downAsk) : "–"}` : "—"}
       fees="Free"
       trailPct={settings.trailPct}
       onOpen={() => openSheet("settings")}
