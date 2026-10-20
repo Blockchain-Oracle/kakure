@@ -13,6 +13,8 @@ use anyhow::Result;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::{Value, json};
 
+use crate::{lanes, rt_store, settle};
+
 const SCHEMA: &str = "
 -- What trades bought. `price` is the single's or band's ask in 1/10^4, or the parlay price in 1/10^8.
 -- A band (Range, Moonshot) keeps its edges in `band` (JSON lo and hi, decimal strings or null) and
@@ -345,9 +347,59 @@ fn ledger(conn: &Connection, key: &str) -> Result<u64> {
         .unwrap_or(0))
 }
 
+/// What a band is worth once its Window has settled: its payout when two of three closing prints
+/// fall on its side of the edges, its stake back on a refund, nothing otherwise; `None` while the
+/// Window is open. The one rule redemption and the published book both use.
+pub fn band_value(p: &Position, window: &rt_store::WindowRow) -> Option<u64> {
+    window.outcome.as_ref()?;
+    let (side, band) = (p.side.as_deref()?, p.band.as_ref()?);
+    let asset = lanes::asset(&window.asset)?;
+    let closing = window
+        .closing
+        .as_deref()
+        .map(settle::prints_from_json)
+        .unwrap_or_default();
+    let outcome = settle::band_outcome_of(
+        &settle::venue_keys(asset),
+        &closing,
+        band.lo.as_deref(),
+        band.hi.as_deref(),
+    );
+    Some(if outcome == side {
+        p.payout_zat
+    } else if outcome == "refund" {
+        p.stake_zat
+    } else {
+        0
+    })
+}
+
+/// The bands the house still owes on: every open one at its full payout while its Window trades
+/// (one closing price can land inside many bands, so none offsets another), and what each settled
+/// one is worth until it is redeemed.
+fn band_book(conn: &Connection) -> Result<u64> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COLUMNS} FROM positions WHERE kind = 'band' AND state IN ('open', 'armed')"
+    ))?;
+    let bands = stmt
+        .query_map([], row)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut owed = 0u64;
+    for band in &bands {
+        let Some(window) = band.window.as_deref() else {
+            continue;
+        };
+        owed += match rt_store::window(conn, window)? {
+            Some(w) if w.outcome.is_some() => band_value(band, &w).unwrap_or(0),
+            _ => band.payout_zat,
+        };
+    }
+    Ok(owed)
+}
+
 /// The house's published book: chips outstanding (minted from deposits, plus paid out of
 /// positions, less staked, less withdrawn) and the most open positions could cost it (each
-/// unsettled Window's larger side, plus every open parlay, plus what settled ones still owe).
+/// unsettled Window's larger side, every open parlay and band, plus what settled ones still owe).
 pub fn liabilities(conn: &Connection) -> Result<Value> {
     let minted: u64 = conn.query_row(
         "SELECT COALESCE(SUM(issued_zat), 0) FROM deposit_issued",
@@ -382,9 +434,10 @@ pub fn liabilities(conn: &Connection) -> Result<Value> {
         [],
         |r| r.get(0),
     )?;
+    let bands = band_book(conn)?;
     Ok(json!({
         "chipsOutstandingZat": outstanding.to_string(),
-        "openMaxPayoutZat": (unsettled + owed + parlays).to_string(),
+        "openMaxPayoutZat": (unsettled + owed + parlays + bands).to_string(),
     }))
 }
 
@@ -416,4 +469,84 @@ pub fn prune(conn: &Connection, now: i64) -> Result<()> {
         [now - FINISHED_KEEP_SECS],
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn book() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        rt_store::migrate(&conn).unwrap();
+        migrate(&conn).unwrap();
+        conn
+    }
+
+    fn window(conn: &Connection, id: &str, closing: Option<&str>, outcome: Option<&str>) {
+        conn.execute(
+            "INSERT INTO rt_windows (id, lane, asset, start, expiry, closing, outcome)
+             VALUES (?1, 'btc-5m', 'BTC', 0, 300, ?2, ?3)",
+            params![id, closing, outcome],
+        )
+        .unwrap();
+    }
+
+    fn band(
+        conn: &Connection,
+        id: &str,
+        window: &str,
+        (lo, hi): (&str, &str),
+        stake: u64,
+        payout: u64,
+    ) {
+        let tx = conn.unchecked_transaction().unwrap();
+        let position = Position {
+            id: id.into(),
+            kind: Kind::Band,
+            window: Some(window.into()),
+            side: Some("in".into()),
+            legs: vec![],
+            stake_zat: stake,
+            price: 5_000,
+            payout_zat: payout,
+            lock: "00".into(),
+            opened_at: 0,
+            state: "open".into(),
+            paid_zat: None,
+            how: None,
+            exit: None,
+            exit_outputs: None,
+            exit_signatures: None,
+            band: Some(Band {
+                lo: Some(lo.into()),
+                hi: Some(hi.into()),
+            }),
+        };
+        insert(&tx, &position).unwrap();
+        tx.commit().unwrap();
+    }
+
+    fn open_max(conn: &Connection) -> String {
+        liabilities(conn).unwrap()["openMaxPayoutZat"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+
+    #[test]
+    fn the_book_counts_bands() {
+        let conn = book();
+        // Two overlapping bands on a trading Window: one closing price can pay both, so both count in full.
+        window(&conn, "btc-5m-1", None, None);
+        band(&conn, "a", "btc-5m-1", ("100", "200"), 1_000_000, 2_000_000);
+        band(&conn, "b", "btc-5m-1", ("150", "250"), 1_000_000, 3_000_000);
+        assert_eq!(open_max(&conn), "5000000");
+
+        // A settled Window: two of three closes at 120 put band c inside (owed) and band d outside (nothing).
+        let closing = r#"{"coinbase":"120","kraken":"120","bitstamp":"300"}"#;
+        window(&conn, "btc-5m-2", Some(closing), Some("U"));
+        band(&conn, "c", "btc-5m-2", ("100", "130"), 1_000_000, 4_000_000);
+        band(&conn, "d", "btc-5m-2", ("200", "260"), 1_000_000, 6_000_000);
+        assert_eq!(open_max(&conn), "9000000");
+    }
 }

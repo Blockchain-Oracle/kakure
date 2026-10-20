@@ -721,10 +721,8 @@ pub(crate) fn settled_value(api: &Api, position: &Position) -> Result<Option<u64
             }))
         }
         Kind::Band => {
-            let (Some(window), Some(side), Some(band)) =
-                (&position.window, &position.side, &position.band)
-            else {
-                return Err(internal("a band without its Window or edges"));
+            let Some(window) = &position.window else {
+                return Err(internal("a band without its Window"));
             };
             let Some(row) = rt_store::window(&store.conn, window).map_err(internal)? else {
                 return Ok(None);
@@ -732,25 +730,9 @@ pub(crate) fn settled_value(api: &Api, position: &Position) -> Result<Option<u64
             if row.outcome.is_none() {
                 return Ok(None);
             }
-            let asset = lanes::asset(&row.asset).ok_or_else(|| internal("an unknown asset"))?;
-            let closing = row
-                .closing
-                .as_deref()
-                .map(settle::prints_from_json)
-                .unwrap_or_default();
-            let outcome = settle::band_outcome_of(
-                &settle::venue_keys(asset),
-                &closing,
-                band.lo.as_deref(),
-                band.hi.as_deref(),
-            );
-            Ok(Some(if outcome == side {
-                position.payout_zat
-            } else if outcome == "refund" {
-                position.stake_zat
-            } else {
-                0
-            }))
+            positions::band_value(position, &row)
+                .map(Some)
+                .ok_or_else(|| internal("a band without its side, edges or asset"))
         }
         Kind::Parlay => {
             let mut legs = Vec::with_capacity(position.legs.len());
