@@ -6,6 +6,7 @@
 use anyhow::Result;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 
 use crate::{lanes::LaneWindow, minutes::VenueMinutes, settle::Prints, venues::Candle};
 
@@ -58,6 +59,16 @@ CREATE TABLE IF NOT EXISTS deposit_issued (
 CREATE TABLE IF NOT EXISTS spent (
     y TEXT PRIMARY KEY,
     spent_at INTEGER NOT NULL
+);
+
+-- Every address a withdrawal has paid, as a salted SHA-256 (the salt is this database's own, in `meta`): kept for good so
+-- the mint can refuse an address it paid before, long after the address itself is deleted (Codex review K6).
+CREATE TABLE IF NOT EXISTS paid_addresses (
+    fingerprint TEXT PRIMARY KEY
+);
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 
 -- Withdrawals: spent chips owed to a shielded address, paid as canonical notes (payouts.rs).
@@ -345,6 +356,16 @@ pub fn prune(conn: &Connection, now: i64) -> Result<()> {
     )?;
     // A withdrawal's address and amount leave once its notes are mined and a week has passed (privacy re-audit V7).
     // Deposits and spent-chip fingerprints stay: they are what stops a deposit minting twice or a chip spending twice.
+    // Each address keeps its fingerprint as its row goes, so the mint still refuses it later (Codex review K6).
+    let leaving: Vec<String> = conn
+        .prepare(
+            "SELECT DISTINCT recipient FROM payouts WHERE kind = 'withdraw' AND status = 'mined' AND built_at < ?1",
+        )?
+        .query_map([now - WITHDRAWALS_KEEP_SECS], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for address in &leaving {
+        remember_paid_address(conn, address)?;
+    }
     conn.execute(
         "DELETE FROM payouts WHERE kind = 'withdraw' AND status = 'mined' AND built_at < ?1",
         [now - WITHDRAWALS_KEEP_SECS],
@@ -530,6 +551,63 @@ pub fn spent_states(conn: &Connection, ys: &[String]) -> Result<Vec<bool>> {
         .collect()
 }
 
+const ADDRESS_SALT: &str = "address_salt";
+
+/// The salted fingerprint of a withdrawal address; the salt is drawn once per database and never leaves it.
+pub fn address_fingerprint(conn: &Connection, address: &str) -> Result<String> {
+    let salt: Option<String> = conn
+        .query_row(
+            "SELECT value FROM meta WHERE key = ?1",
+            [ADDRESS_SALT],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let salt = match salt {
+        Some(salt) => salt,
+        None => {
+            let mut bytes = [0u8; 32];
+            for chunk in bytes.chunks_mut(8) {
+                chunk.copy_from_slice(&crate::payouts::random_u64()?.to_le_bytes());
+            }
+            let salt = hex::encode(bytes);
+            conn.execute(
+                "INSERT OR IGNORE INTO meta (key, value) VALUES (?1, ?2)",
+                params![ADDRESS_SALT, salt],
+            )?;
+            conn.query_row(
+                "SELECT value FROM meta WHERE key = ?1",
+                [ADDRESS_SALT],
+                |r| r.get(0),
+            )?
+        }
+    };
+    let mut hasher = Sha256::new();
+    hasher.update(salt.as_bytes());
+    hasher.update(b":");
+    hasher.update(address.as_bytes());
+    Ok(hex::encode(hasher.finalize()))
+}
+
+/// True when a withdrawal has paid this address before (its fingerprint, or a payout row not yet pruned).
+pub fn address_was_paid(conn: &Connection, address: &str) -> Result<bool> {
+    let fingerprint = address_fingerprint(conn, address)?;
+    Ok(conn
+        .prepare("SELECT 1 FROM paid_addresses WHERE fingerprint = ?1")?
+        .exists([&fingerprint])?
+        || conn
+            .prepare("SELECT 1 FROM payouts WHERE recipient = ?1 LIMIT 1")?
+            .exists([address])?)
+}
+
+pub fn remember_paid_address(conn: &Connection, address: &str) -> Result<()> {
+    let fingerprint = address_fingerprint(conn, address)?;
+    conn.execute(
+        "INSERT OR IGNORE INTO paid_addresses (fingerprint) VALUES (?1)",
+        [fingerprint],
+    )?;
+    Ok(())
+}
+
 pub fn new_withdrawal(tx: &rusqlite::Transaction<'_>, zat: u64, now: i64) -> Result<u32> {
     tx.execute(
         "INSERT INTO withdrawals (amount_zat, created_at) VALUES (?1, ?2)",
@@ -601,6 +679,39 @@ mod deposit_tests {
         assert_eq!(
             deposit_state(&conn, &a, 103, 2).unwrap().confirmed_zat,
             1_000_000
+        );
+    }
+}
+
+#[cfg(test)]
+mod address_tests {
+    use super::*;
+
+    #[test]
+    fn a_paid_address_is_refused_after_its_row_is_gone() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        crate::positions::migrate(&conn).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE payouts (kind TEXT, status TEXT, built_at INTEGER, receipt_txid TEXT, recipient TEXT)",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO payouts VALUES ('withdraw', 'mined', 10, 'withdraw:1', 'utest1old')",
+            [],
+        )
+        .unwrap();
+        assert!(address_was_paid(&conn, "utest1old").unwrap());
+        prune(&conn, 10 + WITHDRAWALS_KEEP_SECS + 1).unwrap();
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM payouts", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0);
+        assert!(address_was_paid(&conn, "utest1old").unwrap());
+        assert!(!address_was_paid(&conn, "utest1new").unwrap());
+        assert_ne!(
+            address_fingerprint(&conn, "utest1old").unwrap(),
+            "utest1old"
         );
     }
 }

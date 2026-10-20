@@ -274,6 +274,13 @@ fn mint_chips(api: &Api, request: MintRequest, cache: Option<&str>) -> Answer {
     let tip = api.tip.load(Ordering::Relaxed);
     let mut store = api.store.lock().map_err(internal)?;
     let tx = store.conn.transaction().map_err(internal)?;
+    // The same request may have landed while this one waited for the lock: answer it from the cache inside the
+    // issuance's transaction, so identical blinded outputs never count against the deposit twice (Codex review K4).
+    if let Some(key) = cache
+        && let Some(body) = rt_store::cached_response(&tx, key).map_err(internal)?
+    {
+        return serde_json::from_str(&body).map_err(internal);
+    }
     let state =
         rt_store::deposit_state(&tx, &request.deposit, tip, api.confirmations).map_err(internal)?;
     let mintable = state.confirmed_zat.saturating_sub(state.issued_zat);
@@ -383,16 +390,13 @@ fn withdraw(api: &Api, request: MeltRequest, cache: Option<&str>) -> Answer {
     spend_and(api, &ys, cache.map(|k| (k, &answer)), |tx| {
         // A fresh address every time: two withdrawals to one address are linked for good (privacy re-audit V6). Checked
         // in the spend's transaction, so a refusal costs nothing.
-        let used: bool = tx
-            .prepare("SELECT 1 FROM payouts WHERE recipient = ?1 LIMIT 1")
-            .and_then(|mut stmt| stmt.exists([&request.address]))
-            .map_err(internal)?;
-        if used {
+        if rt_store::address_was_paid(tx, &request.address).map_err(internal)? {
             return Err(refuse(
                 KAKURE_BAD_ADDRESS,
                 "this address has been paid before; use a fresh one from your wallet's Receive screen",
             ));
         }
+        rt_store::remember_paid_address(tx, &request.address).map_err(internal)?;
         let id = rt_store::new_withdrawal(tx, zat, now).map_err(internal)?;
         payouts::schedule_withdrawal(tx, id, &request.address, zat, now, WITHDRAW_WINDOW)
             .map_err(internal)?;
