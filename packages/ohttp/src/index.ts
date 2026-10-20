@@ -1,5 +1,6 @@
 import { AEAD_AES_128_GCM, CipherSuite, KDF_HKDF_SHA256, KEM_DHKEM_X25519_HKDF_SHA256 } from "hpke";
 import { KeyConfig, OHTTPClient } from "ohttp-ts";
+import { REQUEST_BUCKETS } from "./constants";
 
 /**
  * Oblivious HTTP (RFC 9458) for Kakure's trading API (plan §00). Each call is Binary-HTTP encoded, HPKE-encrypted to the
@@ -19,7 +20,6 @@ const ORIGIN = "https://gateway.kakure";
  * the relay's and gateway's 64 KiB limit with room for the OHTTP header, the HPKE key and the AEAD tag. The gateway
  * pads its responses the same way.
  */
-const REQUEST_BUCKETS = [4 * 1024, 16 * 1024, 60 * 1024] as const;
 
 export function paddedRequestLength(size: number): number {
   return REQUEST_BUCKETS.find((bucket) => bucket >= size) ?? size;
