@@ -4,7 +4,7 @@ import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { utf8ToBytes } from "@noble/hashes/utils.js";
 import vectors from "./nut02-v2-vectors.json" with { type: "json" };
-import { checkKeyset, finishOutputs, keysetIdV2, prepareOutputs, type Proof, select, split, total } from "./wallet";
+import { checkKeyset, finishOutputs, keysetIdV2, type Proof, prepareOutputs, select, split, total } from "./wallet";
 
 /** NUT-02 v2 keyset IDs from the spec (github.com/cashubtc/nuts tests/02-tests.md, vectors 1 and 3). */
 test("NUT-02 keyset ID v2", () => {
