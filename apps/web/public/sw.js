@@ -6,7 +6,8 @@
  *   bet sheet or the portfolio fetches nothing that depends on what you look at (O7). Asset marks need no request
  *   at all: they're an inline sprite in every page.
  * - Pages: network first, then the cached copy, so the app opens offline with its last data.
- * - Built assets (/_next/static): cache first; they are content-hashed and never change.
+ * - Built assets (/_next/static) and the games' sounds: cache first; they never change within a build.
+ * - The arcade's API (/arcade/) and the relay (/ohttp/): never touched, so no board or seed is ever kept here.
  * - /data/<network>/latest.json: the cached copy while it is fresher than the edge cache (20 s), else the network.
  *   Bundles and address lists are immutable: cache first.
  * - On each app start the page asks for a prefetch: this worker loads latest.json, its bundle and its address list
@@ -26,7 +27,9 @@ const LATEST_FRESH_MS = 20000;
 const PREFETCH_EVERY_MS = 60000;
 const FETCHED_AT = "x-kakure-fetched-at";
 const NOT_FOUND = 404;
-const IMMUTABLE = /^\/_next\/static\//;
+const IMMUTABLE = /^\/_next\/static\/|^\/sounds\/[a-z-]+\.mp3$/;
+/** The arcade's API (boards, seeds, scores) is live and per request: never cached, never answered offline. */
+const PASS_THROUGH = /^\/(arcade|ohttp)\//;
 const DATA = /^\/data\/(mainnet|testnet)\/[a-z0-9][a-z0-9._-]*\.json$/;
 const SERIES = /^\/data\/(mainnet|testnet)\/(bundle|prints)-(\d+)\.json$/;
 const KEEP = { bundle: 2, prints: 25 };
@@ -120,7 +123,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin || PASS_THROUGH.test(url.pathname)) return;
   if (DATA.test(url.pathname)) {
     event.respondWith(url.pathname.endsWith("/latest.json") ? latest(request) : cacheFirst(request, DATA_CACHE));
   } else if (IMMUTABLE.test(url.pathname)) {

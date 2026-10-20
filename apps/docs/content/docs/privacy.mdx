@@ -6,7 +6,8 @@ description: The promise, who sees what, how the design gets there, and what Kak
 {/* Sources: plan §00 ("The new shape", "Who sees what", "Residual risks"); apps/web/src/features/privacy/words.ts;
    services/data-worker/src/relay.ts and wrangler.jsonc (observability off); packages/query/src/realtime-hooks.ts
    (UniformRealtimeLoad); packages/domain/src/bundle-v2.ts (trades, volumeZat, house); packages/chart/src/live/candle-view.ts
-   (candle requests); services/operator/src/payouts.rs (canonical notes, random times). */}
+   (candle requests); services/operator/src/payouts.rs (canonical notes, random times); services/data-worker/src/arcade.ts
+   and services/arcade/src/store.ts (the arcade). */}
 
 ## The promise
 
@@ -22,6 +23,7 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
 | This site and its relay (one Cloudflare worker) | Your IP, when you visit and trade, which pages you open, and which network you trade on | What's inside a request (sealed to the operator's published key); the asset or Window you look at |
 | The operator | Each deposit's amount; each trade's Window, side, stake and time; each withdrawal's address and amount | Your IP; which deposit paid for which trade; who you are |
 | Everyone else | The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes, hourly and rounded up; volume per Window in whole groups of three trades | Any single trade |
+| Kakure's arcade service | Your nickname, the key your device made for it, and your runs (game, score, inputs, the day) | Your IP or any header of yours, your wallet, chips or trades; Practice never reaches it |
 | Kakure's price relay | Your IP, when a tab showing prices is open, and which candle interval your chart shows and how far back | Which asset you watch |
 | Your wallet's server | Your IP, when your wallet syncs and broadcasts, and which transactions it fetches, unless your wallet uses Tor | The memo or the amount |
 | An exchange where you cash out | The amounts it receives | Which trades they came from |
@@ -82,6 +84,8 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
 1. **What the operator keeps.** Deposit records and spent-chip fingerprints stay for good: they stop a deposit
    minting twice or a chip spending twice. A withdrawal's address and amount go a week after it's paid, and an address
    already paid can't be used again.
-1. **This browser.** It keeps your trade settings (stake size, trail, starred markets), and its history keeps the
-   pages you opened. Forget this device clears the app's part.
+1. **The arcade isn't sealed.** The site sees your arcade calls (nickname and scores) with your IP, though it keeps no
+   logs; the arcade service never sees the IP. A nickname is public, so pick one that doesn't name you.
+1. **This browser.** It keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and
+   runs, and its history keeps the pages you opened. Forget this device clears the app's part.
 1. **Your side.** Your funding history and your wallet's server are outside Kakure's control.

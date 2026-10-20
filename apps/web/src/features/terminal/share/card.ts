@@ -4,16 +4,20 @@ import { encode } from "uqr";
 import { CARD, CARD_LOSE, CARD_WIN, REVOKE_MS, ROI_TIERS, WEIGHT } from "./constants";
 
 /**
- * A result as a PNG share card (Owarine `share-png.ts`; Kakure's cream stub): the call ("BTC UP · 1m"), the ROI, the
- * date, the 隠 seal, the brand and the market link with its QR. Never a stake, a payout or anything that names the
+ * A result as a PNG share card (Owarine `share-png.ts`; Kakure's cream stub): the call ("BTC UP · 1m"), the ROI (or an
+ * arcade run's score), the date, the 隠 seal, the brand and the market link with its QR. Never a stake, a payout or anything that names the
  * position: one amount and a time would solve back to it. Drawn from the page's tokens and fonts; nothing leaves the
  * browser unless the person shares it.
  */
 export interface ShareCard {
   call: string;
-  roiPct: number;
+  /** A trade's return; or `score`, an arcade run's figure, drawn in ink. */
+  roiPct?: number;
+  score?: string;
   when: string;
   url: string;
+  /** The line under the date ("Paid in private chips on Zcash" for a trade). */
+  foot?: string;
 }
 
 const font = (weight: number, px: number, family: string) => `${weight} ${px}px ${family}`;
@@ -96,14 +100,15 @@ export async function renderShareCard(card: ShareCard): Promise<Blob> {
   ctx.fillStyle = t.ink;
   fit(ctx, card.call.toUpperCase(), (px) => font(WEIGHT.bold, px, t.display), width, CARD.callPx);
   ctx.fillText(card.call.toUpperCase(), left, CARD.callY);
-  ctx.fillStyle = card.roiPct >= 0 ? t.win : t.lose;
-  const result = roiText(card.roiPct);
+  const roi = card.roiPct ?? 0;
+  ctx.fillStyle = card.score !== undefined ? t.ink : roi >= 0 ? t.win : t.lose;
+  const result = card.score ?? roiText(roi);
   fit(ctx, result, (px) => font(WEIGHT.bold, px, t.mono), width, CARD.resultPx);
   ctx.fillText(result, left, CARD.resultY);
   ctx.fillStyle = t.ink;
   ctx.font = font(WEIGHT.semi, CARD.metaPx, t.body);
   ctx.fillText(card.when, left, CARD.metaY);
-  ctx.fillText("Paid in private chips on Zcash", left, CARD.meta2Y);
+  ctx.fillText(card.foot ?? "Paid in private chips on Zcash", left, CARD.meta2Y);
 
   // The seal behind the result.
   ctx.save();

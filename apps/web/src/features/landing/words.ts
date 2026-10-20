@@ -8,7 +8,7 @@
 export const START = "/trade#BTC";
 
 /** Surfaces that ship in later stages (plan §0 R4–R5): flip each to true when its stage lands. */
-export const SHIPPED = { arcade: false, duel: false } as const;
+export const SHIPPED = { arcade: true, duel: false } as const;
 
 export const WORDS = {
   nav: {
@@ -138,7 +138,7 @@ export const WORDS = {
   games: {
     kicker: "Games",
     title: "Range, Moonshot, and an arcade on real tapes.",
-    line: "Range and Moonshot are open now, priced by the same house. The arcade is free to play and opens next.",
+    line: "Range and Moonshot are priced by the same house. The arcade is free: real price tapes, scores checked by replay.",
     cabinets: [
       { name: "Range", tag: "Live", line: "Inside the band, or outside it.", href: "/games/range", live: true },
       {
@@ -148,8 +148,20 @@ export const WORDS = {
         href: "/games/moonshot",
         live: true,
       },
-      { name: "Line Rider", tag: "Free", line: "Ride a real minute of BTC.", href: "/games", live: false },
-      { name: "Duel", tag: "Free", line: "Three calls against a rival.", href: "/games", live: false },
+      {
+        name: "Line Rider",
+        tag: "Free",
+        line: "Sled twelve hours of signed prices.",
+        href: "/games/line-rider",
+        live: true,
+      },
+      {
+        name: "Candle Hop",
+        tag: "Free",
+        line: "Fly through real one-minute candles.",
+        href: "/games/candle-hop",
+        live: true,
+      },
     ],
     open: "Enter the games hall",
   },

@@ -1,0 +1,72 @@
+---
+title: Games
+description: Practice, Line Rider and Candle Hop, how a score is checked, and what a nickname is.
+---
+
+{/* Sources: apps/web/src/features/games (catalog.ts, practice/, arcade/, player/, hall/device-facts.ts);
+   packages/arcade/src (practice.ts, tape.ts, replay.ts, trace.ts, wire.ts, field.ts); services/arcade/src (handlers.ts,
+   store.ts, tapes.ts, constants.ts); services/data-worker/src/arcade.ts. Every number is a constant in that code. */}
+
+The games hall is at **/games**. Range and Moonshot are trades priced by the house (see
+[Rules and formulas](/rules)); the three below cost nothing and never touch your chips.
+
+| Game | Stake | Scored on |
+| --- | --- | --- |
+| Practice: Beat the coin | Free | The live price, 30 seconds after each swipe |
+| Line Rider | Free | The arcade service's replay of your run |
+| Candle Hop | Free | The arcade service's replay of your run |
+
+## Practice: Beat the coin
+
+Five live Windows are dealt, soonest-closing first, each with at least two minutes left. Swipe up if you think the
+price will be higher in 30 seconds, down if lower. The coin calls the same cards: its call is a fixed function of the
+round's seed and the card, so it's a coin flip and nothing more.
+
+- Each card is scored on the live price exactly **30 seconds after your own swipe**, never on the Window's settlement.
+- A move to the same price is **flat**: nobody's card.
+- A card whose price couldn't be read at its close stays **unscored**; it's never given a number.
+
+Practice runs entirely in your browser. Nothing about a round is sent anywhere; the tally of rounds you've played and
+won stays on your device for the hall's achievements.
+
+## The arcade: Line Rider and Candle Hop
+
+Both games ride a **tape**: twelve hours of one asset's 1-minute closes (BTC or ETH, picked by the run's seed), cut
+from Kakure's signed hourly prints files and checked against the operator's key before use. Line Rider turns the
+minute-to-minute moves into a slope to sled; Candle Hop turns each minute into a candle to fly between.
+
+- **Line Rider.** Hold to press into the line and build a charge, let go to hop, lean ← → to flip. Clean landings,
+  flips and gaps cleared build the combo; a bad landing ends the run.
+- **Candle Hop.** Tap or Space to lift the coin. Hitting a body, a wick or the floor ends the run.
+- **Calmer ramp.** A slower speed ramp; runs played with it are marked on the boards.
+
+### How a score is checked
+
+1. When you press Play, the arcade service issues a **seed** and the tape it rides. A seed is good for one score,
+   within an hour of being issued (the longest run, 30 minutes, plus 30 to start and post it).
+2. Your browser records every input by the engine's tick (60 a second) and, when the run ends, sends the seed, the
+   score, the length and the inputs, signed by your device's key.
+3. The service **replays** the same engine over the same seed, tape and inputs. The score counts only if the replay
+   reproduces it to the tick. It can't prove a person rather than a script played, so the boards say "server-checked".
+4. Each nickname may post 120 runs an hour.
+
+## Nicknames and boards
+
+A nickname is 3–16 letters, digits, `_` or `-`, case-insensitively unique. It's bound to an Ed25519 key your browser
+makes for the arcade; claiming one takes a small proof of work instead of a captcha, so nothing third-party loads.
+
+- The boards show each nickname's best run, today, this week or all time, with the **day** it was played and never a
+  time. No address, wallet or IP is ever attached.
+- The key and nickname live in this browser. **Forget this device** clears them; the nickname then can't be posted to
+  from here again.
+
+## What's kept where
+
+| | Kept by |
+| --- | --- |
+| Nicknames, device public keys, runs (game, score, inputs' hash, day) | The arcade service |
+| Your arcade key, your runs list, Practice's tally, your streaks and achievements | This browser |
+| Your IP | Nobody on the arcade's side: the site forwards only the request's method, path and body |
+
+The arcade's calls aren't sealed like trades: the site sees them with your IP, though it keeps no logs. See
+[The privacy model](/privacy).

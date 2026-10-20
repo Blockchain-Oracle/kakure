@@ -1,0 +1,135 @@
+/* The deck strip (R6 games §4.2.3; 21st 19086's widening filmstrip): five tiles, the active one wider and lifted with
+   an accent hairline; a swiped one on its side's wash with its own ring; a scored one stamped; 64 px on a phone. */
+.ds {
+  --gm-lift: 0 8px 18px -10px color-mix(in srgb, var(--foreground) 45%, transparent);
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+}
+.ds-tile {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 64px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  transition:
+    flex-grow 200ms var(--ease-default),
+    transform 200ms var(--ease-default),
+    box-shadow 200ms var(--ease-default);
+}
+.ds-tile[data-state="active"] {
+  flex-grow: 1.7;
+  transform: translateY(-4px);
+  box-shadow:
+    var(--gm-lift),
+    inset 0 0 0 1.5px var(--vermilion);
+  color: var(--foreground);
+}
+.ds-tile[data-state="racing"][data-side="up"] {
+  background: color-mix(in srgb, var(--up) 14%, var(--card));
+}
+.ds-tile[data-state="racing"][data-side="down"] {
+  background: color-mix(in srgb, var(--down) 14%, var(--card));
+}
+.ds-tile[data-result="won"] {
+  box-shadow: inset 0 0 0 2px var(--up);
+}
+.ds-tile[data-result="lost"] {
+  box-shadow: inset 0 0 0 2px var(--down);
+}
+.ds-tile[data-state="unscored"] {
+  opacity: 0.6;
+}
+.ds-disc {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.ds-ticker {
+  font: 600 12px / 1 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.ds-line {
+  display: block;
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+}
+.ds-line .pr-line,
+.ds-line svg {
+  width: 100%;
+  height: 12px;
+}
+.ds-now {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font: 600 12px / 1 var(--font-mono);
+  color: var(--vermilion);
+}
+.ds-calls {
+  display: flex;
+  gap: 3px;
+}
+.ds-calls .pr-chip {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+}
+.ds-calls .pr-chip svg {
+  width: 11px;
+  height: 11px;
+}
+.ds-ring {
+  width: 28px;
+  height: 28px;
+}
+.ds-ring .kit-ring-left {
+  font-size: 9px;
+}
+.ds-stamp {
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ds-stamp[data-result="won"] {
+  color: var(--up);
+}
+.ds-stamp[data-result="lost"] {
+  color: var(--down);
+}
+.ds-none {
+  font: 500 12px / 1.1 var(--font-sans);
+  color: var(--ink-muted);
+  text-align: center;
+}
+.pr-race-ring {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+@media (min-width: 768px) {
+  .ds-tile {
+    height: 72px;
+  }
+}
+.gm-frame[data-reduced-motion="true"] .ds-tile {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-tile {
+    transition: none;
+  }
+}

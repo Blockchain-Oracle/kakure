@@ -12,6 +12,7 @@
     "reachability": "node scripts/reachability.mjs"
   },
   "dependencies": {
+    "@kakure/arcade": "workspace:*",
     "@kakure/chart": "workspace:*",
     "@kakure/domain": "workspace:*",
     "@kakure/ecash": "workspace:*",
@@ -27,6 +28,7 @@
     "@tanstack/query-persist-client-core": "5.104.3",
     "@tanstack/react-query": "catalog:",
     "lucide-react": "1.57.0",
+    "motion": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

@@ -89,6 +89,7 @@ export function SettingsScreen() {
             onChange={(motion) => setPrefs({ motion })}
             options={[
               { value: "system", label: "System" },
+              { value: "full", label: "Full" },
               { value: "reduce", label: "Reduced" },
             ]}
           />

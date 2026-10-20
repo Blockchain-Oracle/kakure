@@ -1,0 +1,152 @@
+/* The hall's streak strip and achievements shelf (Mitoshi `hall/hall.css`): this device's records only. */
+
+.streak {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+.streak-flame {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--vermilion);
+}
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.streak-badge[data-on] {
+  background: var(--accent-wash);
+}
+.streak-badge[data-on] .streak-flame {
+  animation: streak-flicker 1.4s ease-in-out infinite;
+}
+@keyframes streak-flicker {
+  50% {
+    transform: scale(1.12) rotate(-4deg);
+  }
+}
+.streak-n {
+  font: 700 18px / 1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.streak-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.streak-main {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.streak-sub {
+  font: 400 11px / 1.4 var(--font-mono);
+  color: var(--muted-foreground);
+}
+.streak-bests {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+.streak-chip {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  font: 400 11px / 1 var(--font-mono);
+  color: var(--foreground);
+}
+.streak-chip--name {
+  color: var(--muted-foreground);
+}
+@media (max-width: 400px) {
+  .streak {
+    flex-wrap: wrap;
+  }
+  .streak-bests {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}
+
+/* A locked badge is a goal, shown at lower contrast (Owarine's AchievementsPlate). */
+.ach {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.ach-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.ach-title {
+  margin: 0;
+  font: 400 22px / 1 var(--font-pixel);
+  color: var(--foreground);
+}
+.ach-count {
+  font: 400 11px / 1.4 var(--font-mono);
+  color: var(--ink-muted);
+}
+.ach-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 1024px) {
+  .ach-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.ach-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.ach-badge[data-on] {
+  border-color: color-mix(in srgb, var(--vermilion) 50%, transparent);
+  background: color-mix(in srgb, var(--vermilion) 10%, var(--card));
+}
+.ach-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.ach-badge[data-on] .ach-name {
+  color: var(--foreground);
+}
+.ach-how {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.ach-progress {
+  font: 400 10px / 1.4 var(--font-mono);
+  color: var(--vermilion);
+}

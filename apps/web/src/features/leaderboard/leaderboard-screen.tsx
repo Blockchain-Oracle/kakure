@@ -1,38 +1,45 @@
-import { buttonClass, EmptyState } from "@kakure/ui-web";
-import { Trophy } from "lucide-react";
-import Link from "next/link";
+"use client";
 
-/** The boards that open with the games (plan §0 Leaderboard), named so nobody mistakes the empty state for a bug. */
-const BOARDS = ["Duel Elo", "Line Rider", "Candle Hop", "Bets"] as const;
+import { buttonClass } from "@kakure/ui-web";
+import Link from "next/link";
+import { BoardsView } from "@/features/games/rank/boards-view";
+
+/** The boards that open later (plan §0 Leaderboard), named so nobody mistakes their absence for a bug. */
+const LATER = [
+  { name: "Duel Elo", when: "opens with Duel" },
+  { name: "Bets", when: "opens with published receipts" },
+] as const;
 
 /**
- * The leaderboard's honest empty state: no board exists yet, so none is drawn. When it opens, every name is an
- * opt-in nickname bound to a device key, never an address, and Bets ranks only receipts their owners chose to publish.
+ * `/leaderboard` (Mitoshi's LeaderboardScreen, Masayume's order: the podium, the board, your own row): the arcade's
+ * nickname boards, today, this week and all time. Mitoshi ranked wallets by P&L; Kakure's trades are private, so the
+ * trading board waits for receipts their owners choose to publish, and every name here is an opt-in nickname.
  */
 export function LeaderboardScreen() {
   return (
-    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-6">
-      <h1 className="font-display text-page-title text-foreground">Leaderboard</h1>
-      <EmptyState
-        icon={<Trophy />}
-        title="Boards open with the games"
-        reason={
-          <>
-            {BOARDS.join(" · ")}. Names are opt-in nicknames, never Zcash addresses, and Bets counts only receipts their
-            owners publish after a market pays. Until then there is nothing to rank.
-          </>
-        }
-        action={
-          <>
-            <Link href="/games" className={buttonClass("secondary", "sm")}>
-              See the games
-            </Link>
-            <Link href="/privacy" className={buttonClass("quiet", "sm")}>
-              How privacy works
-            </Link>
-          </>
-        }
-      />
+    <div className="mx-auto flex w-full max-w-(--layout-reading-max) flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <h1 className="font-display text-page-title text-foreground">Leaderboard</h1>
+        <p className="text-body text-muted-foreground">
+          Server-checked arcade runs, by nickname. No address, no IP, no time of day.
+        </p>
+      </header>
+      <BoardsView />
+      <section aria-label="Boards opening later" className="flex flex-wrap gap-2">
+        {LATER.map((board) => (
+          <span key={board.name} className="rounded-full bg-secondary px-3 py-1.5 text-meta text-muted-foreground">
+            <span className="text-foreground">{board.name}</span> · {board.when}
+          </span>
+        ))}
+      </section>
+      <div className="flex flex-wrap gap-3">
+        <Link href="/games" className={buttonClass("secondary", "sm")}>
+          See the games
+        </Link>
+        <Link href="/privacy" className={buttonClass("quiet", "sm")}>
+          How privacy works
+        </Link>
+      </div>
     </div>
   );
 }

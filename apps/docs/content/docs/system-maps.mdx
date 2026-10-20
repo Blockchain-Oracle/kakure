@@ -54,7 +54,8 @@ flowchart TB
     vault[(Encrypted vault: chips and positions)]
     sw[Offline cache]
   end
-  worker[Site and relay: static files, signed data, /ohttp; logs off]
+  worker[Site and relay: static files, signed data, /ohttp, /arcade; logs off]
+  arcade[Arcade service: nicknames, seeds, replayed runs]
   prices[Price relay: every symbol to everyone]
   op[Operator gateway and mint]
   ex[Coinbase, Kraken, Bitstamp, Gemini]
@@ -62,6 +63,9 @@ flowchart TB
   app -- same files for every visitor --> worker
   app -- sealed requests --> worker
   worker -- sealed bytes only --> op
+  app -- arcade calls --> worker
+  worker -- method, path and body only --> arcade
+  arcade -- reads signed prints --> worker
   app -- one price stream per tab --> prices
   prices --> ex
   op --> ex
@@ -82,5 +86,6 @@ flowchart LR
   deposit -->|"its amount"| op
   wallet((Your wallet)) -->|"your IP, sync and send times, unless you use Tor"| server[Your wallet's server]
   visit((Your visit)) -->|"IP, while prices show; the chart's candle interval"| prices[Price relay]
+  play((Your arcade runs)) -->|"nickname, scores, the day; never your IP"| arcade[Arcade service]
   op -->|"prices, outcomes, the house's book hourly, volume in groups of 3"| public[Everyone]
 ```

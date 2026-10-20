@@ -7,16 +7,19 @@ import { safeStorage } from "@/lib/storage";
 
 /**
  * Device preferences (surfaces.md Settings): sound, volume, haptics, the portfolio sound ladder, motion and the
- * privacy eye. Stored on this device only. Motion "reduce" sets <html data-motion="reduce">, which the CSS treats
- * like the system's reduced-motion setting.
+ * privacy eye. Stored on this device only. Motion is three-way (Mitoshi's games setting): "system" follows the OS,
+ * "reduce" sets <html data-motion="reduce"> and "full" sets <html data-motion="full">, an explicit choice that beats the
+ * OS in either direction (the CSS motion variants read both).
  */
+export type MotionChoice = "system" | "full" | "reduce";
+
 export interface Prefs {
   sound: boolean;
   /** 0..1 */
   volume: number;
   haptics: boolean;
   ladder: boolean;
-  motion: "system" | "reduce";
+  motion: MotionChoice;
   hideAmounts: boolean;
 }
 
@@ -47,8 +50,8 @@ function read(): Prefs {
 function apply(prefs: Prefs) {
   setFeedbackPreferences({ sound: prefs.sound, volume: prefs.volume, haptics: prefs.haptics });
   const root = document.documentElement;
-  if (prefs.motion === "reduce") root.dataset.motion = "reduce";
-  else delete root.dataset.motion;
+  if (prefs.motion === "system") delete root.dataset.motion;
+  else root.dataset.motion = prefs.motion;
 }
 
 export function getPrefs(): Prefs {
@@ -71,7 +74,14 @@ export function usePrefs(): Prefs {
   return useSyncExternalStore(subscribe, read, () => DEFAULT_PREFS);
 }
 
-/** Reduced motion from the system or the in-app setting. */
+/** The player's explicit choice wins; "system" defers to the OS. */
+export function reducedMotionFrom(choice: MotionChoice, systemPrefersReduced: boolean): boolean {
+  if (choice === "reduce") return true;
+  if (choice === "full") return false;
+  return systemPrefersReduced;
+}
+
+/** Reduced motion from the in-app setting, or the system's when it follows the system. */
 export function prefersReducedMotion(): boolean {
-  return read().motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return reducedMotionFrom(read().motion, window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }

@@ -1,0 +1,146 @@
+/* The arcade pair (Mitoshi `features/games/arcade/arcade.css`, from Senryo's): the cabinet page and the run's own
+ * full-screen layer. The field's black ground is part of the mechanic (the line's heat, the candles, the grip all read
+ * against it), so `.ar-screen` and the run layer keep the dark theme's inks in both themes, as `r g b` triplets the
+ * draws read once per resize; nothing in TypeScript names a colour. */
+
+.ar-screen {
+  --ar-ground-rgb: 5 5 5;
+  --ar-ink-rgb: 255 255 255;
+  --ar-up-rgb: 52 211 153;
+  --ar-down-rgb: 251 113 133;
+  --ar-accent-rgb: 224 77 38;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-width: min(100%, calc(72svh * 16 / 9));
+  margin: 0 auto;
+  background: rgb(var(--ar-ground-rgb));
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* The screen owns the thumb only while a run is live; otherwise a phone scrolls past it. */
+.ar-screen[data-phase="playing"] {
+  touch-action: none;
+}
+.ar-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── The cabinet: the game playing itself behind Play, the line, calm and the nickname, the board ── */
+.ar-cabinet {
+  display: flex;
+  width: 100%;
+  max-width: 720px;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-inline: auto;
+}
+.ar-attract {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #050505;
+}
+.ar-attract-screen.ar-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+}
+.ar-attract-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(5 5 5 / 0.45);
+  pointer-events: none;
+}
+.ar-attract-plate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.ar-attract-plate > * {
+  pointer-events: auto;
+}
+.ar-play {
+  width: fit-content;
+  min-height: 56px;
+  padding: 0 28px;
+  gap: var(--space-md);
+  font: 400 28px / 1 var(--font-pixel);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  box-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+}
+.ar-play-icon {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+.ar-plate-best {
+  font: 600 12px / 1.2 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.ar-plate-free {
+  font: 500 12px / 1.2 var(--font-mono);
+  color: rgb(255 255 255 / 0.7);
+}
+.ar-line {
+  font: 400 22px / 1 var(--font-pixel);
+  color: var(--foreground);
+}
+.ar-cab-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.ar-calm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: var(--size-touch);
+}
+.ar-calm-text {
+  display: flex;
+  flex-direction: column;
+}
+.ar-calm-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.ar-calm-hint {
+  font: 400 12px / 1.4 var(--font-mono);
+  color: var(--ink-muted);
+}
+.ar-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ar-board-title {
+  font: 400 22px / 1 var(--font-pixel);
+  color: var(--foreground);
+}
+.ar-board-foot {
+  font: 400 12px / 1.6 var(--font-mono);
+  color: var(--ink-muted);
+}
+.ar-board-empty {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}

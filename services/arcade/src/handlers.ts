@@ -17,6 +17,7 @@ import {
   type RunIssued,
   replayArcade,
   type ScoreAccepted,
+  type Standing,
   seedFromBytes,
   ticksToMs,
   traceCanonical,
@@ -61,10 +62,24 @@ function sinceDay(period: BoardPeriod): number {
   return dayOf(nowSec() - days * DAY_SEC);
 }
 
+export const isPlayerKey = (value: string): boolean => HEX_KEY.test(value);
+
 export function readBoard(store: ArcadeStore, game: ArcadeGame, period: BoardPeriod, limit = BOARD_LIMIT): Board {
   const engineVersion = ENGINE_VERSION[game];
-  const rows = store.board(game, engineVersion, sinceDay(period), Math.min(Math.max(1, limit), RANK_LIMIT));
+  const wanted = Number.isInteger(limit) ? limit : BOARD_LIMIT;
+  const rows = store.board(game, engineVersion, sinceDay(period), Math.min(Math.max(1, wanted), RANK_LIMIT));
   return { game, period, engineVersion, rows };
+}
+
+/** A device key's standing on one game's all-time board: its nickname, best and rank (nulls before its first run). */
+export function readMe(store: ArcadeStore, game: ArcadeGame, player: string): Standing {
+  const engineVersion = ENGINE_VERSION[game];
+  const best = store.best(player, game, engineVersion);
+  return {
+    nickname: store.nicknameOf(player),
+    best,
+    rank: best === null ? null : store.rank(game, engineVersion, best),
+  };
 }
 
 /** A seed for the next run, with the tape it rides, both kept so the score check replays the same terrain. */

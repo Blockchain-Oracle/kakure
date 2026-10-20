@@ -1,0 +1,125 @@
+/* The games kit (Mitoshi `components/kit/kit.css`): the sticker, the countdown ring, the marquee and the confetti. */
+
+/* ── Kit: the die-cut sticker ── */
+.gm-sticker {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 4px;
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--paper);
+  background: var(--vermilion);
+  color: var(--accent-foreground);
+  font: 800 11px / 1 var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  rotate: var(--gm-tilt, -3deg);
+}
+:root.dark .gm-sticker {
+  outline-color: var(--foreground);
+}
+.gm-sticker[data-tone="up"] {
+  background: var(--up);
+  color: var(--on-fill);
+}
+.gm-sticker[data-tone="surface"] {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+/* ── Kit: the countdown ring ── */
+.gm-ring {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-full);
+}
+.gm-ring[data-size="sm"] {
+  width: 28px;
+  height: 28px;
+}
+.gm-ring[data-size="md"] {
+  width: 44px;
+  height: 44px;
+}
+.gm-ring[data-size="lg"] {
+  width: 64px;
+  height: 64px;
+}
+.gm-ring[data-glow] {
+  box-shadow: var(--glow-live);
+}
+.gm-ring-face {
+  position: relative;
+  display: inline-grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+.gm-ring-face svg {
+  width: 100%;
+  height: 100%;
+  rotate: -90deg;
+}
+.gm-ring-track {
+  fill: none;
+  stroke: var(--border);
+}
+.gm-ring-arc {
+  fill: none;
+  stroke: var(--muted-foreground);
+  transition: stroke-dashoffset 1s linear;
+}
+.gm-ring-arc[data-urgent] {
+  stroke: var(--vermilion);
+}
+.gm-ring-inside {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.gm-ring-left {
+  font: 700 11px / 1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--gm-ink);
+}
+.gm-ring[data-size="sm"] .gm-ring-left {
+  font-size: 8px;
+}
+.gm-ring[data-size="lg"] .gm-ring-left {
+  font-size: 14px;
+}
+
+/* ── Kit: the marquee ── */
+.gm-slider {
+  overflow: hidden;
+}
+.gm-slider[data-still] {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.gm-slider-track {
+  display: flex;
+  width: max-content;
+  gap: var(--gm-gap, 1rem);
+}
+
+/* ── Kit: the confetti burst ── */
+.gm-confetti {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.gm-confetti-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+}

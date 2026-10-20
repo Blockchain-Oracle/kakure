@@ -14,6 +14,8 @@ import { registerServiceWorker } from "./service-worker";
 
 /** Hourly prints files are large and only read on /proof: kept in memory, never persisted. */
 const NOT_PERSISTED = new Set(["prints"]);
+/** The arcade's boards and standings aren't signed files: kept in memory only (features/games/player/api.ts). */
+const MEMORY_ONLY_ROOT = "arcade";
 
 /**
  * One query cache for the app. Only public, signed data is ever queried (the same files every visitor loads), and
@@ -27,7 +29,9 @@ function makeClient() {
     prefix: STORAGE_KEYS.cache,
     maxAge: CACHE_MAX_AGE_MS,
     buster: String(SCHEMA_VERSION_V2),
-    filters: { predicate: (query) => !NOT_PERSISTED.has(String(query.queryKey[2])) },
+    filters: {
+      predicate: (query) => query.queryKey[0] !== MEMORY_ONLY_ROOT && !NOT_PERSISTED.has(String(query.queryKey[2])),
+    },
   });
   // Old batches' entries expire; sweep them so the cache doesn't grow with every bundle.
   if (typeof window !== "undefined") void persister.persisterGc();

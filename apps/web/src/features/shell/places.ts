@@ -6,7 +6,16 @@
  */
 
 export type PlaceId = "trade" | "markets" | "portfolio" | "games" | "leaderboard";
-export type TileId = "verify" | "proof" | "privacy" | "docs" | "download" | "settings" | "status";
+export type TileId =
+  | "games-rank"
+  | "games-history"
+  | "verify"
+  | "proof"
+  | "privacy"
+  | "docs"
+  | "download"
+  | "settings"
+  | "status";
 export type NavId = PlaceId | TileId;
 
 export interface NavEntry {
@@ -57,7 +66,7 @@ export const PLACES: readonly NavEntry[] = [
     name: "Games",
     tile: "Games",
     href: "/games",
-    description: "The games hall, opening in R4.",
+    description: "Practice, Line Rider, Candle Hop, Range and Moonshot.",
     keywords: "practice line rider candle hop lucky duel range moonshot arcade",
   },
   {
@@ -65,7 +74,7 @@ export const PLACES: readonly NavEntry[] = [
     name: "Leaderboard",
     tile: "Ranks",
     href: "/leaderboard",
-    description: "Nickname boards, opening with the games.",
+    description: "The arcade's nickname boards.",
     keywords: "rank ranking board nickname",
   },
 ];
@@ -77,6 +86,28 @@ export interface NavSection {
 }
 
 export const MORE_SECTIONS: readonly NavSection[] = [
+  {
+    id: "games",
+    name: "Games",
+    items: [
+      {
+        id: "games-rank",
+        name: "Game ranks",
+        tile: "Ranks",
+        href: "/games/rank",
+        description: "The arcade's boards: today, this week and all time.",
+        keywords: "rank board line rider candle hop score nickname",
+      },
+      {
+        id: "games-history",
+        name: "Your runs",
+        tile: "Runs",
+        href: "/games/history",
+        description: "Your server-checked runs, kept on this device.",
+        keywords: "history runs scores arcade",
+      },
+    ],
+  },
   {
     id: "trust",
     name: "Trust",

@@ -1,0 +1,376 @@
+/* The hall (Mitoshi `hall/hall.css`, after Senryo's games hub) on Kakure's tokens: the head row with its marquee, the
+ * featured cabinet, the cabinet rail, the streak strip and the achievements. The cabinets' scenes keep a dark arena in
+ * both themes. Budget at 320 × 568: head 44 + feature ≈ 260, so PLAY ends above the dock. */
+
+.hall {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* ── The head row: title · marquee · settings ── */
+.hall-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--size-touch);
+}
+.hall-title {
+  flex: none;
+  margin: 0;
+  font: 400 33px / 1 var(--font-pixel);
+  letter-spacing: 0.02em;
+  color: var(--foreground);
+}
+.hall-title::after {
+  content: ".";
+  color: var(--vermilion);
+}
+.hall-now {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  flex: 1;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--card);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.hall-now--empty {
+  border: 0;
+  background: none;
+}
+.hall-now-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font: 400 11px / 1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.hall-now-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--vermilion);
+}
+.hall-now-item[data-tone="up"] .hall-now-dot {
+  background: var(--up);
+}
+.hall-now-who {
+  color: var(--foreground);
+}
+.hall-now-item[data-tone="up"] .hall-now-what {
+  color: var(--up);
+}
+.hall-now-item[data-tone="best"] .hall-now-what {
+  color: var(--vermilion);
+}
+
+/* ── Marquee lights: a dot row across a cabinet's top edge, chasing (21st.dev educalvolpz/switchboard-card) ── */
+.hall-lights,
+.cab-lights {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: 16px;
+  height: 6px;
+  background-image: radial-gradient(circle, var(--vermilion) 1.5px, transparent 2px);
+  background-repeat: repeat-x;
+  background-size: 12px 6px;
+  opacity: 0.85;
+  pointer-events: none;
+  animation: hall-chase 1.2s steps(2) infinite;
+}
+@keyframes hall-chase {
+  50% {
+    background-position: 6px 0;
+    opacity: 0.35;
+  }
+}
+
+/* ── The featured cabinet ── */
+.hall-feature {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 18px 16px 16px;
+  border: 1px solid color-mix(in srgb, var(--vermilion) 35%, var(--border));
+  border-radius: var(--radius-lg);
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    color-mix(in srgb, var(--vermilion) 14%, var(--card)),
+    var(--card) 70%
+  );
+  box-shadow:
+    inset 0 2px 0 color-mix(in srgb, white 5%, transparent),
+    inset 0 -3px 0 color-mix(in srgb, black 18%, transparent);
+}
+.hall-feature-top {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.hall-feature-eyebrow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 14px / 1 var(--font-pixel);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.hall-continue {
+  display: inline-flex;
+  max-width: 50%;
+  min-height: 32px;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 var(--space-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--foreground);
+}
+.hall-continue:hover {
+  border-color: var(--vermilion);
+}
+.hall-feature-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.hall-feature-id {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.hall-feature-asset {
+  font: 800 26px / 1 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+.hall-feature-cadence {
+  font: 400 12px / 1.3 var(--font-mono);
+  color: var(--muted-foreground);
+}
+.hall-feature-state {
+  display: flex;
+  min-height: var(--size-touch);
+  align-items: center;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.hall-feature-quote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.hall-price {
+  font: 600 22px / 1.2 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.hall-price--pending {
+  color: var(--ink-muted);
+}
+.hall-pays {
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--up-surface);
+  font: 600 12px / 1.2 var(--font-mono);
+  color: var(--up);
+}
+.hall-play {
+  min-height: var(--size-cta-height);
+  gap: 10px;
+  font: 400 22px / 1 var(--font-pixel);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.hall-play-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* ── The cabinet rail: snap-x with a peek on phones, a 2/3/4 grid at 768/1024/1440 ── */
+.cab-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cab-rail {
+  display: grid;
+  grid-auto-columns: min(78%, 280px);
+  grid-auto-flow: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 4px 0 var(--space-sm);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  list-style: none;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.cab-rail::-webkit-scrollbar {
+  display: none;
+}
+.cab-rail:focus-visible {
+  border-radius: 20px;
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+.cab-dots {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+.cab-dot {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  background: none;
+}
+.cab-dot::before {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  content: "";
+  transition:
+    width var(--duration-state) var(--ease-default),
+    background var(--duration-state) var(--ease-default);
+}
+.cab-dot[aria-current]::before {
+  width: 16px;
+  background: var(--vermilion);
+}
+@media (min-width: 768px) {
+  .cab-dots {
+    display: none;
+  }
+  .cab-rail {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+}
+@media (min-width: 1024px) {
+  .cab-rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1440px) {
+  .cab-rail {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.cab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  scroll-snap-align: start;
+  transition:
+    transform var(--duration-state) var(--ease-default),
+    border-color var(--duration-state) var(--ease-default);
+}
+.cab[data-off] {
+  opacity: 0.72;
+}
+.cab:not([data-off]):hover {
+  border-color: color-mix(in srgb, var(--vermilion) 45%, transparent);
+  transform: translateY(-2px);
+}
+.cab-lights {
+  top: 2px;
+  right: 24px;
+  left: 24px;
+  opacity: 0.5;
+}
+.cab-screen {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: #0b0908;
+  aspect-ratio: 16 / 9;
+}
+.cab-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.cab-id {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.cab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 22px / 1 var(--font-pixel);
+  color: var(--foreground);
+}
+.cab-fact {
+  min-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 11px / 1.4 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.cab-play {
+  min-height: var(--size-touch);
+  font: 400 18px / 1 var(--font-pixel);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cab-soon {
+  display: grid;
+  min-height: var(--size-touch);
+  place-items: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-button);
+  font: 400 16px / 1 var(--font-pixel);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+/* Desktop cabinet glass: a highlight on hover (21st.dev preetsuthar17/spotlight-card, in CSS only). */
+@media (min-width: 1024px) and (hover: hover) {
+  .cab-screen::after {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(60% 50% at 30% 20%, rgb(255 255 255 / 0.12), transparent 60%);
+    content: "";
+    opacity: 0;
+    transition: opacity var(--duration-state) var(--ease-default);
+  }
+  .cab:hover .cab-screen::after {
+    opacity: 1;
+  }
+}

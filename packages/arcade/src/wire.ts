@@ -61,6 +61,13 @@ export interface ScoreClaim {
   player: string;
 }
 
+/** `GET /arcade/v1/me/<game>/<player>`: a device key's nickname, best and all-time rank (nulls before a first run). */
+export interface Standing {
+  nickname: string | null;
+  best: number | null;
+  rank: number | null;
+}
+
 export interface ScoreAccepted {
   rank: number;
   isBest: boolean;

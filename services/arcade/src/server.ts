@@ -1,7 +1,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { ARCADE_PATH } from "@kakure/arcade";
+import { ARCADE_PATH, BOARD_LIMIT } from "@kakure/arcade";
 import { BODY_MAX_BYTES, DB_PATH, PORT } from "./constants";
-import { acceptScore, attractTape, isGame, isPeriod, issueRun, readBoard, register, type Verdict } from "./handlers";
+import {
+  acceptScore,
+  attractTape,
+  isGame,
+  isPeriod,
+  isPlayerKey,
+  issueRun,
+  readBoard,
+  readMe,
+  register,
+  type Verdict,
+} from "./handlers";
 import { ArcadeStore } from "./store";
 
 /**
@@ -10,7 +21,8 @@ import { ArcadeStore } from "./store";
  * either. Routes, all JSON:
  *
  *   POST /arcade/v1/run/<game>              a seed and the real-price tape it rides
- *   GET  /arcade/v1/board/<game>/<period>   each nickname's best, day, week or all
+ *   GET  /arcade/v1/board/<game>/<period>   each nickname's best, day, week or all (`?limit=` up to 50)
+ *   GET  /arcade/v1/me/<game>/<player>      a device key's nickname, best and all-time rank
  *   POST /arcade/v1/player                  claim a nickname for a device key (signed, with proof of work)
  *   POST /arcade/v1/score                   a signed run, replayed before it ranks
  *   GET  /arcade/v1/tape                    a tape for the cabinets' attract loops
@@ -20,7 +32,7 @@ const ATTRACT_CACHE = "public, max-age=300, stale-while-revalidate=900";
 const HTTP_OK = 200;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
-/** Path segments after `/arcade/v1/`: `tape`, `run/<game>`, `board/<game>/<period>`. */
+/** Path segments after `/arcade/v1/`: `tape`, `run/<game>`, `board/<game>/<period>`, `me/<game>/<player>`. */
 const ONE = 1;
 const TWO = 2;
 const THREE = 3;
@@ -47,12 +59,16 @@ async function body(request: IncomingMessage): Promise<unknown> {
 }
 
 async function route(request: IncomingMessage, response: ServerResponse): Promise<void> {
-  const path = new URL(request.url ?? "/", "http://arcade").pathname;
+  const url = new URL(request.url ?? "/", "http://arcade");
+  const path = url.pathname;
   if (!path.startsWith(`${ARCADE_PATH}/`)) return send(response, HTTP_NOT_FOUND, { error: "not found" });
   const parts = path.slice(ARCADE_PATH.length + 1).split("/");
   const [what, a, b] = parts;
   if (request.method === "GET" && what === "board" && a && b && isGame(a) && isPeriod(b) && parts.length === THREE) {
-    return send(response, HTTP_OK, readBoard(store, a, b));
+    return send(response, HTTP_OK, readBoard(store, a, b, Number(url.searchParams.get("limit") ?? BOARD_LIMIT)));
+  }
+  if (request.method === "GET" && what === "me" && a && b && isGame(a) && isPlayerKey(b) && parts.length === THREE) {
+    return send(response, HTTP_OK, readMe(store, a, b));
   }
   if (request.method === "GET" && what === "tape" && parts.length === ONE) {
     return send(response, HTTP_OK, { tape: await attractTape() }, ATTRACT_CACHE);

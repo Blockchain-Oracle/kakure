@@ -1,0 +1,365 @@
+/* The swipe stage (Mitoshi `stage/stage.css`, Flicky's five bands): the deck, the bands, the clock and the calls. */
+
+/* ── The stack ────────────────────────────────────────────────────────────── */
+
+/* The stack is exactly one card tall — `popLayout` takes the leaving card out of the flow, so the
+ * two calls do not jump while a throw is in the air and nothing has to be reserved for it. A floor
+ * here instead left a band of dead space under every card that was shorter than the tallest one. */
+.st-deck {
+  position: relative;
+}
+
+/* Opaque, and that is not a style choice: the cards behind sit directly under this one, so any
+ * translucency prints their asset, question and price straight through the card being played.
+ * `--color-surface-1` is the app's own card surface and already flips with the theme, which is why
+ * there is no light override here. */
+.st-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* The cards still to come, stacked behind and inert. Purely decorative: they carry aria-hidden.
+ * Anchored at the top rather than `inset: 0`, so a face taller than the stack's floor is clipped by
+ * its own card instead of spilling out below it. */
+.st-card--behind {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  max-height: 100%;
+  overflow: hidden;
+  transform: translateY(calc(var(--st-depth, 1) * 10px)) scale(calc(1 - var(--st-depth, 1) * 0.035));
+  opacity: calc(0.5 - var(--st-depth, 1) * 0.14);
+  pointer-events: none;
+}
+
+.st-card--active {
+  z-index: 2;
+  cursor: grab;
+  touch-action: pan-x;
+  overflow: hidden;
+}
+
+/* ── Flicky's five bands (swipe-screen.tsx L300–451), as tiles in the venue's tokens ─────────────────
+ * The reference's tile is `border-2 border-black/55 bg-[#0e1530]` with a highlight line inside the top edge
+ * and a shadow line inside the bottom; here the paint is a step of the page's own ground and the two lines
+ * are alpha over it, so the tiles flip with the theme. */
+.st-band {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--canvas) 55%, var(--card));
+  box-shadow:
+    inset 0 2px 0 color-mix(in srgb, var(--foreground) 6.0%, transparent),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* Band 1 — the title banner: the pair on the left in the reference's amber (signal here), N/M on the right. */
+.st-band--title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+}
+.st-title-asset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vermilion);
+}
+.st-cadence {
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12.0%, transparent);
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+.st-title-place {
+  margin-left: auto;
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Band 3 — the quote box (L338–369): a hairline inset one step inside the tile, the eyebrow, the question, the clock. */
+.st-band--quote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+}
+.st-quote-inset {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 8.0%, transparent);
+  border-radius: 7px;
+  pointer-events: none;
+}
+.st-eyebrow {
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--vermilion) 80%, transparent);
+}
+.st-question {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 26px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  font-stretch: 100%;
+}
+.st-question-pending {
+  color: var(--ink-muted);
+}
+/* Practice's watch (R6 games §4.2.2): one full, still ring at the quote box's right edge, centred on the question. */
+.st-band--quote:has(.st-watch-ring) {
+  padding-right: 64px;
+}
+.st-watch-ring {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 44px;
+  height: 44px;
+  color: var(--color-accent);
+}
+.st-watch-ring .kit-ring-left {
+  font: 600 12px / 1 var(--font-mono);
+  color: var(--foreground);
+}
+
+.dsk-bone {
+  display: block;
+  background: var(--skeleton);
+  animation: dsk-pulse var(--duration-skeleton-period) ease-in-out infinite alternate;
+}
+@keyframes dsk-pulse {
+  from {
+    opacity: var(--opacity-skeleton-from);
+  }
+}
+/* Band 4 — the two stat pills (L371–405): a label in the reference's dim uppercase, a figure in the pixel face. */
+.st-pills {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.st-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  min-width: 0;
+}
+.st-pill-k {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.st-pill-v {
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-pill-v[data-tone="up"] {
+  color: var(--up);
+}
+.st-pill-v[data-tone="down"] {
+  color: var(--down);
+}
+.st-pill-v[data-tone="live"] {
+  color: var(--foreground);
+}
+
+/* ── The clock's ramp and the depletion bar (globals.css L748–766, active-duel.tsx L399–418) ───── */
+
+.st-clock[data-urgency="calm"] {
+  color: var(--up);
+}
+.st-clock[data-urgency="near"] {
+  color: var(--vermilion);
+}
+.st-clock[data-urgency="last"] {
+  color: var(--down);
+}
+.st-clock[data-pulse] {
+  animation: st-urgent 0.8s ease-in-out infinite;
+}
+@keyframes st-urgent {
+  50% {
+    filter: brightness(1.35);
+    text-shadow: 0 0 12px currentColor;
+  }
+}
+.st-card--active:active {
+  cursor: grabbing;
+}
+.st-card--active:focus-visible {
+  outline: 2px solid var(--gm-accent, var(--vermilion));
+  outline-offset: 3px;
+}
+/* A card that cannot be played is still readable — it just stops offering the gesture. */
+.st-card--held {
+  cursor: default;
+  opacity: 0.86;
+}
+
+.st-empty {
+  display: grid;
+  place-items: center;
+  min-height: 268px;
+  gap: 6px;
+  border-radius: 20px;
+  border: 1px dashed color-mix(in srgb, var(--foreground) 12.0%, transparent);
+  text-align: center;
+  padding: 24px;
+}
+.st-empty-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--foreground);
+  font-stretch: 100%;
+}
+.st-empty-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  max-width: 44ch;
+}
+
+/* ── Band 5 — the two calls, as the reference's YES/NO chips (L407–451): an arrow, the word, the side's odds ── */
+.st-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.st-call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  border-radius: 14px;
+  border: 1px solid;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 2px 0 color-mix(in srgb, var(--foreground) 6.0%, transparent),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+  transition:
+    transform 140ms var(--ease-default),
+    filter 140ms var(--ease-default),
+    opacity 140ms var(--ease-default);
+  font-stretch: 100%;
+}
+.st-call svg {
+  width: 16px;
+  height: 16px;
+}
+.st-call-odds {
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.st-call:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+/* The reference's `opacity-35 grayscale` on a side that cannot be placed; it stays pressable so the reason can be read. */
+.st-call[data-locked] {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+.st-call:not(:disabled):not([data-locked]):hover {
+  filter: brightness(1.12);
+}
+.st-call:not(:disabled):active {
+  transform: translateY(1px);
+}
+.st-call--up {
+  border-color: var(--up-fill-edge);
+  background: var(--up-fill);
+  color: var(--up-foreground);
+}
+.st-call--down {
+  border-color: var(--down-fill-edge);
+  background: var(--down-fill);
+  color: var(--down-foreground);
+}
+
+/* The hint is instruction, not metadata: it takes the body ink step rather than the dim meta one,
+ * which measured 4.0:1 on cream and is under the bar for text a first-time player has to read. */
+.st-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.st-hint--locked {
+  color: var(--vermilion);
+}
+.st-refusal {
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--vermilion) 34%, transparent);
+  background: color-mix(in srgb, var(--vermilion) 7%, transparent);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 767px) {
+  .st-empty {
+    min-height: 224px;
+  }
+}
+
+@media (max-width: 400px) {
+  .st-card {
+    padding: 14px;
+    gap: 10px;
+  }
+  .st-question {
+    font-size: 22px;
+  }
+  .st-pill-v {
+    font-size: 20px;
+  }
+  .st-title-asset,
+  .st-title-place {
+    font-size: 14px;
+  }
+}

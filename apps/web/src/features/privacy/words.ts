@@ -9,7 +9,10 @@
  * (`services/operator/src/payouts.rs`); the house's book is published once an hour, rounded up to the per-side cap
  * (`house`); requests and responses are padded to fixed sizes (`packages/ohttp`, `gateway.rs`); stakes snap to the
  * 1-2-5 chip ladder and each position is redeemed at its own random time (terminal `settings.ts`, `use-upkeep.ts`).
- * Checked by the v2 privacy re-audit (V1–V11), 2026-10-20.
+ * Checked by the v2 privacy re-audit (V1–V11), 2026-10-20. The arcade (plan §0 R4): the site worker forwards
+ * `/arcade/v1/` to the arcade service as a fresh request with only the method, path and body
+ * (`services/data-worker/src/arcade.ts`); the service keeps nicknames, device keys and runs by day
+ * (`services/arcade/src/store.ts`); Practice and the hall's records stay on the device (`features/games`).
  */
 export const PROMISE = {
   lead: "The prices are public. You aren't.",
@@ -40,6 +43,13 @@ export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: stri
     learns:
       "The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes, once an hour and rounded up; volume per Window, counted only in whole groups of three trades.",
     never: "Any single trade.",
+  },
+  {
+    party: "Kakure's arcade service",
+    learns:
+      "Your nickname, the public key your device made for it, and your runs: the game, the score, the inputs and the day you played. Nicknames and scores are public on the boards.",
+    never:
+      "Your IP or any header of yours (the site forwards only the request itself), your wallet, your chips or your trades. Practice and your streaks never leave your device.",
   },
   {
     party: "Kakure's price relay",
@@ -74,7 +84,8 @@ export const RESIDUALS = [
   "Oblivious HTTP and Zcash's note encryption use elliptic-curve key exchange, so traffic and transactions recorded today could be read after a future break of that cryptography (harvest now, decrypt later).",
   "The operator's gateway key doesn't rotate yet. If it were ever stolen, requests recorded on the way could be read.",
   "The operator keeps deposit records and the fingerprints of spent chips for good: they are what stop a deposit minting twice or a chip spending twice. A withdrawal's address and amount are deleted a week after it is paid, and an address already paid can't be used again.",
-  "This browser keeps your trade settings (stake size, trail, starred markets) and its history keeps the pages you opened. Forget this device clears the app's part.",
+  "The arcade isn't sealed like trades: the site sees your arcade calls (your nickname and scores) along with your IP, though it keeps no logs, and the arcade service never sees the IP. A nickname is public, so pick one that doesn't name you.",
+  "This browser keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and runs, and Practice's tally, and its history keeps the pages you opened. Forget this device clears the app's part, nickname included.",
   "Your own funding history and your wallet's server are outside Kakure's control.",
 ];
 

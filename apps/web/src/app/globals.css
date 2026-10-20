@@ -12,10 +12,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Reduced motion follows the system or the in-app setting (<html data-motion="reduce">). */
+/* Reduced motion follows the in-app setting (<html data-motion="reduce" | "full">), else the system's. */
 @custom-variant motion-reduce {
   @media (prefers-reduced-motion: reduce) {
-    @slot;
+    &:not(:where([data-motion="full"], [data-motion="full"] *)) {
+      @slot;
+    }
   }
   &:where([data-motion="reduce"], [data-motion="reduce"] *) {
     @slot;
@@ -26,6 +28,9 @@
     &:not(:where([data-motion="reduce"], [data-motion="reduce"] *)) {
       @slot;
     }
+  }
+  &:where([data-motion="full"], [data-motion="full"] *) {
+    @slot;
   }
 }
 
