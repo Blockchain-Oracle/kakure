@@ -44,7 +44,7 @@ async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Pr
 }
 
 export const readBoard = (game: ArcadeGame, period: BoardPeriod, limit?: number): Promise<Board> =>
-  call("GET", `/board/${game}/${period}${limit ? `?limit=${limit}` : ""}`);
+  call("GET", `/board/${game}/${period}${limit ? `/${limit}` : ""}`);
 
 export const readStanding = (game: ArcadeGame): Promise<Standing> => call("GET", `/me/${game}/${playerKey()}`);
 

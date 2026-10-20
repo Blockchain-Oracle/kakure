@@ -21,7 +21,7 @@ import { ArcadeStore } from "./store";
  * either. Routes, all JSON:
  *
  *   POST /arcade/v1/run/<game>              a seed and the real-price tape it rides
- *   GET  /arcade/v1/board/<game>/<period>   each nickname's best, day, week or all (`?limit=` up to 50)
+ *   GET  /arcade/v1/board/<game>/<period>[/<limit>]   each nickname's best, day, week or all (up to 50)
  *   GET  /arcade/v1/me/<game>/<player>      a device key's nickname, best and all-time rank
  *   POST /arcade/v1/player                  claim a nickname for a device key (signed, with proof of work)
  *   POST /arcade/v1/score                   a signed run, replayed before it ranks
@@ -32,10 +32,11 @@ const ATTRACT_CACHE = "public, max-age=300, stale-while-revalidate=900";
 const HTTP_OK = 200;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
-/** Path segments after `/arcade/v1/`: `tape`, `run/<game>`, `board/<game>/<period>`, `me/<game>/<player>`. */
+/** Path segments after `/arcade/v1/`: `tape`, `run/<game>`, `board/<game>/<period>[/<limit>]`, `me/<game>/<player>`. */
 const ONE = 1;
 const TWO = 2;
 const THREE = 3;
+const FOUR = 4;
 
 function send(response: ServerResponse, status: number, body: unknown, cache = "no-store"): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": cache });
@@ -59,13 +60,14 @@ async function body(request: IncomingMessage): Promise<unknown> {
 }
 
 async function route(request: IncomingMessage, response: ServerResponse): Promise<void> {
-  const url = new URL(request.url ?? "/", "http://arcade");
-  const path = url.pathname;
+  const path = new URL(request.url ?? "/", "http://arcade").pathname;
   if (!path.startsWith(`${ARCADE_PATH}/`)) return send(response, HTTP_NOT_FOUND, { error: "not found" });
   const parts = path.slice(ARCADE_PATH.length + 1).split("/");
   const [what, a, b] = parts;
-  if (request.method === "GET" && what === "board" && a && b && isGame(a) && isPeriod(b) && parts.length === THREE) {
-    return send(response, HTTP_OK, readBoard(store, a, b, Number(url.searchParams.get("limit") ?? BOARD_LIMIT)));
+  // The site worker forwards the path only (never a query), so a board's length rides in the path.
+  if (request.method === "GET" && what === "board" && a && b && isGame(a) && isPeriod(b) && parts.length <= FOUR) {
+    const limit = parts.length === FOUR ? Number(parts[THREE]) : BOARD_LIMIT;
+    if (parts.length === THREE || parts.length === FOUR) return send(response, HTTP_OK, readBoard(store, a, b, limit));
   }
   if (request.method === "GET" && what === "me" && a && b && isGame(a) && isPlayerKey(b) && parts.length === THREE) {
     return send(response, HTTP_OK, readMe(store, a, b));
