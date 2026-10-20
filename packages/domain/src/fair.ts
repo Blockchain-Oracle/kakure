@@ -5,6 +5,9 @@ import {
   ERF_P,
   HALF,
   HALF_SPREAD_E4,
+  INVERSE_EPSILON,
+  INVERSE_ITERATIONS,
+  INVERSE_Z_BOUND,
   MAX_ASK_E4,
   MIN_BID_E4,
   MIN_TAU_SEC,
@@ -41,6 +44,36 @@ export function normalCdf(z: number): number {
   return z >= 0 ? HALF * (1 + erf) : HALF * (1 - erf);
 }
 
+/** Φ⁻¹(p) by bisection on `normalCdf` (so it inverts the very Φ the house prices with); p is clamped inside (0, 1). */
+export function inverseNormalCdf(p: number): number {
+  const target = Math.min(1 - INVERSE_EPSILON, Math.max(INVERSE_EPSILON, p));
+  let lo = -INVERSE_Z_BOUND;
+  let hi = INVERSE_Z_BOUND;
+  for (let i = 0; i < INVERSE_ITERATIONS; i++) {
+    const mid = (lo + hi) / 2;
+    if (normalCdf(mid) < target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * The asset price at which a side's probability reaches `probability` now: the inverse of `fairUp` in the spot. A
+ * position breaks even where its bid (probability − half-spread) pays back its stake, so the terminal draws "B/E" at
+ * `spotForProbability(side, ask + half-spread, …)`.
+ */
+export function spotForProbability(
+  side: "U" | "D",
+  probability: number,
+  reference: number,
+  sigma: number,
+  secondsLeft: number,
+): number {
+  const scale = sigma * Math.sqrt(Math.max(secondsLeft, MIN_TAU_SEC) / YEAR_SEC);
+  const z = inverseNormalCdf(side === "U" ? probability : 1 - probability);
+  return reference * Math.exp(z * scale);
+}
+
 /** P(Up): the chance the closing print ends above the reference, given the price now and the time left. */
 export function fairUp(spot: number, reference: number, sigma: number, secondsLeft: number): number {
   if (!(spot > 0) || !(reference > 0)) throw new Error("the fair price needs positive prices");
@@ -59,9 +92,15 @@ export function fairUp(spot: number, reference: number, sigma: number, secondsLe
  */
 export type WindowPhase = "pre" | "opening" | "live" | "riding" | "settled";
 
+/** What a quote reads of a Window's published state (a bundle's `WindowState` fits). */
+export interface WindowStateLike {
+  reference?: string | null | undefined;
+  outcome?: string | null | undefined;
+}
+
 export function windowPhase(
   window: Pick<LaneWindow, "startSec" | "expirySec">,
-  state: { reference?: string | null; outcome?: string | null } | null | undefined,
+  state: WindowStateLike | null | undefined,
   nowSec: number,
 ): WindowPhase {
   if (state?.outcome) return "settled";
@@ -96,7 +135,7 @@ const NONE: SideQuote = { askE4: null, bidE4: null };
 /** Both sides of a Window at `nowSec`, from the live price (null while there is none). */
 export function quoteWindow(
   window: Pick<LaneWindow, "startSec" | "expirySec">,
-  state: { reference?: string | null; outcome?: string | null } | null | undefined,
+  state: WindowStateLike | null | undefined,
   inputs: { spot: number | null; sigma: number | null },
   nowSec: number,
 ): WindowQuote {

@@ -4,6 +4,7 @@ import {
   CANDLE_CLOSE,
   CANDLE_TIME,
   COINBASE_REST,
+  COINBASE_REST_HEADERS,
   FIVE_MINUTE_BARS_KEPT,
   FIVE_MINUTE_GRANULARITY_S,
   FIVE_MINUTE_MS,
@@ -58,7 +59,7 @@ export class BarStore {
 
   private async fill(target: Map<StreamSymbol, Ring>, symbol: StreamSymbol, granularity: number, kept: number) {
     const response = await fetch(`${COINBASE_REST}/products/${symbol}/candles?granularity=${granularity}`, {
-      headers: { accept: "application/json" },
+      headers: COINBASE_REST_HEADERS,
     });
     if (!response.ok) {
       return;

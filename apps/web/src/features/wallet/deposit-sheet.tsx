@@ -6,7 +6,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NETWORK_COIN } from "@/constants";
 import { MintError } from "./api";
-import { advanceDeposit, type DepositStep, depositUri, startDeposit } from "./deposits";
+import { advanceDeposit, type DepositStep, depositUri, dropDeposit, startDeposit } from "./deposits";
 import { PayQr } from "./pay-qr";
 import { useWallet } from "./wallet-store";
 
@@ -14,7 +14,9 @@ import { useWallet } from "./wallet-store";
  * Deposit (plan §00): pick an amount, pay it by QR from Zodl or Zingo, and watch it become chips. The deposit id is
  * drawn here and saved before the code appears; once the payment has its confirmations the mint signs blinded chips,
  * checked here against its published keys, and they land in this device's vault. Closing the sheet loses nothing:
- * the deposit stays listed and finishes the next time it's opened.
+ * the deposit stays listed and finishes the next time it's opened. One the mint has seen nothing of can be cancelled,
+ * after a second tap that says what that costs: the id is what claims the chips, so a payment already on its way to a
+ * dropped deposit can't be claimed.
  */
 const POLL_MS = 8_000;
 const DEFAULT_SIZE = 10_000_000n;
@@ -98,17 +100,28 @@ export function DepositSheet({
           </Button>
         </div>
       ) : (
-        <PayStep network={network} trading={trading} depositKey={record.key} />
+        <PayStep network={network} trading={trading} depositKey={record.key} onDropped={() => setKey(null)} />
       )}
     </Sheet>
   );
 }
 
-function PayStep({ network, trading, depositKey }: { network: Network; trading: Trading; depositKey: string }) {
+function PayStep({
+  network,
+  trading,
+  depositKey,
+  onDropped,
+}: {
+  network: Network;
+  trading: Trading;
+  depositKey: string;
+  onDropped: () => void;
+}) {
   const coin = NETWORK_COIN[network];
   const record = useWallet(network).deposits.find((deposit) => deposit.key === depositKey);
   const [step, setStep] = useState<DepositStep | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDrop, setConfirmDrop] = useState(false);
   // The bundle refreshes every minute; the loop reads the latest one without restarting.
   const latest = useRef(trading);
   latest.current = trading;
@@ -143,6 +156,15 @@ function PayStep({ network, trading, depositKey }: { network: Network; trading: 
   }, [network, depositKey]);
 
   if (!record) return null;
+  // Cancellable only while the mint has seen nothing for this id.
+  const droppable =
+    record.state === "awaiting" &&
+    record.mintedZat === undefined &&
+    step !== null &&
+    step !== "minting" &&
+    step !== "done" &&
+    step.state === "unseen" &&
+    Number(step.receivedZat) === 0;
   const status =
     step === "minting" || record.state === "minting"
       ? "Minting your chips…"
@@ -174,6 +196,32 @@ function PayStep({ network, trading, depositKey }: { network: Network; trading: 
         <span>{status}</span>
       </div>
       {error ? <p className="text-meta text-muted-foreground">{error}</p> : null}
+      {droppable ? (
+        confirmDrop ? (
+          <div className="flex flex-col gap-3 rounded-row border border-border p-4">
+            <p className="text-row-detail text-foreground">
+              Only cancel if you haven't sent it. This code is the only way to claim the chips: a payment already on its
+              way to it would be lost.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setConfirmDrop(false)}>
+                Keep waiting
+              </Button>
+              <Button
+                variant="quiet"
+                className="text-destructive"
+                onClick={() => void dropDeposit(network, depositKey).then(onDropped)}
+              >
+                I didn't pay. Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="quiet" size="sm" className="self-center" onClick={() => setConfirmDrop(true)}>
+            Cancel this deposit
+          </Button>
+        )
+      ) : null}
     </div>
   );
 }

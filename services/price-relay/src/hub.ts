@@ -1,6 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   BARS_PATH,
+  CANDLE_INTERVALS,
+  CANDLES_MAX,
+  CANDLES_PATH,
+  type CandleInterval,
   CRYPTO_STREAM_SYMBOLS,
   HEALTH_PATH,
   type HealthResponse,
@@ -10,10 +14,14 @@ import {
   type UpstreamFeed,
 } from "@kakure/feeds/protocol";
 import { BarStore } from "./bars";
+import { CandleStore } from "./candles";
 import {
   BARS_CACHE_SECONDS,
   BROADCAST_INTERVAL_MS,
+  CANDLES_LIVE_CACHE_SECONDS,
+  CANDLES_OLDER_CACHE_SECONDS,
   COINBASE_WS,
+  HTTP_BAD_REQUEST,
   HTTP_SWITCHING_PROTOCOLS,
   IDLE_UPSTREAM_GRACE_MS,
   KRAKEN_WS,
@@ -59,6 +67,7 @@ export class PriceHub extends DurableObject<HubEnv> {
     kraken: { socket: null, since: null, backoffMs: RECONNECT_MIN_MS, messages: 0 },
   };
   private readonly bars = new BarStore();
+  private readonly candles = new CandleStore();
   private readonly notes: string[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private stocks: AbortController | null = null;
@@ -78,6 +87,19 @@ export class PriceHub extends DurableObject<HubEnv> {
       return Response.json(this.bars.snapshot(), {
         headers: { "cache-control": `public, max-age=${BARS_CACHE_SECONDS}` },
       });
+    }
+    if (pathname === CANDLES_PATH) {
+      const query = new URL(request.url).searchParams;
+      const interval = query.get("interval") as CandleInterval | null;
+      if (!interval || !(CANDLE_INTERVALS as readonly string[]).includes(interval)) {
+        return Response.json({ error: "interval" }, { status: HTTP_BAD_REQUEST });
+      }
+      const end = query.get("end");
+      const endMs = end === null ? null : Number(end);
+      if (endMs !== null && !(endMs > 0)) return Response.json({ error: "end" }, { status: HTTP_BAD_REQUEST });
+      const body = await this.candles.get(interval, Number(query.get("count") ?? CANDLES_MAX), endMs, Date.now());
+      const seconds = endMs === null ? CANDLES_LIVE_CACHE_SECONDS : CANDLES_OLDER_CACHE_SECONDS;
+      return Response.json(body, { headers: { "cache-control": `public, max-age=${seconds}` } });
     }
     if (pathname.endsWith("/snapshot")) {
       return Response.json({ t: "snap", prices: Object.fromEntries(this.prices) } satisfies RelayMessage);

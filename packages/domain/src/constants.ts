@@ -168,6 +168,10 @@ export const YEAR_SEC = 31_536_000;
 export const ERF_P = 0.3275911;
 export const ERF_A = [0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429] as const;
 export const HALF = 0.5;
+/** Φ⁻¹ by bisection: 60 halvings of [−8, 8] reach machine precision; p is kept 1e-12 inside (0, 1). */
+export const INVERSE_Z_BOUND = 8;
+export const INVERSE_ITERATIONS = 60;
+export const INVERSE_EPSILON = 1e-12;
 export const PRICE_SCALE_E4 = 10_000;
 /** Half the house's spread around the fair price: 2.5 points. */
 export const HALF_SPREAD_E4 = 250;

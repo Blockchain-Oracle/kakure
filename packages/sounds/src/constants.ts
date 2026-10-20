@@ -203,3 +203,111 @@ export const REACTION = {
   /** The adverse blip plays from the second adverse step on. */
   adverseFrom: 2,
 } as const;
+
+/* ── The terminal's music (Owarine `lib/sound/music.ts`, sequenced in code on the Web Audio clock) ─────────────── */
+
+export type MusicTrack = "arcade" | "rush" | "night";
+
+export interface MusicTrackSpec {
+  bpm: number;
+  /** Chords a bar each: root MIDI and the third (3 minor, 4 major). */
+  chords: ReadonlyArray<{ root: number; third: number }>;
+  /** Lead per sixteenth as indexes into [root, third, fifth, octave]; null rests. */
+  lead: ReadonlyArray<number | null>;
+  leadType: OscillatorType;
+  /** Bass per eighth, semitones above the root an octave down. */
+  bass: readonly number[];
+  /** Kit per sixteenth: k kick, s snare, h hat, . rest. */
+  kit: string;
+  gain: number;
+}
+
+export const MUSIC_TRACKS: Record<MusicTrack, MusicTrackSpec> = {
+  arcade: {
+    bpm: 112,
+    chords: [
+      { root: 57, third: 3 },
+      { root: 53, third: 4 },
+      { root: 48, third: 4 },
+      { root: 55, third: 4 },
+    ],
+    lead: [0, 1, 2, 1, 0, 1, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1],
+    leadType: "square",
+    bass: [0, 12, 0, 12, 0, 12, 7, 12],
+    kit: "kh.hsh.hkh.hshhh",
+    gain: 1,
+  },
+  rush: {
+    bpm: 128,
+    chords: [
+      { root: 52, third: 3 },
+      { root: 52, third: 3 },
+      { root: 48, third: 4 },
+      { root: 50, third: 4 },
+    ],
+    lead: [0, null, 2, null, 3, null, 2, 0, null, 2, null, 3, 2, null, 1, null],
+    leadType: "sawtooth",
+    bass: [0, 0, 12, 0, 0, 12, 0, 7],
+    kit: "khshkhshkhshkhsh",
+    gain: 0.85,
+  },
+  night: {
+    bpm: 92,
+    chords: [
+      { root: 50, third: 3 },
+      { root: 46, third: 4 },
+      { root: 53, third: 4 },
+      { root: 48, third: 4 },
+    ],
+    lead: [2, null, null, 1, null, null, 0, null, 3, null, null, 2, null, 1, null, null],
+    leadType: "triangle",
+    bass: [0, 0, 7, 0, 0, 12, 7, 0],
+    kit: "k...s...k.k.s...",
+    gain: 0.9,
+  },
+};
+
+export const MUSIC_TRACK_NAMES: Record<MusicTrack, string> = { arcade: "Arcade", rush: "Rush", night: "Night" };
+
+/** Gains, fades and the scheduler (Owarine's values). */
+export const MUSIC = {
+  masterGain: 0.32,
+  fadeInSec: 1.2,
+  crossfadeSec: 0.5,
+  lookaheadSec: 0.1,
+  tickMs: 25,
+  startDelaySec: 0.05,
+  stopTimeConstant: 0.1,
+  sixteenthsPerBar: 16,
+  stepsPerBeat: 4,
+  secondsPerMinute: 60,
+  a4Midi: 69,
+  a4Hz: 440,
+  octave: 12,
+  fifth: 7,
+  attackSec: 0.008,
+  releaseAt: 0.7,
+  releaseShare: 0.15,
+  tailSec: 0.1,
+  leadGain: 0.05,
+  leadLength: 0.9,
+  bassGain: 0.16,
+  bassLength: 1.8,
+  padGain: 0.025,
+  padLength: 15,
+  kick: { fromHz: 140, toHz: 45, sweepSec: 0.12, gain: 0.5, decaySec: 0.16, stopSec: 0.2 },
+  snare: { hz: 1_800, lengthSec: 0.12, gain: 0.22 },
+  hat: { hz: 7_000, lengthSec: 0.04, gain: 0.07 },
+  noiseOffsetMax: 0.5,
+  noiseTail: 0.02,
+  silent: 0.001,
+  /** The tense low-pass while a position is losing 5 % or more: 900 Hz over 1.5 s, back over 0.6 s. */
+  tenseHz: 900,
+  openHz: 20_000,
+  tenseInSec: 1.5,
+  tenseOutSec: 0.6,
+  crossfadeDisconnectFactor: 2,
+  crossfadeTimeConstants: 3,
+  /** The pad holds the chord's root, third and fifth. */
+  padVoices: 3,
+} as const;

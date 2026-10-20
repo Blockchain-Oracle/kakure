@@ -70,6 +70,9 @@ export function bundleV2Query(source: DataSource, network: Network, latest: Late
       : skipToken,
     // Immutable: once fetched, a bundle never needs fetching again.
     staleTime: Number.POSITIVE_INFINITY,
+    // When `latest.json` names the next minute's bundle, the one on screen stays until it lands, so quotes, Windows and
+    // open sheets never blink out each minute. Never across networks: a switch starts from nothing.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[0] === network ? previous : undefined),
     retry,
   });
 }

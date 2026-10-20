@@ -8,6 +8,8 @@ import type { StreamSymbol } from "@kakure/feeds/protocol";
 export const COINBASE_WS = "https://ws-feed.exchange.coinbase.com";
 /** Coinbase Exchange public REST, for history backfill (candles). */
 export const COINBASE_REST = "https://api.exchange.coinbase.com";
+/** Coinbase's REST refuses a request without a User-Agent; this one names the relay, nothing about any visitor. */
+export const COINBASE_REST_HEADERS = { accept: "application/json", "user-agent": "kakure-price-relay/1" } as const;
 /** Kraken WS v2, connected alongside Coinbase. Symbols use `BTC/USD` naming. */
 export const KRAKEN_WS = "https://ws.kraken.com/v2";
 
@@ -41,7 +43,36 @@ export const NOTE_CHARS = 240;
 
 /** Candle tuple positions in Coinbase's `[time, low, high, open, close, volume]`. */
 export const CANDLE_TIME = 0;
+export const CANDLE_LOW = 1;
+export const CANDLE_HIGH = 2;
+export const CANDLE_OPEN = 3;
 export const CANDLE_CLOSE = 4;
+
+/**
+ * The terminal's candle intervals from Coinbase's granularities (60, 300, 900, 3600, 21600, 86400 s): `[granularity,
+ * how many make one candle]`. 3m, 30m, 2h, 4h and 12h are aggregated; buckets align to UTC like Coinbase's own.
+ */
+export const CANDLE_BASE = {
+  "1m": [60, 1],
+  "3m": [60, 3],
+  "5m": [300, 1],
+  "15m": [900, 1],
+  "30m": [900, 2],
+  "1h": [3_600, 1],
+  "2h": [3_600, 2],
+  "4h": [3_600, 4],
+  "12h": [21_600, 2],
+  "1d": [86_400, 1],
+} as const;
+/** Coinbase serves at most this many candles a request. */
+export const COINBASE_CANDLES_PER_REQUEST = 300;
+/** The newest candles are shared by every visitor for this long (the forming one follows live ticks on the client). */
+export const CANDLES_LIVE_TTL_MS = 10_000;
+/** Older history (with `end`) never changes; this many responses are kept. */
+export const CANDLES_OLDER_KEPT = 40;
+/** Older history may be cached by browsers this long; the newest only briefly. */
+export const CANDLES_OLDER_CACHE_SECONDS = 86_400;
+export const CANDLES_LIVE_CACHE_SECONDS = 10;
 export const MS_PER_SECOND = 1_000;
 
 /** Reconnect backoff for the upstream socket. */
@@ -76,6 +107,7 @@ export const HUB_NAME = "global-2";
 
 export const HTTP_SWITCHING_PROTOCOLS = 101;
 export const HTTP_UPGRADE_REQUIRED = 426;
+export const HTTP_BAD_REQUEST = 400;
 export const HTTP_FORBIDDEN = 403;
 export const HTTP_NOT_FOUND = 404;
 export const WS_CLOSE_GOING_AWAY = 1001;

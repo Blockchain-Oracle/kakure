@@ -438,6 +438,9 @@ pub struct CloseRequest {
     secret: String,
     min_bid_e4: u64,
     outputs: Vec<BlindedMessage>,
+    /// Reduce: sell this share of the position (basis points, 1–9,999); absent sells it all.
+    #[serde(default)]
+    fraction_bps: Option<u64>,
 }
 
 fn live(position: &Position) -> Result<(), Refusal> {
@@ -475,15 +478,40 @@ pub fn close(api: &Api, request: CloseRequest, cache: Option<&str>) -> Answer {
             format!("the bid moved to {bid}/10000, under your limit"),
         ));
     }
-    let value = fair::close_value_zat(position.payout_zat, bid);
+    let fraction = request.fraction_bps.unwrap_or(fair::BPS_SCALE);
+    if fraction == 0 || fraction > fair::BPS_SCALE {
+        return Err(refuse(KAKURE_BAD_REQUEST, "a share is 1 to 10,000 basis points"));
+    }
+    // The share sold, on the chip grid; a remainder under one chip goes with it (a full close).
+    let sold_payout = position.payout_zat * fraction / fair::BPS_SCALE / CHIP_GRID_ZAT * CHIP_GRID_ZAT;
+    let full = fraction == fair::BPS_SCALE || position.payout_zat - sold_payout < CHIP_GRID_ZAT;
+    let sold_payout = if full { position.payout_zat } else { sold_payout };
+    let sold_stake = if full {
+        position.stake_zat
+    } else {
+        position.stake_zat * fraction / fair::BPS_SCALE
+    };
+    let value = fair::close_value_zat(sold_payout, bid);
     let signatures = api
         .mint
         .sign_value(&request.outputs, value)
         .map_err(|e| refuse(KAKURE_BAD_REQUEST, e.to_string()))?;
-    let answer = json!({ "valueZat": value.to_string(), "bidE4": bid, "signatures": signatures });
+    let mut answer = json!({ "valueZat": value.to_string(), "bidE4": bid, "signatures": signatures });
+    let rest = (!full).then(|| Position {
+        stake_zat: position.stake_zat - sold_stake,
+        payout_zat: position.payout_zat - sold_payout,
+        ..position.clone()
+    });
+    if let Some(rest) = &rest {
+        // The same position (id and lock) on what's left, signed again.
+        answer["position"] = certificate(api, rest)?;
+    }
     commit_and(api, cache.map(|k| (k, &answer)), |tx, now| {
-        positions::finish(tx, &position.id, "closed", "close", value, None, now)
-            .map_err(|e| refuse(KAKURE_PAID, e.to_string()))
+        match &rest {
+            Some(rest) => positions::reduce(tx, &rest.id, rest.stake_zat, rest.payout_zat, value),
+            None => positions::finish(tx, &position.id, "closed", "close", value, None, now),
+        }
+        .map_err(|e| refuse(KAKURE_PAID, e.to_string()))
     })?;
     Ok(answer)
 }

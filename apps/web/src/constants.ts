@@ -28,6 +28,8 @@ export const STORAGE_KEYS = {
   theme: "kakure.theme.v1",
   cache: "kakure.cache.v1",
   prefs: "kakure.prefs.v1",
+  /** The terminal's settings (features/terminal/settings.ts). */
+  trade: "kakure.trade.v1",
 } as const;
 
 /** Every device-storage key starts with this (Forget this device clears them all). */

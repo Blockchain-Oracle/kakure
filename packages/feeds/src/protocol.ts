@@ -61,6 +61,27 @@ export const SNAPSHOT_PATH = "/v1/snapshot";
 export const HEALTH_PATH = "/v1/health";
 /** Price history for every symbol in one response, so the relay never learns which one a visitor looks at (PD19). */
 export const BARS_PATH = "/v1/bars";
+/**
+ * OHLC candles at one interval for every traded asset in one response (PD19), for the terminal's candle view
+ * (Owarine's intervals). `?interval=1h&count=300`, and `&end=<unix ms>` for older history.
+ */
+export const CANDLES_PATH = "/v1/candles";
+export const CANDLE_INTERVALS = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "12h", "1d"] as const;
+export type CandleInterval = (typeof CANDLE_INTERVALS)[number];
+export const CANDLE_INTERVAL_MS: Readonly<Record<CandleInterval, number>> = {
+  "1m": 60_000,
+  "3m": 180_000,
+  "5m": 300_000,
+  "15m": 900_000,
+  "30m": 1_800_000,
+  "1h": 3_600_000,
+  "2h": 7_200_000,
+  "4h": 14_400_000,
+  "12h": 43_200_000,
+  "1d": 86_400_000,
+};
+/** At most this many candles per symbol per response. */
+export const CANDLES_MAX = 300;
 
 /** A price as the venue reported it (decimal string, never a float) and the venue's timestamp (ms). */
 export interface Quote {
@@ -94,6 +115,15 @@ export type RelayMessage = SnapshotMessage | TicksMessage | StatusMessage;
 
 /** A closing price at a bar's start time: `[unix ms, decimal price]`. */
 export type BarPoint = [number, string];
+
+/** One candle: `[start (unix ms), open, high, low, close]`, prices as decimal strings. */
+export type CandleRow = [number, string, string, string, string];
+
+/** `CANDLES_PATH`: closed candles (and the one forming) per symbol, oldest first. */
+export interface CandlesResponse {
+  interval: CandleInterval;
+  candles: Partial<Record<StreamSymbol, CandleRow[]>>;
+}
 
 /** `BARS_PATH`: 5-minute closes over the last day (sparklines) and 1-minute closes (charts), oldest first. */
 export interface BarsResponse {

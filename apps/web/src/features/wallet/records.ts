@@ -95,6 +95,8 @@ export interface PositionRecord {
   /** open: held; armed: an exit waits at the mint; paid: closed or redeemed (kept as history). */
   state: "buying" | "open" | "armed" | "paid";
   certificate?: PositionCertificate;
+  /** The asset price this device saw when it bought (display only: the chart's Entry line and PnL band). */
+  entrySpot?: number;
   exit?: ExitPlan;
   /** Blank outputs left with the mint for an armed exit's proceeds. */
   exitBlank?: StoredPending;
@@ -110,6 +112,8 @@ export interface PositionRecord {
   paidZat?: string;
   how?: string;
   paidAt?: number;
+  /** Partial closes (Reduce), oldest first: what each paid and the stake it took off (this device's history). */
+  reductions?: { at: number; paidZat: string; stakeZat: string }[];
 }
 
 const TYPES = ["chip", "deposit", "spend", "position"] as const;

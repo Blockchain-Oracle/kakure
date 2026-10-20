@@ -9,6 +9,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@kakure/feeds": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "catalog:"
   }

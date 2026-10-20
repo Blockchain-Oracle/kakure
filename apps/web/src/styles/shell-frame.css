@@ -353,3 +353,53 @@
 :root[data-motion="reduce"] .kk-rail-item {
   transition: none;
 }
+
+/*
+ * The terminal (Mitoshi app-shell.css:222-243, Owarine's trade `main`): the screen is the workspace, so the top line
+ * steps aside and the stage holds it edge to edge (inset on the rail's side as every page, full-bleed on phones,
+ * ending above the dock). `:has()` reads the page itself, so the shell needs no pathname.
+ */
+.kk-column:has(.kk-terminal-surface) {
+  padding: 0;
+}
+.kk-column:has(.kk-terminal-surface) > .kk-topline {
+  display: none;
+}
+.kk-stage:has(> .kk-terminal-surface) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+}
+@media (max-width: 767px) {
+  .kk-stage:has(> .kk-terminal-surface) {
+    flex: none;
+    height: calc(100dvh - var(--dock-clearance));
+  }
+}
+@media (min-width: 768px) {
+  .kk-column:has(.kk-terminal-surface) {
+    padding: var(--layout-window-inset) var(--layout-window-inset) var(--layout-window-inset)
+      calc(var(--layout-rail-compact) + var(--layout-window-inset) * 2);
+  }
+  .kk-stage:has(> .kk-terminal-surface) {
+    height: calc(100dvh - var(--layout-window-inset) * 2);
+    border: var(--layout-stage-edge) solid var(--stage-edge);
+    border-radius: var(--radius-stage);
+  }
+}
+@media (min-width: 1280px) {
+  .kk-column:has(.kk-terminal-surface) {
+    padding-left: calc(var(--layout-rail-wide) + var(--layout-window-inset) * 2);
+  }
+}
+.kk-terminal-surface {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}

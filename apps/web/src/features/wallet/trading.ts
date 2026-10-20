@@ -69,6 +69,8 @@ export interface SingleOrder {
   stakeZat: number;
   /** The worst ask accepted: the quote plus the slippage tolerance (`withSlippage`). */
   maxAskE4: number;
+  /** The asset price seen when buying, kept on this device for the chart. */
+  entrySpot?: number;
 }
 
 export interface ParlayOrder {
@@ -79,8 +81,8 @@ export interface ParlayOrder {
 
 /** Buys one Window side. Throws a MintError on a refusal (the chips are back in the balance). */
 export function buy(network: Network, trading: Trading, order: SingleOrder): Promise<PositionRecord> {
-  const { stakeZat, ...rest } = order;
-  return exclusive(network, () => place(network, trading, "/v1/trade", rest, stakeZat));
+  const { stakeZat, entrySpot, ...rest } = order;
+  return exclusive(network, () => place(network, trading, "/v1/trade", rest, stakeZat, entrySpot));
 }
 
 /** Buys a parlay of 2–3 legs, all or nothing. */
@@ -95,6 +97,7 @@ async function place(
   path: "/v1/trade" | "/v1/parlay",
   body: object,
   stakeZat: number,
+  entrySpot?: number,
 ): Promise<PositionRecord> {
   const keyset = keysetOf(trading);
   const wallet = await current(network);
@@ -113,6 +116,7 @@ async function place(
     secret,
     createdAt: Date.now(),
     state: "buying",
+    ...(entrySpot === undefined ? {} : { entrySpot }),
     pending: {
       path,
       request: JSON.stringify({ ...body, inputs, change: change?.outputs ?? [], lock: key }),
@@ -167,6 +171,22 @@ async function settle(network: Network, trading: Trading, record: PositionRecord
     }
     const { valueZat, signatures } = answer as Proceeds;
     const chips = pending.blank ? finishBlank(keyset, restore(pending.blank), signatures, Number(valueZat)) : [];
+    if (pending.path === "/v1/close" && answer.position) {
+      // Reduce: the same position on what's left, signed again; the share sold is history.
+      const certificate = verified(network, answer.position);
+      const before = Number(record.certificate?.stakeZat ?? 0);
+      const next: PositionRecord = {
+        ...rest,
+        state: record.exitBlank ? "armed" : "open",
+        certificate,
+        reductions: [
+          ...(rest.reductions ?? []),
+          { at: Date.now(), paidZat: valueZat, stakeZat: String(before - Number(certificate.stakeZat)) },
+        ],
+      };
+      await apply(network, [...chipRecords(network, chips), next]);
+      return next;
+    }
     const next: PositionRecord = {
       ...rest,
       state: "paid",
@@ -227,9 +247,16 @@ async function withBlank(
   return settle(network, trading, next);
 }
 
-/** Sells a position back at the live bid (no lower than `minBidE4`). */
-export function close(network: Network, trading: Trading, key: string, minBidE4: number): Promise<PositionRecord> {
-  return exclusive(network, () => withBlank(network, trading, key, "/v1/close", { minBidE4 }));
+/** Sells a position back at the live bid (no lower than `minBidE4`): all of it, or `fractionBps` of it (Reduce). */
+export function close(
+  network: Network,
+  trading: Trading,
+  key: string,
+  minBidE4: number,
+  fractionBps?: number,
+): Promise<PositionRecord> {
+  const share = fractionBps === undefined ? {} : { fractionBps };
+  return exclusive(network, () => withBlank(network, trading, key, "/v1/close", { minBidE4, ...share }));
 }
 
 /** Collects a settled position's payout (a win pays its payout, a refund its stake, a loss nothing). */

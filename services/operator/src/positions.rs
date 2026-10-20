@@ -236,6 +236,25 @@ pub fn finish(
     Ok(())
 }
 
+/// A partial close: the position keeps running on what's left, and the ledger counts the share
+/// paid out.
+pub fn reduce(
+    tx: &Transaction<'_>,
+    id: &str,
+    stake_left: u64,
+    payout_left: u64,
+    paid_zat: u64,
+) -> Result<()> {
+    let changed = tx.execute(
+        "UPDATE positions SET stake_zat = ?2, payout_zat = ?3
+         WHERE id = ?1 AND state IN ('open', 'armed')",
+        params![id, stake_left, payout_left],
+    )?;
+    anyhow::ensure!(changed == 1, "the position was already paid");
+    add_to_ledger(tx, "paid", paid_zat)?;
+    Ok(())
+}
+
 pub fn arm(tx: &Transaction<'_>, id: &str, exit: &Value, outputs: &str) -> Result<()> {
     let changed = tx.execute(
         "UPDATE positions SET state = 'armed', exit = ?2, exit_outputs = ?3

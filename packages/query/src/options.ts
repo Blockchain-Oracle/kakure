@@ -79,6 +79,8 @@ export function bundleQuery(source: DataSource, network: Network, latest: Latest
         }
       : skipToken,
     staleTime: BATCH_INTERVAL_MS,
+    // The batch on screen stays until the next one lands; never across networks.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[0] === network ? previous : undefined),
     retry,
   });
 }

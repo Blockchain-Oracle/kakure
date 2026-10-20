@@ -38,6 +38,12 @@ function ensureContext(): AudioContext | null {
   }
 }
 
+/** The context and the master gain (for the terminal's music), once a gesture has unlocked them. */
+export function audioOutput(): { ctx: AudioContext; out: AudioNode } | null {
+  const ctx = ensureContext();
+  return ctx && master ? { ctx, out: master } : null;
+}
+
 /** Call from a gesture handler (pointerdown/keydown) so the first cue is heard. */
 export function unlockAudio(): void {
   ensureContext();
