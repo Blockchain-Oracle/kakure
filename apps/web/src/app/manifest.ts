@@ -12,7 +12,7 @@ export const dynamic = "force-static";
 export default function manifest(): MetadataRoute.Manifest {
   const ground = tokens.themes.dark.canvas;
   return {
-    name: "Kakure — Trade every minute. Leave no trace.",
+    name: "Kakure — Trade every minute. Stay hidden.",
     short_name: "Kakure",
     description:
       "A private real-time prediction market on Zcash: call the price up or down with chips from a shielded deposit.",

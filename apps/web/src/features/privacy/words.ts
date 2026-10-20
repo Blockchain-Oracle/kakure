@@ -6,7 +6,10 @@
  * (`services/price-relay`) that sends every symbol to everyone, while a candle request names its interval and how far
  * back it reaches (`packages/chart/src/live/candle-view.ts`); per-Window volume counts only whole groups of three
  * trades (`bundle-v2.ts` `trades`, `volumeZat`); a withdrawal leaves as canonical notes, each at its own random time
- * (`services/operator/src/payouts.rs`); the bundle states what the house owes each minute (`house`).
+ * (`services/operator/src/payouts.rs`); the house's book is published once an hour, rounded up to the per-side cap
+ * (`house`); requests and responses are padded to fixed sizes (`packages/ohttp`, `gateway.rs`); stakes snap to the
+ * 1-2-5 chip ladder and each position is redeemed at its own random time (terminal `settings.ts`, `use-upkeep.ts`).
+ * Checked by the v2 privacy re-audit (V1–V11), 2026-10-20.
  */
 export const PROMISE = {
   lead: "The prices are public. You aren't.",
@@ -30,12 +33,12 @@ export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: stri
     party: "The operator (us)",
     learns: "Each deposit's amount; each trade's Window, side, stake and time; each withdrawal's address and amount.",
     never:
-      "Your IP; which deposit paid for which trade; that two trades are the same person's; who you are. Every trade spends fresh chips, each signed with a proof (DLEQ) against one published set of keys, so no chip can be marked.",
+      "Your IP; which deposit paid for which trade; who you are. Every trade spends fresh chips, each signed with a proof (DLEQ) against one published set of keys and paid in the standard split, so no chip can be marked.",
   },
   {
     party: "Everyone else",
     learns:
-      "The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes each minute; volume per Window, counted only in whole groups of three trades.",
+      "The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes, once an hour and rounded up; volume per Window, counted only in whole groups of three trades.",
     never: "Any single trade.",
   },
   {
@@ -58,15 +61,20 @@ export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: stri
 ];
 
 export const RESIDUALS = [
-  "Timing. A trade placed right after a deposit, or a withdrawal right after a win, can be matched by time. Chips come in standard amounts and withdrawals leave at random times; spreading your own activity out does the rest.",
+  "Timing. A trade placed right after a deposit, or a withdrawal right after a win, can be matched by time. Chips come in standard amounts, stakes in standard sizes, redeems at random times and withdrawals at random times; spreading your own activity out does the rest.",
+  "Linking trades. Each trade spends chips the mint can't trace, but the operator still sees every trade's Window, side, stake and time, so amounts and timing can hint that two trades share an owner, more so while few people trade.",
   "Kakure runs both the relay and the operator. Oblivious HTTP is built for two separate parties (RFC 9458), so keeping your IP apart from your trades rests on Kakure not combining the two. Using Tor keeps your IP from both.",
-  "Custody and the house's solvency are trusted. Each minute the signed bundle states the chips outstanding and the most the open positions could pay.",
+  "Custody and the house's solvency are trusted. Once an hour the signed bundle states the chips outstanding and the most the open positions could pay, each rounded up to the per-side cap so no single trade shows.",
   "Position certificates aren't blinded, so the operator links a position's open to its close or redemption. That's the same anonymous trade, so it reveals nothing new.",
   "Volume per Window moves in steps of at least three trades. Someone who places two trades of a group can work out the third's stake.",
+  "The per-side cap: a trade the cap refuses tells whoever placed it which quarter of the cap that side of the Window has reached.",
   "Prices and outcomes are reports signed by the operator. Each print is an exchange's public 1-minute candle, so anyone can fetch them again and recompute.",
   "The operator reads the chain from public light-wallet servers over Tor, so it relies on them to serve the chain honestly.",
   "While few people use Kakure, the crowd you hide among is small.",
   "Oblivious HTTP and Zcash's note encryption use elliptic-curve key exchange, so traffic and transactions recorded today could be read after a future break of that cryptography (harvest now, decrypt later).",
+  "The operator's gateway key doesn't rotate yet. If it were ever stolen, requests recorded on the way could be read.",
+  "The operator keeps deposit records and the fingerprints of spent chips for good: they are what stop a deposit minting twice or a chip spending twice. A withdrawal's address and amount are deleted a week after it is paid, and an address already paid can't be used again.",
+  "This browser keeps your trade settings (stake size, trail, starred markets) and its history keeps the pages you opened. Forget this device clears the app's part.",
   "Your own funding history and your wallet's server are outside Kakure's control.",
 ];
 

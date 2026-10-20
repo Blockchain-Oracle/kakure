@@ -28,8 +28,8 @@ export const WORDS = {
   },
   hero: {
     kicker: "Live on Zcash testnet",
-    title: ["Trade every minute.", "Leave no"],
-    accent: "trace.",
+    title: ["Trade every minute.", "Stay"],
+    accent: "hidden.",
     line: "Call Bitcoin, Ether, Solana and Zcash up or down, from one minute to a day, with private chips from a shielded deposit. Prices move live. Your trades don't lead back to you.",
     start: "Start trading",
     privacy: "How privacy works",
@@ -77,7 +77,7 @@ export const WORDS = {
     duel: { title: "Duel", line: "Three calls, head to head. Picks stay sealed till lock." },
     private: {
       eyebrow: "Private by default",
-      title: "No account. No cookies. No trace.",
+      title: "No account. No cookies. No name.",
       line: "Your chips are blind-signed, so the house can't tell which deposit funded which trade.",
     },
   },
@@ -116,7 +116,7 @@ export const WORDS = {
       { what: "Your IP address", sees: [true, true, false, false] },
       { what: "Each trade: its Window, side and stake", sees: [true, false, true, false] },
       { what: "Which deposit paid for which trade", sees: [true, false, false, false] },
-      { what: "That two trades are the same person's", sees: [true, false, false, false] },
+      { what: "Your chip balance", sees: [true, false, false, false] },
       { what: "Your withdrawal address", sees: [true, false, true, false] },
       { what: "Prices, the formula and every settlement", sees: [true, true, true, true] },
     ],
@@ -161,7 +161,7 @@ export const WORDS = {
     qr: "QR code to Kakure's trade terminal",
   },
   footer: {
-    tagline: "Trade every minute. Leave no trace.",
+    tagline: "Trade every minute. Stay hidden.",
     built: "A private real-time prediction market on Zcash. Testnet TAZ has no value.",
     keys: "Operator keys built into this site",
     notSet: "not set yet",
