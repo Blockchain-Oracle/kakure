@@ -28,6 +28,9 @@ use crate::{
     rt_store, settle,
 };
 
+/// The side cap counts a Window side's open payout in quarters of the cap, rounded up: a refusal says
+/// which quarter the side has reached, never its exact book (privacy re-audit V2).
+const SIDE_CAP_BUCKETS: u64 = 4;
 /// The most decimal places a band edge carries (the venues quote at most this finely).
 const MAX_EDGE_PLACES: usize = 8;
 
@@ -409,8 +412,10 @@ pub fn trade(api: &Api, request: TradeRequest, cache: Option<&str>) -> Answer {
         "change": sign_change(api, &request.change)?,
     });
     let cap = api.caps.max_side_payout;
+    let quantum = cap / SIDE_CAP_BUCKETS;
     spend_and(api, &ys, cache.map(|k| (k, &answer)), |tx| {
-        let open = positions::side_payout(tx, &request.window, &request.side).map_err(internal)?;
+        let open = positions::side_payout_bucket(tx, &request.window, &request.side, quantum)
+            .map_err(internal)?;
         if open + payout > cap {
             return Err(refuse(
                 KAKURE_OVER_CAP,

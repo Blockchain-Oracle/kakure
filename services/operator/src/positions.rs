@@ -64,6 +64,17 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if !has_band {
         conn.execute_batch("ALTER TABLE positions ADD COLUMN band TEXT")?;
     }
+    // The stake as opened, which a Reduce never changes: the published volume sums it, so a partial close can't be
+    // read off a Window's volume (privacy re-audit V5). Older rows take their current stake.
+    let has_opened: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('positions') WHERE name = 'opened_stake_zat'")?
+        .exists([])?;
+    if !has_opened {
+        conn.execute_batch(
+            "ALTER TABLE positions ADD COLUMN opened_stake_zat INTEGER;
+             UPDATE positions SET opened_stake_zat = stake_zat WHERE opened_stake_zat IS NULL;",
+        )?;
+    }
     Ok(())
 }
 
@@ -208,8 +219,8 @@ impl Position {
 pub fn insert(tx: &Transaction<'_>, p: &Position) -> Result<()> {
     tx.execute(
         "INSERT INTO positions (id, kind, window, side, legs, stake_zat, price, payout_zat, lock,
-             opened_at, state, band)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'open', ?11)",
+             opened_at, state, band, opened_stake_zat)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'open', ?11, ?6)",
         params![
             p.id,
             p.kind.name(),
@@ -252,6 +263,18 @@ pub fn armed(conn: &Connection) -> Result<Vec<Position>> {
 }
 
 /// What open singles on a Window side would pay if it won.
+/// The open payout on one side of a Window, rounded UP to a multiple of `quantum`: what the side cap
+/// is checked against, so a refused probe can't measure the side's exact open book, only which
+/// quantum it has reached (privacy re-audit V2).
+pub fn side_payout_bucket(
+    conn: &Connection,
+    window: &str,
+    side: &str,
+    quantum: u64,
+) -> Result<u64> {
+    Ok(side_payout(conn, window, side)?.div_ceil(quantum) * quantum)
+}
+
 pub fn side_payout(conn: &Connection, window: &str, side: &str) -> Result<u64> {
     Ok(conn.query_row(
         "SELECT COALESCE(SUM(payout_zat), 0) FROM positions
@@ -397,10 +420,33 @@ fn band_book(conn: &Connection) -> Result<u64> {
     Ok(owed)
 }
 
-/// The house's published book: chips outstanding (minted from deposits, plus paid out of
-/// positions, less staked, less withdrawn) and the most open positions could cost it (each
-/// unsettled Window's larger side, every open parlay and band, plus what settled ones still owe).
-pub fn liabilities(conn: &Connection) -> Result<Value> {
+/// The house's book at one moment, in zatoshi.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Book {
+    /// Chips outstanding: minted from deposits, plus paid out of positions, less staked, less withdrawn.
+    pub chips_outstanding: u64,
+    /// The most open positions could cost: each unsettled Window's larger side, every open parlay
+    /// and band, plus what settled ones still owe.
+    pub open_max_payout: u64,
+}
+
+impl Book {
+    /// The published statement (plan §00 residual risks: "signed liability statements"): each figure
+    /// rounded UP to a multiple of `quantum`, so it stays a true upper bound while one trade, deposit
+    /// or withdrawal can't be read off the difference between two statements (privacy re-audit V1).
+    pub fn statement(&self, quantum: u64, as_of: &str) -> Value {
+        let up = |zat: u64| zat.div_ceil(quantum) * quantum;
+        json!({
+            "chipsOutstandingZat": up(self.chips_outstanding).to_string(),
+            "openMaxPayoutZat": up(self.open_max_payout).to_string(),
+            "quantumZat": quantum.to_string(),
+            "asOf": as_of,
+        })
+    }
+}
+
+/// The house's book, read from the ledger and the open positions.
+pub fn book(conn: &Connection) -> Result<Book> {
     let minted: u64 = conn.query_row(
         "SELECT COALESCE(SUM(issued_zat), 0) FROM deposit_issued",
         [],
@@ -435,10 +481,10 @@ pub fn liabilities(conn: &Connection) -> Result<Value> {
         |r| r.get(0),
     )?;
     let bands = band_book(conn)?;
-    Ok(json!({
-        "chipsOutstandingZat": outstanding.to_string(),
-        "openMaxPayoutZat": (unsettled + owed + parlays + bands).to_string(),
-    }))
+    Ok(Book {
+        chips_outstanding: outstanding,
+        open_max_payout: unsettled + owed + parlays + bands,
+    })
 }
 
 /// A Window's published activity: trade count and volume over the first ⌊n/3⌋·3 singles opened on
@@ -449,7 +495,7 @@ pub fn window_volume(
     group: usize,
 ) -> Result<Option<(usize, u64)>> {
     let mut stmt = conn.prepare(
-        "SELECT stake_zat FROM positions WHERE window = ?1 AND kind = 'single'
+        "SELECT opened_stake_zat FROM positions WHERE window = ?1 AND kind = 'single'
          ORDER BY opened_at, id",
     )?;
     let stakes: Vec<u64> = stmt
@@ -527,10 +573,7 @@ mod tests {
     }
 
     fn open_max(conn: &Connection) -> String {
-        liabilities(conn).unwrap()["openMaxPayoutZat"]
-            .as_str()
-            .unwrap()
-            .to_owned()
+        super::book(conn).unwrap().open_max_payout.to_string()
     }
 
     #[test]
@@ -548,5 +591,70 @@ mod tests {
         band(&conn, "c", "btc-5m-2", ("100", "130"), 1_000_000, 4_000_000);
         band(&conn, "d", "btc-5m-2", ("200", "260"), 1_000_000, 6_000_000);
         assert_eq!(open_max(&conn), "9000000");
+    }
+
+    fn single(conn: &Connection, id: &str, window: &str, stake: u64) {
+        let tx = conn.unchecked_transaction().unwrap();
+        let position = Position {
+            id: id.into(),
+            kind: Kind::Single,
+            window: Some(window.into()),
+            side: Some("U".into()),
+            legs: vec![],
+            stake_zat: stake,
+            price: 5_000,
+            payout_zat: stake * 2,
+            lock: "00".into(),
+            opened_at: 0,
+            state: "open".into(),
+            paid_zat: None,
+            how: None,
+            exit: None,
+            exit_outputs: None,
+            exit_signatures: None,
+            band: None,
+        };
+        insert(&tx, &position).unwrap();
+        tx.commit().unwrap();
+    }
+
+    #[test]
+    fn a_reduce_never_shows_in_the_volume() {
+        let conn = book();
+        window(&conn, "btc-5m-3", None, None);
+        for (id, stake) in [("p", 1_000_000), ("q", 2_000_000), ("r", 3_000_000)] {
+            single(&conn, id, "btc-5m-3", stake);
+        }
+        assert_eq!(
+            window_volume(&conn, "btc-5m-3", 3).unwrap(),
+            Some((3, 6_000_000))
+        );
+        let tx = conn.unchecked_transaction().unwrap();
+        reduce(&tx, "q", 1_000_000, 2_000_000, 1_900_000).unwrap();
+        tx.commit().unwrap();
+        assert_eq!(
+            window_volume(&conn, "btc-5m-3", 3).unwrap(),
+            Some((3, 6_000_000))
+        );
+    }
+
+    #[test]
+    fn the_statement_rounds_up_to_its_quantum() {
+        let book = Book {
+            chips_outstanding: 1,
+            open_max_payout: 2_000_000_000,
+        };
+        let statement = book.statement(1_000_000_000, "2026-10-20T13:00:07Z");
+        assert_eq!(statement["chipsOutstandingZat"], "1000000000");
+        assert_eq!(statement["openMaxPayoutZat"], "2000000000");
+        assert_eq!(statement["quantumZat"], "1000000000");
+        let empty = Book {
+            chips_outstanding: 0,
+            open_max_payout: 0,
+        };
+        assert_eq!(
+            empty.statement(1_000_000_000, "x")["chipsOutstandingZat"],
+            "0"
+        );
     }
 }

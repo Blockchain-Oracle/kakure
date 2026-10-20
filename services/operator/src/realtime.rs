@@ -77,6 +77,9 @@ pub struct Realtime {
     /// What clients need to trade (keyset, gateway key, deposit address and rules), once the
     /// trading side has started; published in every bundle.
     trading: Option<Value>,
+    /// The house's statement for the current hour: (hour, statement). Taken once an hour and
+    /// rounded up to the per-side cap, so consecutive bundles never show one trade (re-audit V1).
+    house: Option<(i64, Value)>,
 }
 
 pub struct TickReport {
@@ -109,6 +112,7 @@ impl Realtime {
             caps: Caps::for_network(matches!(wallet.net, crate::wallet::Net::Mainnet)),
             sigma_at: None,
             trading: None,
+            house: None,
         })
     }
 
@@ -281,7 +285,22 @@ impl Realtime {
         })))
     }
 
+    /// The hour's liability statement, taken at the first bundle of each hour.
+    fn house_statement(&mut self, now: i64) -> Result<Value> {
+        let hour = now.div_euclid(HOUR_SECS);
+        if let Some((at, statement)) = &self.house
+            && *at == hour
+        {
+            return Ok(statement.clone());
+        }
+        let statement =
+            positions::book(&self.store.conn)?.statement(self.caps.max_side_payout, &iso(now));
+        self.house = Some((hour, statement.clone()));
+        Ok(statement)
+    }
+
     fn publish_bundle(&mut self, now: i64) -> Result<(u64, usize)> {
+        let house = self.house_statement(now)?;
         let conn = &self.store.conn;
         let lanes_json: Vec<Value> = lanes::lanes()
             .iter()
@@ -342,7 +361,7 @@ impl Realtime {
                 "caps": self.caps.json(),
             },
             "windows": windows,
-            "house": positions::liabilities(conn)?,
+            "house": house,
             "prints": rt_store::prints_files_since(conn, now - DAY_SECS)?,
         });
         let mut document = document;

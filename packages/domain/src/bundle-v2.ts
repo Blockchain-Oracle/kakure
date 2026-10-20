@@ -98,9 +98,16 @@ export const pricingSchema = z.object({
 });
 
 /** The house's book each minute: chips outstanding and the most open positions could cost it. */
+/**
+ * The house's liability statement (plan §00): taken once an hour, each figure rounded UP to a multiple of
+ * `quantumZat` (the per-side cap), so it is still an upper bound while no single trade, deposit or withdrawal can be
+ * read off the difference between two statements (privacy re-audit V1).
+ */
 export const houseSchema = z.object({
   chipsOutstandingZat: zat,
   openMaxPayoutZat: zat,
+  quantumZat: zat,
+  asOf: isoTime,
 });
 
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
@@ -145,6 +152,16 @@ export const bundleV2Schema = z.object({
   /** Absent while the operator's trading side is off. */
   trading: tradingSchema.optional(),
   sig: signature,
+});
+
+/**
+ * What the chain check reads from the bundle before this one, whatever its version: the pool engine's last bundle
+ * precedes the real-time market's first (they share one sequence). Its signature and hash are checked before this.
+ */
+export const chainLinkSchema = z.object({
+  v: z.number().int().positive(),
+  network,
+  seq: z.number().int().nonnegative(),
 });
 
 export const latestV2Schema = z.object({

@@ -2,6 +2,7 @@ import {
   BUNDLE_INTERVAL_SEC,
   type BundleV2,
   bundleV2Schema,
+  chainLinkSchema,
   type LatestV2,
   latestV2Schema,
   type Network,
@@ -92,7 +93,7 @@ export function previousBundleQuery(source: DataSource, network: Network, bundle
       previous && seq >= 0
         ? async ({ signal }): Promise<number> => {
             const file = `bundle-${seq}.json`;
-            const before = await fetchSigned(source, network, file, bundleV2Schema, { sha256: previous, signal });
+            const before = await fetchSigned(source, network, file, chainLinkSchema, { sha256: previous, signal });
             if (!before) throw new DataError("missing", file);
             if (before.seq !== seq) throw new DataError("mismatch", file, `seq ${before.seq}, expected ${seq}`);
             return before.seq;

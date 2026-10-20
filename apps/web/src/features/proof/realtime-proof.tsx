@@ -16,7 +16,7 @@ import { Button, EmptyState, Mark, Skeleton } from "@kakure/ui-web";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, FileJson, Loader2, XCircle } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { DATA_SOURCE, NETWORK_LABEL } from "@/constants";
+import { DATA_SOURCE, NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
 import { useRealtime } from "@/features/data/use-realtime";
 import { formatClock, formatDateTime } from "@/lib/time";
@@ -62,6 +62,7 @@ export function RealtimeProof() {
         <>
           <Signed latest={data.latest} bundle={data.bundle} network={data.network} />
           <PricingInputs bundle={data.bundle} />
+          <HouseBook bundle={data.bundle} network={data.network} />
           <Settled bundle={data.bundle} />
           <Hourly bundle={data.bundle} network={data.network} />
         </>
@@ -189,6 +190,38 @@ function PricingInputs({ bundle }: { bundle: BundleV2 }) {
           </div>
         ))}
       </dl>
+    </Card>
+  );
+}
+
+/**
+ * The house's liability statement (plan §00): what it owes in chips and the most open positions could cost it. It is
+ * taken once an hour and rounded up to a multiple of the per-side cap, so it stays an upper bound while no single
+ * trade, deposit or withdrawal shows in the difference between two statements.
+ */
+function HouseBook({ bundle, network }: { bundle: BundleV2; network: Network }) {
+  const { house } = bundle;
+  const coin = NETWORK_COIN[network];
+  return (
+    <Card id="house-title" title="The house's book">
+      <dl className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="rounded-row bg-background px-3 py-2">
+          <dt className="text-meta text-muted-foreground">Chips outstanding, at most</dt>
+          <dd className="font-mono text-num-md text-foreground">
+            {zec(house.chipsOutstandingZat)} {coin}
+          </dd>
+        </div>
+        <div className="rounded-row bg-background px-3 py-2">
+          <dt className="text-meta text-muted-foreground">Open positions could cost, at most</dt>
+          <dd className="font-mono text-num-md text-foreground">
+            {zec(house.openMaxPayoutZat)} {coin}
+          </dd>
+        </div>
+      </dl>
+      <p className="text-row-detail text-muted-foreground">
+        As of {formatClock(house.asOf)}, signed with this bundle. Taken once an hour and rounded up to a multiple of{" "}
+        {zec(house.quantumZat)} {coin}, so no single trade, deposit or withdrawal can be read off the change.
+      </p>
     </Card>
   );
 }
