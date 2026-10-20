@@ -181,12 +181,24 @@ mod tests {
     #[test]
     fn lookback_covers_a_gap() {
         let now = 1_000_000;
-        assert_eq!(super::lookback_since(None, now), super::STARTUP_LOOKBACK_SECS);
-        assert_eq!(super::lookback_since(Some(now - 60), now), super::LOOKBACK_SECS + 60);
+        assert_eq!(
+            super::lookback_since(None, now),
+            super::STARTUP_LOOKBACK_SECS
+        );
+        assert_eq!(
+            super::lookback_since(Some(now - 60), now),
+            super::LOOKBACK_SECS + 60
+        );
         // A two-hour outage reads the two hours back, plus the margin.
-        assert_eq!(super::lookback_since(Some(now - 7_200), now), 7_200 + super::LOOKBACK_SECS);
+        assert_eq!(
+            super::lookback_since(Some(now - 7_200), now),
+            7_200 + super::LOOKBACK_SECS
+        );
         // A gap past the start-up lookback is capped at it.
-        assert_eq!(super::lookback_since(Some(now - 86_400), now), super::STARTUP_LOOKBACK_SECS);
+        assert_eq!(
+            super::lookback_since(Some(now - 86_400), now),
+            super::STARTUP_LOOKBACK_SECS
+        );
     }
 
     use super::*;

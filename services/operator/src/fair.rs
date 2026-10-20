@@ -104,6 +104,31 @@ pub fn quote_side(probability: f64) -> SideQuote {
     }
 }
 
+/// P(in) for a band (Range, Moonshot): the chance the close lands inside [lo, hi], a missing edge
+/// unbounded. P(close > K) is `fair_up` with K as the line, so P(in) = P(close > lo) − P(close > hi).
+pub fn band_in_probability(
+    spot: f64,
+    lo: Option<f64>,
+    hi: Option<f64>,
+    sigma: f64,
+    seconds_left: i64,
+) -> Option<f64> {
+    let above_lo = match lo {
+        Some(edge) => fair_up(spot, edge, sigma, seconds_left)?,
+        None => 1.0,
+    };
+    let above_hi = match hi {
+        Some(edge) => fair_up(spot, edge, sigma, seconds_left)?,
+        None => 0.0,
+    };
+    Some((above_lo - above_hi).max(0.0))
+}
+
+/// The probability of a band side ("in" or "out") from P(in).
+pub fn band_side_probability(p_in: f64, side: &str) -> f64 {
+    if side == "in" { p_in } else { 1.0 - p_in }
+}
+
 /// The probability of `side` ("U" or "D") from P(Up).
 pub fn side_probability(p_up: f64, side: &str) -> f64 {
     if side == "U" { p_up } else { 1.0 - p_up }
@@ -275,6 +300,28 @@ mod tests {
                     close_value_zat(payout, c["bidE4"].as_u64().unwrap()),
                     c["value"].as_u64().unwrap()
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn matches_the_typescript_bands() {
+        let v: Value = serde_json::from_str(VECTORS).unwrap();
+        for case in v["bands"].as_array().unwrap() {
+            let f = |k: &str| case[k].as_f64();
+            let p_in = band_in_probability(
+                f("spot").unwrap(),
+                f("lo"),
+                f("hi"),
+                f("sigma").unwrap(),
+                case["secondsLeft"].as_i64().unwrap(),
+            )
+            .unwrap();
+            assert!((p_in - f("pIn").unwrap()).abs() < 1e-12, "{case}");
+            for side in ["in", "out"] {
+                let q = quote_side(band_side_probability(p_in, side));
+                assert_eq!(q.ask_e4, case[side]["askE4"].as_u64(), "{side} {case}");
+                assert_eq!(q.bid_e4, case[side]["bidE4"].as_u64(), "{side} {case}");
             }
         }
     }

@@ -14,7 +14,9 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::{Value, json};
 
 const SCHEMA: &str = "
--- What trades bought. `price` is the single ask in 1/10^4 or the parlay price in 1/10^8.
+-- What trades bought. `price` is the single's or band's ask in 1/10^4, or the parlay price in 1/10^8.
+-- A band (Range, Moonshot) keeps its edges in `band` (JSON lo and hi, decimal strings or null) and
+-- its side (in or out) in `side`.
 -- state: open | armed (an exit is waiting) | closed | redeemed.
 -- how: close | trail | stop | takeProfit | redeem | settled (redeemed by the mint for an armed one).
 CREATE TABLE IF NOT EXISTS positions (
@@ -34,7 +36,8 @@ CREATE TABLE IF NOT EXISTS positions (
     how TEXT,
     exit TEXT,
     exit_outputs TEXT,
-    exit_signatures TEXT
+    exit_signatures TEXT,
+    band TEXT
 );
 CREATE INDEX IF NOT EXISTS positions_window ON positions (window, side, state);
 CREATE INDEX IF NOT EXISTS positions_state ON positions (state);
@@ -52,6 +55,13 @@ const FINISHED_KEEP_SECS: i64 = 2 * 86_400;
 
 pub fn migrate(conn: &Connection) -> Result<()> {
     conn.execute_batch(SCHEMA)?;
+    // Databases from before bands (T5a) gain the column.
+    let has_band: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('positions') WHERE name = 'band'")?
+        .exists([])?;
+    if !has_band {
+        conn.execute_batch("ALTER TABLE positions ADD COLUMN band TEXT")?;
+    }
     Ok(())
 }
 
@@ -73,12 +83,31 @@ pub struct Position {
     pub exit: Option<Value>,
     pub exit_outputs: Option<String>,
     pub exit_signatures: Option<String>,
+    pub band: Option<Band>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Single,
     Parlay,
+    Band,
+}
+
+impl Kind {
+    pub fn name(self) -> &'static str {
+        match self {
+            Kind::Single => "single",
+            Kind::Parlay => "parlay",
+            Kind::Band => "band",
+        }
+    }
+}
+
+/// A band's edges: decimal strings as the client sent them; a missing edge is unbounded.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct Band {
+    pub lo: Option<String>,
+    pub hi: Option<String>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -91,18 +120,19 @@ pub struct Leg {
 }
 
 const COLUMNS: &str = "id, kind, window, side, legs, stake_zat, price, payout_zat, lock, opened_at, \
-     state, paid_zat, how, exit, exit_outputs, exit_signatures";
+     state, paid_zat, how, exit, exit_outputs, exit_signatures, band";
 
 fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Position> {
     let kind: String = r.get(1)?;
     let legs: Option<String> = r.get(4)?;
     let exit: Option<String> = r.get(13)?;
+    let band: Option<String> = r.get(16)?;
     Ok(Position {
         id: r.get(0)?,
-        kind: if kind == "parlay" {
-            Kind::Parlay
-        } else {
-            Kind::Single
+        kind: match kind.as_str() {
+            "parlay" => Kind::Parlay,
+            "band" => Kind::Band,
+            _ => Kind::Single,
         },
         window: r.get(2)?,
         side: r.get(3)?,
@@ -120,6 +150,7 @@ fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Position> {
         exit: exit.and_then(|e| serde_json::from_str(&e).ok()),
         exit_outputs: r.get(14)?,
         exit_signatures: r.get(15)?,
+        band: band.and_then(|b| serde_json::from_str(&b).ok()),
     })
 }
 
@@ -138,6 +169,22 @@ impl Position {
                 "openedAt": self.opened_at,
                 "lock": self.lock,
             }),
+            Kind::Band => {
+                let band = self.band.clone().unwrap_or_default();
+                json!({
+                    "id": self.id,
+                    "kind": "band",
+                    "window": self.window,
+                    "lo": band.lo,
+                    "hi": band.hi,
+                    "side": self.side,
+                    "stakeZat": self.stake_zat.to_string(),
+                    "askE4": self.price,
+                    "payoutZat": self.payout_zat.to_string(),
+                    "openedAt": self.opened_at,
+                    "lock": self.lock,
+                })
+            }
             Kind::Parlay => json!({
                 "id": self.id,
                 "kind": "parlay",
@@ -159,15 +206,11 @@ impl Position {
 pub fn insert(tx: &Transaction<'_>, p: &Position) -> Result<()> {
     tx.execute(
         "INSERT INTO positions (id, kind, window, side, legs, stake_zat, price, payout_zat, lock,
-             opened_at, state)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'open')",
+             opened_at, state, band)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'open', ?11)",
         params![
             p.id,
-            if p.kind == Kind::Parlay {
-                "parlay"
-            } else {
-                "single"
-            },
+            p.kind.name(),
             p.window,
             p.side,
             if p.legs.is_empty() {
@@ -180,6 +223,7 @@ pub fn insert(tx: &Transaction<'_>, p: &Position) -> Result<()> {
             p.payout_zat,
             p.lock,
             p.opened_at,
+            p.band.as_ref().map(serde_json::to_string).transpose()?,
         ],
     )?;
     add_to_ledger(tx, "staked", p.stake_zat)?;

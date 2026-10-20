@@ -56,3 +56,32 @@ export function referenceOf(venues: readonly VenueKey[], opening: VenuePrices): 
   if (prints.length === 0) return null;
   return prints[Math.floor((prints.length - 1) / 2)] ?? null;
 }
+
+/* ── Bands ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+
+export type BandOutcome = "in" | "out" | "refund";
+
+/** One venue's band vote: `in` when its closing print is inside [lo, hi] (edges inclusive, a missing edge unbounded). */
+export function bandVote(
+  closing: string | null | undefined,
+  lo: string | null,
+  hi: string | null,
+): "in" | "out" | null {
+  if (!closing) return null;
+  const aboveLo = lo === null || compareDecimal(closing, lo) >= 0;
+  const belowHi = hi === null || compareDecimal(closing, hi) <= 0;
+  return aboveLo && belowHi ? "in" : "out";
+}
+
+/** Two of three venues' closes decide a band; anything else refunds it at cost (the Up/Down rule, on the closes). */
+export function bandOutcomeOf(
+  venues: readonly VenueKey[],
+  closing: VenuePrices,
+  lo: string | null,
+  hi: string | null,
+): BandOutcome {
+  const votes = venues.map((venue) => bandVote(closing[venue], lo, hi));
+  if (votes.filter((v) => v === "in").length >= VOTES_TO_DECIDE) return "in";
+  if (votes.filter((v) => v === "out").length >= VOTES_TO_DECIDE) return "out";
+  return "refund";
+}

@@ -75,6 +75,8 @@ export const capsSchema = z.object({
   maxStakeZat: zat,
   maxSidePayoutZat: zat,
   maxParlayPayoutZat: zat,
+  /** One band position's payout (Range, Moonshot); absent from bundles before bands. */
+  maxBandPayoutZat: zat.optional(),
 });
 
 export const pricingSchema = z.object({

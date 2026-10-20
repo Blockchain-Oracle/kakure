@@ -1001,5 +1001,180 @@
       "soldPayoutZat": 12000,
       "full": false
     }
+  ],
+  "bands": [
+    {
+      "spot": 81300,
+      "lo": 81250,
+      "hi": 81350,
+      "sigma": 0.45,
+      "secondsLeft": 300,
+      "pIn": 0.3423123826995972,
+      "in": {
+        "askE4": 3674,
+        "bidE4": 3173
+      },
+      "out": {
+        "askE4": 6827,
+        "bidE4": 6326
+      }
+    },
+    {
+      "spot": 81300,
+      "lo": 81000,
+      "hi": 81600,
+      "sigma": 0.45,
+      "secondsLeft": 3600,
+      "pIn": 0.557208906482988,
+      "in": {
+        "askE4": 5823,
+        "bidE4": 5322
+      },
+      "out": {
+        "askE4": 4678,
+        "bidE4": 4177
+      }
+    },
+    {
+      "spot": 81300,
+      "lo": 82000,
+      "hi": null,
+      "sigma": 0.45,
+      "secondsLeft": 900,
+      "pIn": 0.0001810896600146772,
+      "in": {
+        "askE4": 252,
+        "bidE4": null
+      },
+      "out": {
+        "askE4": null,
+        "bidE4": 9748
+      }
+    },
+    {
+      "spot": 81300,
+      "lo": null,
+      "hi": 80500,
+      "sigma": 0.45,
+      "secondsLeft": 900,
+      "pIn": 0.0000194936048013572,
+      "in": {
+        "askE4": 251,
+        "bidE4": null
+      },
+      "out": {
+        "askE4": null,
+        "bidE4": 9749
+      }
+    },
+    {
+      "spot": 0.0789,
+      "lo": 0.078,
+      "hi": 0.08,
+      "sigma": 1.1,
+      "secondsLeft": 120,
+      "pIn": 0.9999999550262595,
+      "in": {
+        "askE4": null,
+        "bidE4": 9749
+      },
+      "out": {
+        "askE4": 251,
+        "bidE4": null
+      }
+    },
+    {
+      "spot": 2380,
+      "lo": 2379,
+      "hi": 2381,
+      "sigma": 0.6,
+      "secondsLeft": 2,
+      "pIn": 0.9213704584073154,
+      "in": {
+        "askE4": 9464,
+        "bidE4": 8963
+      },
+      "out": {
+        "askE4": 1037,
+        "bidE4": 536
+      }
+    }
+  ],
+  "bandVotes": [
+    {
+      "closing": {
+        "coinbase": "81300.5",
+        "kraken": "81299",
+        "bitstamp": "81301"
+      },
+      "lo": "81250",
+      "hi": "81350",
+      "venues": [
+        "coinbase",
+        "kraken",
+        "bitstamp"
+      ],
+      "outcome": "in"
+    },
+    {
+      "closing": {
+        "coinbase": "81350",
+        "kraken": "81350.00",
+        "bitstamp": "81351"
+      },
+      "lo": "81250",
+      "hi": "81350",
+      "venues": [
+        "coinbase",
+        "kraken",
+        "bitstamp"
+      ],
+      "outcome": "in"
+    },
+    {
+      "closing": {
+        "coinbase": "81360",
+        "kraken": null,
+        "bitstamp": "81300"
+      },
+      "lo": "81250",
+      "hi": "81350",
+      "venues": [
+        "coinbase",
+        "kraken",
+        "bitstamp"
+      ],
+      "outcome": "refund"
+    },
+    {
+      "closing": {
+        "coinbase": "82000",
+        "kraken": "81999.99",
+        "bitstamp": "82100"
+      },
+      "lo": "82000",
+      "hi": null,
+      "venues": [
+        "coinbase",
+        "kraken",
+        "bitstamp"
+      ],
+      "outcome": "in"
+    },
+    {
+      "closing": {
+        "coinbase": null,
+        "kraken": null,
+        "bitstamp": "81000"
+      },
+      "lo": null,
+      "hi": "81500",
+      "venues": [
+        "coinbase",
+        "kraken",
+        "bitstamp"
+      ],
+      "outcome": "refund"
+    }
   ]
 }

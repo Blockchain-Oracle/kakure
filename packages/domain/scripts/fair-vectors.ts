@@ -5,18 +5,21 @@
  */
 import { writeFileSync } from "node:fs";
 import {
+  bandInProbability,
   closeValueZat,
   fairUp,
   normalCdf,
   parlayPayoutZat,
   parlayPriceE8,
   parlaySettledZat,
+  quoteBand,
   quoteSide,
   quoteWindow,
   reduceShare,
   sidePayoutZat,
   withSlippage,
 } from "../src/fair";
+import { bandOutcomeOf } from "../src/settle";
 
 const cdf = [-8, -6, -2.5, -1, -0.3, 0, 0.3, 1, 2.5, 6, 8].map((z) => ({ z, p: normalCdf(z) }));
 
@@ -132,9 +135,35 @@ const reductions = [
   ...reduceShare(stake, payout, fractionBps),
 }));
 
+const bands = [
+  { spot: 81_300, lo: 81_250, hi: 81_350, sigma: 0.45, secondsLeft: 300 },
+  { spot: 81_300, lo: 81_000, hi: 81_600, sigma: 0.45, secondsLeft: 3_600 },
+  { spot: 81_300, lo: 82_000, hi: null, sigma: 0.45, secondsLeft: 900 },
+  { spot: 81_300, lo: null, hi: 80_500, sigma: 0.45, secondsLeft: 900 },
+  { spot: 0.0789, lo: 0.078, hi: 0.08, sigma: 1.1, secondsLeft: 120 },
+  { spot: 2_380, lo: 2_379, hi: 2_381, sigma: 0.6, secondsLeft: 2 },
+].map((b) => {
+  const edges = { lo: b.lo, hi: b.hi };
+  return {
+    ...b,
+    pIn: bandInProbability(b.spot, edges, b.sigma, b.secondsLeft),
+    in: quoteBand(b.spot, edges, "in", b.sigma, b.secondsLeft),
+    out: quoteBand(b.spot, edges, "out", b.sigma, b.secondsLeft),
+  };
+});
+
+const venues = ["coinbase", "kraken", "bitstamp"] as const;
+const bandVotes = [
+  { closing: { coinbase: "81300.5", kraken: "81299", bitstamp: "81301" }, lo: "81250", hi: "81350" },
+  { closing: { coinbase: "81350", kraken: "81350.00", bitstamp: "81351" }, lo: "81250", hi: "81350" },
+  { closing: { coinbase: "81360", kraken: null, bitstamp: "81300" }, lo: "81250", hi: "81350" },
+  { closing: { coinbase: "82000", kraken: "81999.99", bitstamp: "82100" }, lo: "82000", hi: null },
+  { closing: { coinbase: null, kraken: null, bitstamp: "81000" }, lo: null, hi: "81500" },
+].map((v) => ({ ...v, venues, outcome: bandOutcomeOf(venues, v.closing, v.lo, v.hi) }));
+
 writeFileSync(
   new URL("../fixtures/fair.json", import.meta.url),
-  `${JSON.stringify({ cdf, fair, sides, window, windows, payouts, slippage, parlays, settled, reductions }, null, 2)}\n`,
+  `${JSON.stringify({ cdf, fair, sides, window, windows, payouts, slippage, parlays, settled, reductions, bands, bandVotes }, null, 2)}\n`,
 );
 console.log(
   `fair.json: ${cdf.length} Φ, ${fair.length} fair, ${sides.length} sides, ${windows.length} windows, ${payouts.length} payouts, ${parlays.length + settled.length} parlays`,

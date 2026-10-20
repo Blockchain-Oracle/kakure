@@ -82,6 +82,57 @@ export function fairUp(spot: number, reference: number, sigma: number, secondsLe
   return normalCdf(Math.log(spot / reference) / scale);
 }
 
+/* ── Bands (Range and Moonshot) ───────────────────────────────────────────────────────────────────────────────── */
+
+export type BandSide = "in" | "out";
+
+/** A band's edges: at least one; a missing edge is unbounded (Moonshot long is `[K, ∞)`, short is `(0, K]`). */
+export interface BandEdges {
+  lo: number | null;
+  hi: number | null;
+}
+
+/**
+ * P(in): the chance the closing print lands inside the band, `Φ(z(hi)) − Φ(z(lo))` on the same lognormal as Up/Down.
+ * P(close > K) is `fairUp` with K as the line, so P(in) = P(close > lo) − P(close > hi).
+ */
+export function bandInProbability(spot: number, band: BandEdges, sigma: number, secondsLeft: number): number {
+  const above = (edge: number | null, unbounded: number) =>
+    edge === null ? unbounded : fairUp(spot, edge, sigma, secondsLeft);
+  return Math.max(0, above(band.lo, 1) - above(band.hi, 0));
+}
+
+/** A band side's prices now: the same half spread and limits as Up/Down. */
+export function quoteBand(
+  spot: number,
+  band: BandEdges,
+  side: BandSide,
+  sigma: number,
+  secondsLeft: number,
+): SideQuote {
+  const pIn = bandInProbability(spot, band, sigma, secondsLeft);
+  return quoteSide(side === "in" ? pIn : 1 - pIn);
+}
+
+/**
+ * Moonshot's level: where a one-sided band must start so the house's ask is 1 ÷ reach (×2 pays about twice). Long is
+ * "finishes at or above K", short "at or below K". The mint prices the band it's sent; this only aims it.
+ */
+export function moonshotLevel(
+  direction: "long" | "short",
+  reach: number,
+  spot: number,
+  sigma: number,
+  secondsLeft: number,
+): number {
+  const askE4 = Math.round(PRICE_SCALE_E4 / reach);
+  const probability = Math.min(1, Math.max(0, (askE4 - HALF_SPREAD_E4) / PRICE_SCALE_E4));
+  const scale = sigma * Math.sqrt(Math.max(secondsLeft, MIN_TAU_SEC) / YEAR_SEC);
+  // P(close > K) = Φ(ln(S/K)/scale): long wants it at `probability`, short wants its complement there.
+  const z = inverseNormalCdf(direction === "long" ? probability : 1 - probability);
+  return spot * Math.exp(-z * scale);
+}
+
 /**
  * Where a Window is in its life:
  * - `pre`: listed ahead; its opening print is unknown to everyone, so both sides are worth one half.

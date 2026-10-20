@@ -23,10 +23,13 @@ use crate::{
     },
     lanes::{self, ENTRY_BUFFER_SECS},
     mint::{self, Proof},
-    positions::{self, Kind, Leg, Position},
+    positions::{self, Band, Kind, Leg, Position},
     prices::NoPrice,
-    rt_store,
+    rt_store, settle,
 };
+
+/// The most decimal places a band edge carries (the venues quote at most this finely).
+const MAX_EDGE_PLACES: usize = 8;
 
 const KAKURE_NOT_TRADING: u32 = 20_010;
 const KAKURE_NOT_OFFERED: u32 = 20_011;
@@ -51,6 +54,8 @@ pub struct Caps {
     pub max_stake: u64,
     pub max_side_payout: u64,
     pub max_parlay_payout: u64,
+    /// One band position's payout (Range, Moonshot).
+    pub max_band_payout: u64,
 }
 
 impl Caps {
@@ -61,6 +66,7 @@ impl Caps {
                 max_stake: 5_000_000,
                 max_side_payout: 50_000_000,
                 max_parlay_payout: 20_000_000,
+                max_band_payout: 20_000_000,
             }
         } else {
             Self {
@@ -68,6 +74,7 @@ impl Caps {
                 max_stake: 100_000_000,
                 max_side_payout: 1_000_000_000,
                 max_parlay_payout: 500_000_000,
+                max_band_payout: 500_000_000,
             }
         }
     }
@@ -78,6 +85,7 @@ impl Caps {
             "maxStakeZat": self.max_stake.to_string(),
             "maxSidePayoutZat": self.max_side_payout.to_string(),
             "maxParlayPayoutZat": self.max_parlay_payout.to_string(),
+            "maxBandPayoutZat": self.max_band_payout.to_string(),
         })
     }
 }
@@ -140,13 +148,17 @@ pub(crate) struct Quoted {
     pub expiry: i64,
 }
 
-pub(crate) fn quote(api: &Api, window: &str, side: &str, now: i64) -> Result<Quoted, Refusal> {
+/// A Window the lane rules list, as stored (written now when the minute's work hasn't yet).
+fn listed_window(
+    api: &Api,
+    window: &str,
+    now: i64,
+) -> Result<(&'static str, rt_store::WindowRow), Refusal> {
     let (lane, w) = lanes::parse_window_id(window)
         .ok_or_else(|| refuse(KAKURE_BAD_REQUEST, "no such Window"))?;
     let (current, next) = lane.current_and_next(now);
     let store = api.store.lock().map_err(internal)?;
-    let row = rt_store::window(&store.conn, window).map_err(internal)?;
-    let row = match row {
+    let row = match rt_store::window(&store.conn, window).map_err(internal)? {
         Some(row) => row,
         // Listed by the lane rules but not written yet (the minute's work runs at +7 s).
         None if w.id == current.id || w.id == next.id => {
@@ -157,59 +169,140 @@ pub(crate) fn quote(api: &Api, window: &str, side: &str, now: i64) -> Result<Quo
         }
         None => return Err(refuse(KAKURE_NOT_TRADING, "this Window isn't listed yet")),
     };
-    drop(store);
-    let phase = fair::window_phase(
+    Ok((lane.asset, row))
+}
+
+/// The asset's relay price now and its published σ.
+fn spot_and_sigma(api: &Api, asset: &str, now: i64) -> Result<(f64, f64), Refusal> {
+    let spot = api.prices.spot(asset, now * 1_000).map_err(|e| match e {
+        NoPrice::Silent => refuse(KAKURE_NO_PRICE, "the price stream is quiet; try again"),
+        NoPrice::Stale => refuse(KAKURE_NO_PRICE, "this price is stale; try again"),
+    })?;
+    let sigma: f64 = api
+        .sigma
+        .lock()
+        .map_err(internal)?
+        .get(asset)
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| refuse(KAKURE_NO_PRICE, "no σ for this asset yet"))?;
+    Ok((spot, sigma))
+}
+
+fn phase_of(row: &rt_store::WindowRow, now: i64) -> Phase {
+    fair::window_phase(
         row.start,
         row.expiry,
         row.reference.is_some(),
         row.outcome.is_some(),
         now,
-    );
+    )
+}
+
+fn riding_or_settled(phase: Phase) -> Option<Refusal> {
+    match phase {
+        Phase::Riding => Some(refuse(
+            KAKURE_NOT_TRADING,
+            "this Window is in its last 30 seconds: positions ride to the close",
+        )),
+        Phase::Settled => Some(refuse(KAKURE_NOT_TRADING, "this Window has settled")),
+        _ => None,
+    }
+}
+
+pub(crate) fn quote(api: &Api, window: &str, side: &str, now: i64) -> Result<Quoted, Refusal> {
+    let (asset, row) = listed_window(api, window, now)?;
+    let phase = phase_of(&row, now);
+    if let Some(refusal) = riding_or_settled(phase) {
+        return Err(refusal);
+    }
     let p_up = match phase {
         Phase::Pre => PRE_OPEN_PROBABILITY,
-        Phase::Live => {
-            let reference: f64 = row
-                .reference
-                .as_deref()
-                .and_then(|r| r.parse().ok())
-                .ok_or_else(|| refuse(KAKURE_NOT_TRADING, "no reference yet"))?;
-            let spot = api
-                .prices
-                .spot(lane.asset, now * 1_000)
-                .map_err(|e| match e {
-                    NoPrice::Silent => {
-                        refuse(KAKURE_NO_PRICE, "the price stream is quiet; try again")
-                    }
-                    NoPrice::Stale => refuse(KAKURE_NO_PRICE, "this price is stale; try again"),
-                })?;
-            let sigma: f64 = api
-                .sigma
-                .lock()
-                .map_err(internal)?
-                .get(lane.asset)
-                .and_then(|s| s.parse().ok())
-                .ok_or_else(|| refuse(KAKURE_NO_PRICE, "no σ for this asset yet"))?;
-            fair::fair_up(spot, reference, sigma, row.expiry - now)
-                .ok_or_else(|| refuse(KAKURE_NO_PRICE, "no price"))?
-        }
         Phase::Opening => {
             return Err(refuse(
                 KAKURE_NOT_TRADING,
                 "this Window is opening; its reference lands in a few seconds",
             ));
         }
-        Phase::Riding => {
-            return Err(refuse(
-                KAKURE_NOT_TRADING,
-                "this Window is in its last 30 seconds: positions ride to the close",
-            ));
+        _ => {
+            let reference: f64 = row
+                .reference
+                .as_deref()
+                .and_then(|r| r.parse().ok())
+                .ok_or_else(|| refuse(KAKURE_NOT_TRADING, "no reference yet"))?;
+            let (spot, sigma) = spot_and_sigma(api, asset, now)?;
+            fair::fair_up(spot, reference, sigma, row.expiry - now)
+                .ok_or_else(|| refuse(KAKURE_NO_PRICE, "no price"))?
         }
-        Phase::Settled => return Err(refuse(KAKURE_NOT_TRADING, "this Window has settled")),
     };
     Ok(Quoted {
         quote: fair::quote_side(fair::side_probability(p_up, side)),
         expiry: row.expiry,
     })
+}
+
+/// A band side's live quote: its edges are absolute, so it trades while its Window is pre-listed,
+/// opening or live, on the live price and the time to expiry.
+pub(crate) fn band_quote(
+    api: &Api,
+    window: &str,
+    band: &Band,
+    side: &str,
+    now: i64,
+) -> Result<Quoted, Refusal> {
+    let (asset, row) = listed_window(api, window, now)?;
+    if let Some(refusal) = riding_or_settled(phase_of(&row, now)) {
+        return Err(refusal);
+    }
+    let (spot, sigma) = spot_and_sigma(api, asset, now)?;
+    let edge = |e: &Option<String>| e.as_deref().and_then(|v| v.parse::<f64>().ok());
+    let p_in = fair::band_in_probability(
+        spot,
+        edge(&band.lo),
+        edge(&band.hi),
+        sigma,
+        row.expiry - now,
+    )
+    .ok_or_else(|| refuse(KAKURE_NO_PRICE, "no price"))?;
+    Ok(Quoted {
+        quote: fair::quote_side(fair::band_side_probability(p_in, side)),
+        expiry: row.expiry,
+    })
+}
+
+/// A band's edges: at least one, each a positive decimal of at most 8 places, `lo < hi` with both.
+fn check_band(band: &Band, side: &str) -> Result<(), Refusal> {
+    if side != "in" && side != "out" {
+        return Err(refuse(KAKURE_BAD_REQUEST, "a band's side is in or out"));
+    }
+    let edge = |e: &Option<String>| -> Result<(), Refusal> {
+        let Some(value) = e else { return Ok(()) };
+        let (whole, places) = value.split_once('.').unwrap_or((value, ""));
+        let digits = |d: &str| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit());
+        let positive = value.parse::<f64>().is_ok_and(|v| v > 0.0);
+        if digits(whole)
+            && (places.is_empty() || (digits(places) && places.len() <= MAX_EDGE_PLACES))
+            && positive
+        {
+            Ok(())
+        } else {
+            Err(refuse(
+                KAKURE_BAD_REQUEST,
+                "a band edge is a positive decimal",
+            ))
+        }
+    };
+    edge(&band.lo)?;
+    edge(&band.hi)?;
+    match (&band.lo, &band.hi) {
+        (None, None) => Err(refuse(KAKURE_BAD_REQUEST, "a band needs an edge")),
+        (Some(lo), Some(hi)) if settle::cmp_decimal(lo, hi) != Some(std::cmp::Ordering::Less) => {
+            Err(refuse(
+                KAKURE_BAD_REQUEST,
+                "a band's low edge is under its high edge",
+            ))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// The stake a request pays: its inputs less the change it asks back. Verifies the inputs.
@@ -309,6 +402,7 @@ pub fn trade(api: &Api, request: TradeRequest, cache: Option<&str>) -> Answer {
         exit: None,
         exit_outputs: None,
         exit_signatures: None,
+        band: None,
     };
     let answer = json!({
         "position": certificate(api, &position)?,
@@ -323,6 +417,83 @@ pub fn trade(api: &Api, request: TradeRequest, cache: Option<&str>) -> Answer {
                 "this side of the Window is full; try a smaller stake or another Window",
             ));
         }
+        positions::insert(tx, &position).map_err(internal)
+    })?;
+    Ok(answer)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BandRequest {
+    window: String,
+    #[serde(default)]
+    lo: Option<String>,
+    #[serde(default)]
+    hi: Option<String>,
+    side: String,
+    inputs: Vec<Proof>,
+    #[serde(default)]
+    change: Vec<BlindedMessage>,
+    max_ask_e4: u64,
+    lock: String,
+}
+
+/// Buys a band side (Range, Moonshot): the close inside [lo, hi], or outside it.
+pub fn band(api: &Api, request: BandRequest, cache: Option<&str>) -> Answer {
+    let band = Band {
+        lo: request.lo,
+        hi: request.hi,
+    };
+    check_band(&band, &request.side)?;
+    if !is_hex(&request.lock, SECRET_HEX) {
+        return Err(refuse(KAKURE_BAD_REQUEST, "bad lock"));
+    }
+    let now = now();
+    let quoted = band_quote(api, &request.window, &band, &request.side, now)?;
+    let ask = quoted.quote.ask_e4.ok_or_else(|| {
+        refuse(
+            KAKURE_NOT_OFFERED,
+            "this band is all but decided: it isn't offered now",
+        )
+    })?;
+    if ask > request.max_ask_e4 {
+        return Err(refuse(
+            KAKURE_PRICE_MOVED,
+            format!("the price moved to {ask}/10000, past your limit"),
+        ));
+    }
+    let (ys, stake) = stake_of(api, &request.inputs, &request.change)?;
+    let payout = fair::payout_zat(stake, ask);
+    if payout > api.caps.max_band_payout {
+        return Err(refuse(
+            KAKURE_OVER_CAP,
+            "that band pays more than the cap; lower the stake",
+        ));
+    }
+    let position = Position {
+        id: random_id()?,
+        kind: Kind::Band,
+        window: Some(request.window.clone()),
+        side: Some(request.side.clone()),
+        legs: vec![],
+        stake_zat: stake,
+        price: ask,
+        payout_zat: payout,
+        lock: request.lock,
+        opened_at: now,
+        state: "open".into(),
+        paid_zat: None,
+        how: None,
+        exit: None,
+        exit_outputs: None,
+        exit_signatures: None,
+        band: Some(band),
+    };
+    let answer = json!({
+        "position": certificate(api, &position)?,
+        "change": sign_change(api, &request.change)?,
+    });
+    spend_and(api, &ys, cache.map(|k| (k, &answer)), |tx| {
         positions::insert(tx, &position).map_err(internal)
     })?;
     Ok(answer)
@@ -418,6 +589,7 @@ pub fn parlay(api: &Api, request: ParlayRequest, cache: Option<&str>) -> Answer 
         exit: None,
         exit_outputs: None,
         exit_signatures: None,
+        band: None,
     };
     let answer = json!({
         "position": certificate(api, &position)?,
@@ -457,16 +629,24 @@ fn live(position: &Position) -> Result<(), Refusal> {
 pub fn close(api: &Api, request: CloseRequest, cache: Option<&str>) -> Answer {
     let position = owned(api, &request.position, &request.secret)?;
     live(&position)?;
-    let (Kind::Single, Some(window), Some(side)) =
-        (position.kind, &position.window, &position.side)
-    else {
+    let (Some(window), Some(side)) = (&position.window, &position.side) else {
         return Err(refuse(
             KAKURE_BAD_REQUEST,
             "a parlay can't be sold back; it rides",
         ));
     };
     let now = now();
-    let bid = quote(api, window, side, now)?.quote.bid_e4.ok_or_else(|| {
+    let quoted = match (position.kind, &position.band) {
+        (Kind::Band, Some(band)) => band_quote(api, window, band, side, now)?,
+        (Kind::Single, _) => quote(api, window, side, now)?,
+        _ => {
+            return Err(refuse(
+                KAKURE_BAD_REQUEST,
+                "a parlay can't be sold back; it rides",
+            ));
+        }
+    };
+    let bid = quoted.quote.bid_e4.ok_or_else(|| {
         refuse(
             KAKURE_NOT_OFFERED,
             "the bid is under 0.02: this position can't be closed now; it rides",
@@ -538,6 +718,38 @@ pub(crate) fn settled_value(api: &Api, position: &Position) -> Result<Option<u64
                 } else {
                     0
                 }
+            }))
+        }
+        Kind::Band => {
+            let (Some(window), Some(side), Some(band)) =
+                (&position.window, &position.side, &position.band)
+            else {
+                return Err(internal("a band without its Window or edges"));
+            };
+            let Some(row) = rt_store::window(&store.conn, window).map_err(internal)? else {
+                return Ok(None);
+            };
+            if row.outcome.is_none() {
+                return Ok(None);
+            }
+            let asset = lanes::asset(&row.asset).ok_or_else(|| internal("an unknown asset"))?;
+            let closing = row
+                .closing
+                .as_deref()
+                .map(settle::prints_from_json)
+                .unwrap_or_default();
+            let outcome = settle::band_outcome_of(
+                &settle::venue_keys(asset),
+                &closing,
+                band.lo.as_deref(),
+                band.hi.as_deref(),
+            );
+            Ok(Some(if outcome == side {
+                position.payout_zat
+            } else if outcome == "refund" {
+                position.stake_zat
+            } else {
+                0
             }))
         }
         Kind::Parlay => {

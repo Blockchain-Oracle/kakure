@@ -180,7 +180,7 @@ impl Realtime {
             let Some(asset) = lanes::asset(&row.asset) else {
                 continue;
             };
-            let keys = venue_keys(asset);
+            let keys = settle::venue_keys(asset);
             let mut reference = row.reference.clone();
             if !row.opening_final {
                 let (prints, committed) = gather(conn, asset, row.start - MINUTE_SECS)?;
@@ -207,7 +207,7 @@ impl Realtime {
                 continue;
             }
             let opening = match (&row.opening, row.opening_final) {
-                (Some(json), true) => prints_from_json(json),
+                (Some(json), true) => settle::prints_from_json(json),
                 _ => gather(conn, asset, row.start - MINUTE_SECS)?.0,
             };
             let outcome = if reference.is_none() {
@@ -292,7 +292,7 @@ impl Realtime {
                     "asset": lane.asset,
                     "cadenceSec": lane.cadence,
                     "phaseSec": lane.phase,
-                    "venues": venue_keys(asset),
+                    "venues": settle::venue_keys(asset),
                 })
             })
             .collect();
@@ -389,10 +389,6 @@ impl Realtime {
     }
 }
 
-fn venue_keys(asset: &LaneAsset) -> Vec<&'static str> {
-    asset.venues.iter().map(|p| p.venue.key()).collect()
-}
-
 /// Each venue's print for the minute starting at `start`, and the venues that have committed it.
 fn gather(
     conn: &rusqlite::Connection,
@@ -411,22 +407,6 @@ fn gather(
         }
     }
     Ok((prints, committed))
-}
-
-fn prints_from_json(json: &str) -> Prints {
-    let map: Map<String, Value> = serde_json::from_str(json).unwrap_or_default();
-    [
-        venues::Venue::Coinbase,
-        venues::Venue::Kraken,
-        venues::Venue::Bitstamp,
-        venues::Venue::Gemini,
-    ]
-    .iter()
-    .filter_map(|venue| {
-        map.get(venue.key())
-            .map(|v| (venue.key(), v.as_str().map(str::to_string)))
-    })
-    .collect()
 }
 
 /// A Window as published, with its activity once at least `VOLUME_GROUP` trades opened on it.

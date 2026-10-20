@@ -10,7 +10,7 @@
 //! - `POST /v1/swap`: chips for chips of the same total (NUT-03);
 //! - `POST /v1/checkstate`: spent or not, by `Y` (NUT-07);
 //! - `POST /v1/melt/zcash`: chips for a shielded withdrawal at a random time (NUT-05 shape);
-//! - trading (`trading.rs`): `/v1/trade`, `/v1/parlay`, `/v1/close`, `/v1/redeem`, `/v1/exit`,
+//! - trading (`trading.rs`): `/v1/trade`, `/v1/parlay`, `/v1/band`, `/v1/close`, `/v1/redeem`, `/v1/exit`,
 //!   `/v1/position`.
 //!
 //! Every spend checks the chips' signatures, then marks them spent and records its effect in one
@@ -150,12 +150,13 @@ fn cache_key(inner: &Inner) -> String {
 }
 
 /// Requests whose success is cached (NUT-19): resending one returns the first answer.
-const CACHED: [&str; 8] = [
+const CACHED: [&str; 9] = [
     "/v1/mint/zcash",
     "/v1/swap",
     "/v1/melt/zcash",
     "/v1/trade",
     "/v1/parlay",
+    "/v1/band",
     "/v1/close",
     "/v1/redeem",
     "/v1/exit",
@@ -185,6 +186,7 @@ fn route(api: &Api, inner: Inner) -> Reply {
         ("POST", "/v1/melt/zcash") => body(&inner.body).and_then(|r| withdraw(api, r, key)),
         ("POST", "/v1/trade") => body(&inner.body).and_then(|r| trading::trade(api, r, key)),
         ("POST", "/v1/parlay") => body(&inner.body).and_then(|r| trading::parlay(api, r, key)),
+        ("POST", "/v1/band") => body(&inner.body).and_then(|r| trading::band(api, r, key)),
         ("POST", "/v1/close") => body(&inner.body).and_then(|r| trading::close(api, r, key)),
         ("POST", "/v1/redeem") => body(&inner.body).and_then(|r| trading::redeem(api, r, key)),
         ("POST", "/v1/exit") => body(&inner.body).and_then(|r| trading::exit(api, r, key)),

@@ -8,6 +8,10 @@
 
 use std::cmp::Ordering;
 
+use serde_json::{Map, Value};
+
+use crate::{lanes::LaneAsset, venues};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Vote {
     Up,
@@ -100,6 +104,63 @@ pub fn outcome_of(venues: &[&'static str], opening: &Prints, closing: &Prints) -
     majority(&votes).unwrap_or("refund")
 }
 
+/// The venues an asset's Windows vote with, in vote order.
+pub fn venue_keys(asset: &LaneAsset) -> Vec<&'static str> {
+    asset.venues.iter().map(|p| p.venue.key()).collect()
+}
+
+/// A Window's stored prints (`{venue: price | null}`) back as `Prints`.
+pub fn prints_from_json(json: &str) -> Prints {
+    let map: Map<String, Value> = serde_json::from_str(json).unwrap_or_default();
+    [
+        venues::Venue::Coinbase,
+        venues::Venue::Kraken,
+        venues::Venue::Bitstamp,
+        venues::Venue::Gemini,
+    ]
+    .iter()
+    .filter_map(|venue| {
+        map.get(venue.key())
+            .map(|v| (venue.key(), v.as_str().map(str::to_string)))
+    })
+    .collect()
+}
+
+/// One venue's band vote: `Some(true)` when its closing print is inside [lo, hi] (edges inclusive,
+/// a missing edge unbounded), `Some(false)` outside, `None` without a print.
+pub fn band_vote(close: Option<&str>, lo: Option<&str>, hi: Option<&str>) -> Option<bool> {
+    let close = close?;
+    let above_lo = match lo {
+        Some(lo) => cmp_decimal(close, lo)? != Ordering::Less,
+        None => true,
+    };
+    let below_hi = match hi {
+        Some(hi) => cmp_decimal(close, hi)? != Ordering::Greater,
+        None => true,
+    };
+    Some(above_lo && below_hi)
+}
+
+/// `in`, `out` or `refund` for a band: two of three venues' closes decide, as for Up/Down.
+pub fn band_outcome_of(
+    venues: &[&'static str],
+    closing: &Prints,
+    lo: Option<&str>,
+    hi: Option<&str>,
+) -> &'static str {
+    let votes: Vec<Option<bool>> = venues
+        .iter()
+        .map(|v| band_vote(print_of(closing, v), lo, hi))
+        .collect();
+    if votes.iter().filter(|v| **v == Some(true)).count() >= 2 {
+        "in"
+    } else if votes.iter().filter(|v| **v == Some(false)).count() >= 2 {
+        "out"
+    } else {
+        "refund"
+    }
+}
+
 /// The line the price formula uses: the median opening print with trades, the lower middle one
 /// when there are two (always a price a venue printed). `None` with no print at all.
 pub fn reference_of(venues: &[&'static str], opening: &Prints) -> Option<String> {
@@ -122,6 +183,22 @@ mod tests {
             .iter()
             .filter_map(|v| value.get(*v).map(|p| (*v, p.as_str().map(str::to_string))))
             .collect()
+    }
+
+    #[test]
+    fn band_outcomes_match_the_typescript() {
+        let fair: Value =
+            serde_json::from_str(include_str!("../../../packages/domain/fixtures/fair.json"))
+                .unwrap();
+        for case in fair["bandVotes"].as_array().unwrap() {
+            let outcome = band_outcome_of(
+                &VENUES,
+                &prints(&case["closing"]),
+                case["lo"].as_str(),
+                case["hi"].as_str(),
+            );
+            assert_eq!(outcome, case["outcome"].as_str().unwrap(), "{case}");
+        }
     }
 
     #[test]
