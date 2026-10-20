@@ -284,6 +284,7 @@ impl Store {
         conn.execute_batch(SCHEMA)?;
         // The real-time market's tables (plan §00), so either runtime can push every file.
         crate::rt_store::migrate(&conn)?;
+        crate::positions::migrate(&conn)?;
         // S03 columns on markets created by S02 builds.
         for (column, ty) in [
             ("cutoff_hash", "TEXT"),

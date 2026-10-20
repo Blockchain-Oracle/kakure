@@ -2,6 +2,7 @@ export * from "./bundle";
 export * from "./bundle-v2";
 export * from "./constants";
 export { fromBase64Url, toBase64Url, toHex, utf8 } from "./encoding";
+export * from "./fair";
 export * from "./lanes";
 export * from "./memo";
 export * from "./payout";

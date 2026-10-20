@@ -27,11 +27,11 @@ import { IV_BYTES, KDF_ITERATIONS, KEY_BITS, passphraseKey, SALT_BYTES } from ".
  *   non-extractable key, when you unlock; closing the tab or "Lock now" forgets it. Someone with this browser's
  *   files then sees only ciphertext.
  */
-export type EntryType = "ticket" | "chip" | "deposit" | "spend";
+export type EntryType = "ticket" | "chip" | "deposit" | "spend" | "position";
 
 export interface Entry<T = unknown> {
   type: EntryType;
-  /** Unique within its type and network: a ticket's hash, a chip's `Y`, a deposit's id, a spend's id. */
+  /** Unique within its type and network: a ticket's hash, a chip's `Y`, a deposit's id, a spend's id, a position's lock. */
   key: string;
   value: T;
 }

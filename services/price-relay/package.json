@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@kakure/domain": "workspace:*",
     "@kakure/feeds": "workspace:*"
   },
   "devDependencies": {

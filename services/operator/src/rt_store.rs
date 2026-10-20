@@ -98,14 +98,18 @@ pub struct WindowRow {
     pub start: i64,
     pub expiry: i64,
     pub opening: Option<String>,
+    /// Every venue's opening print is in (or the grace passed): `opening` won't change again.
+    pub opening_final: bool,
+    /// The venues the reference was taken from (JSON array): the ones committed when it was set.
+    pub reference_venues: Option<String>,
     pub reference: Option<String>,
     pub closing: Option<String>,
     pub outcome: Option<String>,
     pub settled_at: Option<i64>,
 }
 
-const WINDOW_COLUMNS: &str =
-    "id, asset, start, expiry, opening, reference, closing, outcome, settled_at";
+const WINDOW_COLUMNS: &str = "id, asset, start, expiry, opening, reference, closing, outcome, settled_at, opening_final, \
+     reference_venues";
 
 fn window_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<WindowRow> {
     Ok(WindowRow {
@@ -118,11 +122,29 @@ fn window_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<WindowRow> {
         closing: r.get(6)?,
         outcome: r.get(7)?,
         settled_at: r.get(8)?,
+        opening_final: r.get::<_, i64>(9)? != 0,
+        reference_venues: r.get(10)?,
     })
 }
 
 pub fn migrate(conn: &Connection) -> Result<()> {
     conn.execute_batch(SCHEMA)?;
+    // T3: the reference is recorded from the first two venues, the opening prints completed later.
+    let has_final: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('rt_windows') WHERE name = 'opening_final'")?
+        .exists([])?;
+    if !has_final {
+        conn.execute_batch(
+            "ALTER TABLE rt_windows ADD COLUMN opening_final INTEGER NOT NULL DEFAULT 0;
+             UPDATE rt_windows SET opening_final = 1 WHERE opening IS NOT NULL;",
+        )?;
+    }
+    let has_venues: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('rt_windows') WHERE name = 'reference_venues'")?
+        .exists([])?;
+    if !has_venues {
+        conn.execute_batch("ALTER TABLE rt_windows ADD COLUMN reference_venues TEXT;")?;
+    }
     Ok(())
 }
 
@@ -236,15 +258,25 @@ pub fn expiring_between(conn: &Connection, from: i64, to: i64) -> Result<Vec<Win
     Ok(rows)
 }
 
+/// Records a Window's opening prints so far. The reference (and the venues it was taken from) is
+/// written once, the first time it is known, and never moves; the prints keep filling in until
+/// `last`.
 pub fn set_opening(
     conn: &Connection,
     id: &str,
     opening: &Prints,
-    reference: Option<&str>,
+    reference: Option<(&str, &[&str])>,
+    last: bool,
 ) -> Result<()> {
+    let (reference, venues) = match reference {
+        Some((r, v)) => (Some(r), Some(serde_json::to_string(v)?)),
+        None => (None, None),
+    };
     conn.execute(
-        "UPDATE rt_windows SET opening = ?2, reference = ?3 WHERE id = ?1 AND opening IS NULL",
-        params![id, prints_json(opening), reference],
+        "UPDATE rt_windows SET opening = ?2, reference = COALESCE(reference, ?3),
+             reference_venues = COALESCE(reference_venues, ?5), opening_final = ?4
+         WHERE id = ?1 AND opening_final = 0",
+        params![id, prints_json(opening), reference, i64::from(last), venues],
     )?;
     Ok(())
 }

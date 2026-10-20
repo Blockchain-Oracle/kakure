@@ -36,7 +36,10 @@ secrecy = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-tokio = { version = "1.21", features = ["fs", "macros", "rt-multi-thread", "time"] }
+tokio = { version = "1.21", features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
+# The price relay's stream (the house quotes on the ticks the chart draws); rustls on the ring
+# provider main installs, no second crypto provider.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 tonic = { version = "0.14", features = ["tls-webpki-roots"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }

@@ -175,6 +175,7 @@ function Row({ label, detail, children }: { label: string; detail?: string; chil
 function describe(summary: BackupSummary, coin: string): string {
   const parts = [
     summary.chips > 0 ? `${zatToZec(BigInt(summary.chipZat))} ${coin} in chips` : null,
+    summary.positions > 0 ? `${summary.positions} position${summary.positions === 1 ? "" : "s"}` : null,
     summary.tickets > 0 ? `${summary.tickets} ticket${summary.tickets === 1 ? "" : "s"}` : null,
     summary.inFlight > 0 ? `${summary.inFlight} deposit${summary.inFlight === 1 ? "" : "s"} or spends in flight` : null,
   ].filter((part) => part !== null);

@@ -46,6 +46,9 @@ export interface PendingOutputs {
 
 const SECRET_BYTES = 32;
 const KEYSET_VERSION_V2 = "01";
+/** A 1-2-5 split needs at most three chips per decade (e.g. 9 = 5 + 2 + 2). */
+const CHIPS_PER_DECADE = 3;
+const DECADE = 10;
 
 /**
  * NUT-02 keyset ID v2: `01` ‖ SHA-256("amount:pubkey,…|unit:<unit>[|input_fee_ppk:<n>][|final_expiry:<t>]"), keys
@@ -125,6 +128,57 @@ export function finishOutputs(keyset: Keyset, pending: PendingOutputs, signature
     }
     return { amount: signature.amount, id: keyset.id, secret, C: unblind(signature.C_, r, key) };
   });
+}
+
+/**
+ * Blank outputs (NUT-08 style) for proceeds the mint values: a close, a redeem, an exit that fires later. Each is a fresh
+ * blinded secret with no amount; the mint signs the value's 1-2-5 split onto the first ones and leaves the rest.
+ */
+export function prepareBlank(keyset: Keyset, count: number): PendingOutputs {
+  const pending: PendingOutputs = { outputs: [], secrets: [], rs: [] };
+  for (let i = 0; i < count; i++) {
+    const secret = newSecret();
+    const { B_, r } = blind(utf8ToBytes(secret));
+    pending.outputs.push({ amount: 0, id: keyset.id, B_ });
+    pending.secrets.push(secret);
+    pending.rs.push(r);
+  }
+  return pending;
+}
+
+/** How many blank outputs a value up to `max` may need: three per decade from the smallest chip (as the mint counts). */
+export function blankCount(keyset: Keyset, max: number): number {
+  const smallest = Math.min(...Object.keys(keyset.keys).map(Number));
+  let count = 0;
+  for (let unit = smallest; unit <= max; unit *= DECADE) count += CHIPS_PER_DECADE;
+  return count;
+}
+
+/**
+ * The mint's signatures on blank outputs → chips. It signs the first outputs in order, any amount of the keyset; each
+ * must carry a DLEQ proof against the published key for its amount, and together they must make `value`.
+ */
+export function finishBlank(
+  keyset: Keyset,
+  pending: PendingOutputs,
+  signatures: readonly BlindSignature[],
+  value: number,
+): Proof[] {
+  if (signatures.length > pending.outputs.length) throw new Error("the mint signed more outputs than were sent");
+  const chips = signatures.map((signature, i) => {
+    const output = pending.outputs[i];
+    const secret = pending.secrets[i];
+    const r = pending.rs[i];
+    const key = keyset.keys[String(signature.amount)];
+    if (!output || secret === undefined || r === undefined || !key) throw new Error("unexpected signature");
+    if (signature.id !== keyset.id) throw new Error("signature mismatch");
+    if (!signature.dleq || !verifyDleq(signature.dleq, output.B_, signature.C_, key)) {
+      throw new Error("a signature's DLEQ proof failed: the mint didn't sign with its published key");
+    }
+    return { amount: signature.amount, id: keyset.id, secret, C: unblind(signature.C_, r, key) };
+  });
+  if (total(chips) !== value) throw new Error("the signed chips don't add up to the value");
+  return chips;
 }
 
 /** `Y = hash_to_curve(secret)` (compressed hex): the chip's key in the mint's spent set (NUT-07). */

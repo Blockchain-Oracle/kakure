@@ -1,4 +1,10 @@
-/** Coinbase Exchange public feed; `ticker_batch` sends each product's latest price every 5 s (fits the free plan). */
+import { LANE_ASSETS } from "@kakure/domain";
+import type { StreamSymbol } from "@kakure/feeds/protocol";
+/**
+ * Coinbase Exchange public feed. The traded assets (every lane asset) take `ticker`: one message per trade, as Owarine's
+ * ops (`prices/crypto-spot.ts`), so the chart and the house's quotes move with the market. The rest (sparklines only)
+ * take `ticker_batch`: each product's latest price every 5 s.
+ */
 export const COINBASE_WS = "https://ws-feed.exchange.coinbase.com";
 /** Coinbase Exchange public REST, for history backfill (candles). */
 export const COINBASE_REST = "https://api.exchange.coinbase.com";
@@ -7,7 +13,8 @@ export const KRAKEN_WS = "https://ws.kraken.com/v2";
 
 /**
  * Per-symbol fallback: a symbol with no Coinbase tick for this long takes Kraken's price until Coinbase speaks again.
- * Coinbase's `ticker_batch` repeats every product every 5 s, so two missed batches mean that symbol is silent.
+ * `ticker_batch` repeats every product every 5 s, so two missed batches mean that symbol is silent; a traded asset on
+ * `ticker` that hasn't traded for this long is quiet enough that Kraken's last trade is as current.
  */
 export const SILENT_AFTER_MS = 12_000;
 
@@ -19,8 +26,10 @@ export const ONE_MINUTE_BARS_KEPT = 300;
 /** Coinbase candle granularities (seconds) matching the two bar sizes; one request returns up to 300 candles. */
 export const FIVE_MINUTE_GRANULARITY_S = 300;
 export const ONE_MINUTE_GRANULARITY_S = 60;
-/** 1-minute history is backfilled only for assets with markets; the rest fill from live ticks. */
-export const MINUTE_BACKFILL_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "ZEC-USD"] as const;
+/** The traded assets' streams: every lane asset (the markets' list in @kakure/domain, never a copy of it). */
+export const LANE_STREAM_SYMBOLS: readonly StreamSymbol[] = LANE_ASSETS.map((asset) => `${asset}-USD` as const);
+/** 1-minute history is backfilled for every traded asset; the rest fill from live ticks. */
+export const MINUTE_BACKFILL_SYMBOLS = LANE_STREAM_SYMBOLS;
 /** Parallel candle requests during a backfill (Coinbase's public limit is about 10 per second). */
 export const BACKFILL_CONCURRENCY = 4;
 /** The bars response may be cached this long by browsers and the edge. */

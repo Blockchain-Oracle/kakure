@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 import { NETWORK_COIN } from "@/constants";
 import { PayoutAddressField, usePayoutAddress } from "@/features/bet/payout-address";
 import { MINT_CODES, MintError } from "./api";
-import { useWallet, withdraw } from "./wallet-store";
+import { withdraw, withdrawable } from "./spending";
+import { useWallet } from "./wallet-store";
 
 /**
  * Withdraw (plan §00): chips back to a fresh shielded address. The mint marks the chips spent and schedules the
@@ -51,7 +52,8 @@ export function WithdrawSheet({
   const minZat = Number(trading.minWithdrawZat);
   const minText = `${zatToZec(BigInt(minZat))} ${coin}`;
   const sizes = TICKET_SIZES_ZAT.map(Number).filter((zat) => zat >= minZat && zat <= wallet.balanceZat);
-  const zat = amount.kind === "all" ? wallet.balanceZat : amount.zat;
+  const all = withdrawable(wallet.balanceZat);
+  const zat = amount.kind === "all" ? all : amount.zat;
   const ready = address.verdict === "ok" && zat >= minZat && zat <= wallet.balanceZat && !busy;
 
   const submit = async () => {
@@ -113,7 +115,7 @@ export function WithdrawSheet({
           <>
             <ChipGroup label="Amount">
               <Chip selected={amount.kind === "all"} onClick={() => setAmount({ kind: "all" })}>
-                All · {zatToZec(BigInt(wallet.balanceZat))} {coin}
+                All · {zatToZec(BigInt(all))} {coin}
               </Chip>
               {sizes.map((size) => (
                 <Chip

@@ -27,6 +27,15 @@ export const MINT_CODES = {
   depositShort: 20_001,
   badAddress: 20_002,
   tooSmall: 20_003,
+  /** Trading (services/operator/src/trading.rs). */
+  notTrading: 20_010,
+  notOffered: 20_011,
+  priceMoved: 20_012,
+  noPrice: 20_013,
+  overCap: 20_014,
+  unknownPosition: 20_015,
+  paid: 20_016,
+  notSettled: 20_017,
 } as const;
 
 export async function mintCall<T>(

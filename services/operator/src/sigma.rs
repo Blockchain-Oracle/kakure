@@ -1,61 +1,67 @@
-//! σ for the price formula (plan §00 REVAMP 2): each lane asset's annualised realised volatility
-//! from the price relay's last 5 hours of 1-minute closes (`/v1/bars`, the same history every
-//! visitor's chart draws), clamped to `[SIGMA_MIN, SIGMA_MAX]` and published with 4 decimals in
-//! every bundle, so anyone can recompute a quote. Mirrors `@kakure/domain` constants.
+//! σ for the price formula (plan §00 T3 contract): each lane asset's annualised realised
+//! volatility from the 1-minute closes of its first voting venue (Coinbase) over the last
+//! `SIGMA_WINDOW_MINUTES`, as the operator committed them, clamped to `[SIGMA_MIN, SIGMA_MAX]` and
+//! published with 4 decimals in every bundle. Those closes are the ones the hourly prints files
+//! publish, signed, so anyone can recompute σ, and with it any quote. Mirrors `@kakure/domain`.
 
 use std::collections::BTreeMap;
 
-use anyhow::{Result, anyhow};
-use serde_json::Value;
+use anyhow::Result;
+use rusqlite::Connection;
 
-use crate::lanes::LANE_ASSETS;
+use crate::{lanes::LANE_ASSETS, minutes::MINUTE_SECS, rt_store};
 
 pub const SIGMA_MINUTES_PER_YEAR: f64 = 525_600.0;
 pub const SIGMA_MIN: f64 = 0.2;
 pub const SIGMA_MAX: f64 = 2.5;
-/// Fewer 1-minute returns than this and σ isn't re-estimated (the last value stands).
+/// Fewer 1-minute returns than this and σ isn't estimated (the last value stands).
 pub const SIGMA_MIN_RETURNS: usize = 60;
 pub const SIGMA_DECIMALS: usize = 4;
-/// The relay's public bars (PD19: every symbol in one response).
-pub const BARS_URL: &str = "https://kakure-prices.kakure-price-relay.workers.dev/v1/bars";
+/// σ is realised over this many minutes (five hours).
+pub const SIGMA_WINDOW_MINUTES: i64 = 300;
 
-/// σ per ticker, as published (4-decimal strings), for every asset with enough history.
-pub async fn estimate(http: &reqwest::Client) -> Result<BTreeMap<&'static str, String>> {
-    let text = http
-        .get(BARS_URL)
-        .send()
-        .await?
-        .error_for_status()?
-        .text()
-        .await?;
-    let body: Value = serde_json::from_str(&text)?;
-    let one_minute = body["oneMinute"]
-        .as_object()
-        .ok_or_else(|| anyhow!("bars: no oneMinute"))?;
+/// σ per ticker, as published (4-decimal strings), for every asset with enough history: the
+/// returns between consecutive minutes that both traded on the first venue, over the window
+/// ending at the last committed minute before `now`.
+pub fn from_closes(conn: &Connection, now: i64) -> Result<BTreeMap<&'static str, String>> {
+    let to = now.div_euclid(MINUTE_SECS) * MINUTE_SECS;
+    let from = to - SIGMA_WINDOW_MINUTES * MINUTE_SECS;
     let mut out = BTreeMap::new();
     for asset in &LANE_ASSETS {
-        let Some(points) = one_minute
-            .get(&format!("{}-USD", asset.ticker))
-            .and_then(Value::as_array)
-        else {
-            continue;
-        };
-        let closes: Vec<f64> = points
-            .iter()
-            .filter_map(|p| p.get(1)?.as_str()?.parse::<f64>().ok())
-            .filter(|p| *p > 0.0)
-            .collect();
-        if let Some(sigma) = annualised(&closes) {
+        let venue = asset.venues[0].venue.key();
+        let rows = rt_store::minutes_between(conn, asset.ticker, venue, from, to)?;
+        let mut returns = Vec::with_capacity(rows.len());
+        for pair in rows.windows(2) {
+            let ((t0, Some(a)), (t1, Some(b))) = (&pair[0], &pair[1]) else {
+                continue;
+            };
+            if t1 - t0 != MINUTE_SECS {
+                continue;
+            }
+            if let (Ok(a), Ok(b)) = (a.parse::<f64>(), b.parse::<f64>())
+                && a > 0.0
+                && b > 0.0
+            {
+                returns.push((b / a).ln());
+            }
+        }
+        if let Some(sigma) = annualised_returns(&returns) {
             out.insert(asset.ticker, format!("{sigma:.SIGMA_DECIMALS$}"));
         }
     }
     Ok(out)
 }
 
-/// Sample standard deviation of 1-minute log returns × √(minutes per year), clamped; `None`
-/// with too little history.
+/// Annualised σ of a price series (consecutive 1-minute closes); `None` with too little history.
+#[cfg(test)]
 pub fn annualised(closes: &[f64]) -> Option<f64> {
     let returns: Vec<f64> = closes.windows(2).map(|w| (w[1] / w[0]).ln()).collect();
+    annualised_returns(&returns)
+}
+
+/// Sample standard deviation of 1-minute log returns × √(minutes per year), clamped; `None`
+/// with too little history.
+pub fn annualised_returns(returns: &[f64]) -> Option<f64> {
     if returns.len() < SIGMA_MIN_RETURNS {
         return None;
     }

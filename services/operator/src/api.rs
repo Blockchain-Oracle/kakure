@@ -9,7 +9,9 @@
 //! - `POST /v1/mint/zcash`: blinded chips signed against a confirmed deposit (NUT-04 shape);
 //! - `POST /v1/swap`: chips for chips of the same total (NUT-03);
 //! - `POST /v1/checkstate`: spent or not, by `Y` (NUT-07);
-//! - `POST /v1/melt/zcash`: chips for a shielded withdrawal at a random time (NUT-05 shape).
+//! - `POST /v1/melt/zcash`: chips for a shielded withdrawal at a random time (NUT-05 shape);
+//! - trading (`trading.rs`): `/v1/trade`, `/v1/parlay`, `/v1/close`, `/v1/redeem`, `/v1/exit`,
+//!   `/v1/position`.
 //!
 //! Every spend checks the chips' signatures, then marks them spent and records its effect in one
 //! SQLite transaction, so a chip can never be spent twice, even by two requests at once.
@@ -36,29 +38,37 @@ use sha2::{Digest as _, Sha256};
 use crate::{
     deposits::DEPOSIT_ID_HEX,
     domain::{Network, check_payout_address},
+    exits,
     gateway::{Gateway, Inner, MAX_MESSAGE_BYTES, Reply},
     mint::{self, Mint, Proof},
     payouts::{self, Window},
+    positions,
+    prices::Prices,
+    realtime::SigmaMap,
     rt_store,
+    signing::Keypair,
     store::Store,
+    trading::{self, Caps},
 };
 
 pub const DEFAULT_ADDR: &str = "127.0.0.1:8790";
 /// The smallest withdrawal: the house pays each note's fee, so dust withdrawals are refused.
 pub const MIN_WITHDRAW_ZAT: u64 = 1_000_000;
+/// Withdrawals go in steps of 0.001 ZEC (each canonical note is its own transaction).
+pub const WITHDRAW_GRID_ZAT: u64 = 100_000;
 /// Withdrawal notes go out at uniformly random times within this window (plan §00).
 pub const WITHDRAW_WINDOW: Window = Window {
     min: 0,
     max: 30 * 60,
 };
 
-const NUT_TOKEN_ALREADY_SPENT: u32 = 11_001;
-const NUT_TRANSACTION_UNBALANCED: u32 = 11_005;
-const NUT_KEYSET_UNKNOWN: u32 = 12_001;
+pub(crate) const NUT_TOKEN_ALREADY_SPENT: u32 = 11_001;
+pub(crate) const NUT_TRANSACTION_UNBALANCED: u32 = 11_005;
+pub(crate) const NUT_KEYSET_UNKNOWN: u32 = 12_001;
 const KAKURE_DEPOSIT_SHORT: u32 = 20_001;
 const KAKURE_BAD_ADDRESS: u32 = 20_002;
-const KAKURE_TOO_SMALL: u32 = 20_003;
-const KAKURE_BAD_REQUEST: u32 = 20_000;
+pub(crate) const KAKURE_TOO_SMALL: u32 = 20_003;
+pub(crate) const KAKURE_BAD_REQUEST: u32 = 20_000;
 
 pub struct Api {
     pub gateway: Gateway,
@@ -68,16 +78,25 @@ pub struct Api {
     pub network: Network,
     pub network_name: &'static str,
     pub confirmations: u32,
+    /// Trading: the operator's live prices, its signing key (position certificates), the
+    /// published σ (shared with the minute loop) and the caps.
+    pub prices: Prices,
+    pub key: Keypair,
+    pub sigma: SigmaMap,
+    pub caps: Caps,
 }
 
-/// Serves the gateway until the process ends, on `KAKURE_GATEWAY_ADDR` (default `127.0.0.1:8790`).
+/// Serves the gateway until the process ends, on `KAKURE_GATEWAY_ADDR` (default `127.0.0.1:8790`),
+/// and runs the exit watcher beside it.
 pub async fn serve(api: Api) -> Result<()> {
+    let api = Arc::new(api);
+    tokio::spawn(exits::run(api.clone()));
     let addr = std::env::var("KAKURE_GATEWAY_ADDR").unwrap_or_else(|_| DEFAULT_ADDR.to_string());
     let app = Router::new()
         .route("/ohttp-keys", get(keys))
         .route("/gateway", post(relay))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_MESSAGE_BYTES))
-        .with_state(Arc::new(api));
+        .with_state(api);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .with_context(|| format!("binding {addr}"))?;
@@ -111,11 +130,11 @@ async fn relay(State(api): State<Arc<Api>>, body: Bytes) -> Response {
 }
 
 /// A failed call: NUT-00's `{detail, code}` with HTTP 400.
-struct Refusal(u32, String);
+pub(crate) struct Refusal(pub(crate) u32, pub(crate) String);
 
-type Answer = std::result::Result<Value, Refusal>;
+pub(crate) type Answer = std::result::Result<Value, Refusal>;
 
-fn refuse(code: u32, detail: impl Into<String>) -> Refusal {
+pub(crate) fn refuse(code: u32, detail: impl Into<String>) -> Refusal {
     Refusal(code, detail.into())
 }
 
@@ -131,7 +150,16 @@ fn cache_key(inner: &Inner) -> String {
 }
 
 /// Requests whose success is cached (NUT-19): resending one returns the first answer.
-const CACHED: [&str; 3] = ["/v1/mint/zcash", "/v1/swap", "/v1/melt/zcash"];
+const CACHED: [&str; 8] = [
+    "/v1/mint/zcash",
+    "/v1/swap",
+    "/v1/melt/zcash",
+    "/v1/trade",
+    "/v1/parlay",
+    "/v1/close",
+    "/v1/redeem",
+    "/v1/exit",
+];
 
 fn route(api: &Api, inner: Inner) -> Reply {
     let key = (inner.method == "POST" && CACHED.contains(&inner.path.as_str()))
@@ -155,6 +183,12 @@ fn route(api: &Api, inner: Inner) -> Reply {
         ("POST", "/v1/swap") => body(&inner.body).and_then(|r| swap(api, r, key)),
         ("POST", "/v1/checkstate") => body(&inner.body).and_then(|r| check_state(api, r)),
         ("POST", "/v1/melt/zcash") => body(&inner.body).and_then(|r| withdraw(api, r, key)),
+        ("POST", "/v1/trade") => body(&inner.body).and_then(|r| trading::trade(api, r, key)),
+        ("POST", "/v1/parlay") => body(&inner.body).and_then(|r| trading::parlay(api, r, key)),
+        ("POST", "/v1/close") => body(&inner.body).and_then(|r| trading::close(api, r, key)),
+        ("POST", "/v1/redeem") => body(&inner.body).and_then(|r| trading::redeem(api, r, key)),
+        ("POST", "/v1/exit") => body(&inner.body).and_then(|r| trading::exit(api, r, key)),
+        ("POST", "/v1/position") => body(&inner.body).and_then(|r| trading::position(api, r)),
         _ => {
             return Reply {
                 status: 404,
@@ -178,12 +212,12 @@ fn route(api: &Api, inner: Inner) -> Reply {
     }
 }
 
-fn body<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> std::result::Result<T, Refusal> {
+pub(crate) fn body<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> std::result::Result<T, Refusal> {
     serde_json::from_slice(bytes)
         .map_err(|e| refuse(KAKURE_BAD_REQUEST, format!("bad request: {e}")))
 }
 
-fn internal(e: impl std::fmt::Display) -> Refusal {
+pub(crate) fn internal(e: impl std::fmt::Display) -> Refusal {
     eprintln!("api: {e}");
     refuse(
         KAKURE_BAD_REQUEST,
@@ -332,6 +366,12 @@ fn withdraw(api: &Api, request: MeltRequest, cache: Option<&str>) -> Answer {
             format!("withdrawals start at {MIN_WITHDRAW_ZAT} zat"),
         ));
     }
+    if zat % WITHDRAW_GRID_ZAT != 0 {
+        return Err(refuse(
+            KAKURE_BAD_REQUEST,
+            format!("withdrawals go in steps of {WITHDRAW_GRID_ZAT} zat"),
+        ));
+    }
     let now = chrono::Utc::now().timestamp();
     let answer = json!({
         "state": "scheduled",
@@ -339,8 +379,10 @@ fn withdraw(api: &Api, request: MeltRequest, cache: Option<&str>) -> Answer {
         "withinSecs": WITHDRAW_WINDOW.max,
     });
     spend_and(api, &ys, cache.map(|k| (k, &answer)), |tx| {
-        let id = rt_store::new_withdrawal(tx, zat, now)?;
-        payouts::schedule_withdrawal(tx, id, &request.address, zat, now, WITHDRAW_WINDOW)?;
+        let id = rt_store::new_withdrawal(tx, zat, now).map_err(internal)?;
+        payouts::schedule_withdrawal(tx, id, &request.address, zat, now, WITHDRAW_WINDOW)
+            .map_err(internal)?;
+        positions::add_to_ledger(tx, "withdrawn", zat).map_err(internal)?;
         Ok(())
     })?;
     Ok(answer)
@@ -348,17 +390,28 @@ fn withdraw(api: &Api, request: MeltRequest, cache: Option<&str>) -> Answer {
 
 /// Marks the chips spent, runs `effect` and caches the answer (NUT-19), all in one transaction
 /// (or none of it).
-fn spend_and(
+pub(crate) fn spend_and(
     api: &Api,
     ys: &[String],
     cache: Option<(&str, &Value)>,
-    effect: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<()>,
+    effect: impl FnOnce(&rusqlite::Transaction<'_>) -> std::result::Result<(), Refusal>,
+) -> std::result::Result<(), Refusal> {
+    commit_and(api, cache, |tx, now| {
+        rt_store::spend(tx, ys, now).map_err(|e| refuse(NUT_TOKEN_ALREADY_SPENT, e.to_string()))?;
+        effect(tx)
+    })
+}
+
+/// Runs `effect` and caches the answer (NUT-19) in one transaction: a refusal leaves nothing.
+pub(crate) fn commit_and(
+    api: &Api,
+    cache: Option<(&str, &Value)>,
+    effect: impl FnOnce(&rusqlite::Transaction<'_>, i64) -> std::result::Result<(), Refusal>,
 ) -> std::result::Result<(), Refusal> {
     let now = chrono::Utc::now().timestamp();
     let mut store = api.store.lock().map_err(internal)?;
     let tx = store.conn.transaction().map_err(internal)?;
-    rt_store::spend(&tx, ys, now).map_err(|e| refuse(NUT_TOKEN_ALREADY_SPENT, e.to_string()))?;
-    effect(&tx).map_err(internal)?;
+    effect(&tx, now)?;
     if let Some((key, answer)) = cache {
         rt_store::cache_response(&tx, key, &answer.to_string(), now).map_err(internal)?;
     }

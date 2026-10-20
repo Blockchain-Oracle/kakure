@@ -10,7 +10,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/*.test.ts",
-    "e2e": "tsx scripts/e2e.ts"
+    "e2e": "tsx scripts/e2e.ts",
+    "e2e-trade": "tsx scripts/e2e-trade.ts"
   },
   "dependencies": {
     "@noble/curves": "2.4.0",
@@ -20,6 +21,8 @@
     "@types/node": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "@kakure/ohttp": "workspace:*"
+    "@kakure/domain": "workspace:*",
+    "@kakure/ohttp": "workspace:*",
+    "@kakure/signing": "workspace:*"
   }
 }

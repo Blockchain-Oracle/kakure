@@ -36,7 +36,7 @@ function recompute(windows: readonly WindowState[], venues: Map<string, readonly
       fail(`${window.id}: unknown lane`);
       continue;
     }
-    const reference = referenceOf(lane, window.opening ?? {});
+    const reference = referenceOf(window.referenceVenues ?? lane, window.opening ?? {});
     const outcome = reference === null ? "refund" : outcomeOf(lane, window.opening ?? {}, window.closing ?? {});
     if (outcome !== window.outcome || (reference ?? undefined) !== window.reference) {
       fail(`${window.id}: published ${window.outcome}/${window.reference}, recomputed ${outcome}/${reference}`);

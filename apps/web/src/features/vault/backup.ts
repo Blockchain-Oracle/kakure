@@ -25,7 +25,7 @@ interface BackupFile {
   data: string;
 }
 
-const ALL = ["ticket", "chip", "deposit", "spend"] as const;
+const ALL = ["ticket", "chip", "deposit", "spend", "position"] as const;
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
@@ -35,6 +35,7 @@ export interface BackupSummary {
   /** Chip value, in zatoshi. */
   chipZat: number;
   inFlight: number;
+  positions: number;
 }
 
 function summarise(entries: readonly Entry[]): BackupSummary {
@@ -44,6 +45,7 @@ function summarise(entries: readonly Entry[]): BackupSummary {
     chips: chips.length,
     chipZat: chips.reduce((sum, entry) => sum + entry.value.proof.amount, 0),
     inFlight: entries.filter((entry) => entry.type === "deposit" || entry.type === "spend").length,
+    positions: entries.filter((entry) => entry.type === "position").length,
   };
 }
 

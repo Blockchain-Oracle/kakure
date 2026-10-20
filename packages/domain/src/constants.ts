@@ -147,7 +147,11 @@ export const ENTRY_BUFFER_SEC = 30;
 /** The fair price never uses less time left than this (Agari/Mitoshi `MIN_SECONDS_LEFT`). */
 export const MIN_TAU_SEC = 5;
 
-/** σ is realised over the relay's last 5 hours of 1-minute closes, annualised over a 365-day year of minutes. */
+/**
+ * σ is realised over the last 5 hours of the first voting venue's committed 1-minute closes (the closes the hourly
+ * prints files publish, so anyone can recompute it), annualised over a 365-day year of minutes.
+ */
+export const SIGMA_WINDOW_MINUTES = 300;
 export const SIGMA_MINUTES_PER_YEAR = 525_600;
 export const SIGMA_MIN = 0.2;
 export const SIGMA_MAX = 2.5;
@@ -155,10 +159,48 @@ export const SIGMA_DECIMALS = 4;
 /** Fewer 1-minute returns than this and σ isn't re-estimated (the last value stands). */
 export const SIGMA_MIN_RETURNS = 60;
 
-/** The house's published spread and price bounds (fractions of 1; pays × = 1 / ask). */
-export const HALF_SPREAD = "0.025";
-export const MIN_ASK = "0.02";
-export const MAX_ASK = "0.98";
+/* ── House pricing (plan §00 T3 contract). Mirrored in services/operator/src/fair.rs; fixtures/fair.json keeps them
+ * identical. Prices are integers in 1/10,000 ("E4"); pays × = 10,000 / askE4. */
+
+/** σ is annual; time left is measured in a 365-day year of seconds (the 24/7 lanes' clock, Mitoshi `CALENDAR_YEAR_SEC`). */
+export const YEAR_SEC = 31_536_000;
+/** Abramowitz–Stegun 7.1.26: erf(x) ≈ 1 − t·(a₁ + t·(a₂ + t·(a₃ + t·(a₄ + t·a₅))))·e^(−x²), t = 1 / (1 + p·x). */
+export const ERF_P = 0.3275911;
+export const ERF_A = [0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429] as const;
+export const HALF = 0.5;
+export const PRICE_SCALE_E4 = 10_000;
+/** Half the house's spread around the fair price: 2.5 points. */
+export const HALF_SPREAD_E4 = 250;
+/** A side can be bought only while its ask is at most this, and closed only while its bid is at least `MIN_BID_E4`. */
+export const MAX_ASK_E4 = 9_800;
+export const MIN_BID_E4 = 200;
+/** Before a Window opens its opening print is unknown to everyone: both sides are worth one half. */
+export const PRE_OPEN_PROBABILITY = 0.5;
+/** The smallest chip: payouts and close values are floored to it (the house keeps the remainder). */
+export const CHIP_GRID_ZAT = 1_000;
+/** Withdrawals go in steps of 0.001 ZEC: each note is its own transaction. */
+export const WITHDRAW_GRID_ZAT = 100_000;
+/**
+ * A trade's price tolerance (Owarine terminal `settings.ts`): the quote moved by this many basis points, plus a fixed
+ * cushion of one point (Owarine `SLIPPAGE_MIN_TICKS`: 10 of 1,000). Short Windows move fast: with three minutes left a
+ * 1 bp move in BTC shifts the price about three points.
+ */
+export const DEFAULT_SLIPPAGE_BPS = 200;
+export const SLIPPAGE_CHOICES_BPS = [50, 100, 200, 500] as const;
+export const SLIPPAGE_CUSHION_E4 = 100;
+export const BPS_SCALE = 10_000;
+/** The operator won't quote when its price stream has been silent this long, or the asset's price is this old. */
+export const QUOTE_MAX_SILENCE_MS = 3_000;
+export const QUOTE_MAX_PRICE_AGE_MS = 30_000;
+
+/** Parlays (Owarine `core/parlay/pricing.ts`): 2–3 legs, prices multiply, all or nothing. Prices in 1/10^8 ("E8"). */
+export const PARLAY_MIN_LEGS = 2;
+export const PARLAY_MAX_LEGS = 3;
+export const PRICE_SCALE_E8 = 100_000_000;
+/** Legs that settle at the same instant are correlated: the combined price never drops below half the lowest ask. */
+export const PARLAY_CORRELATION_FLOOR_BPS = 5_000;
+/** A combined price under 1 % is too long a shot for the house. */
+export const PARLAY_MIN_PRICE_E8 = 1_000_000;
 
 /** Venues vote on the close of each 1-minute candle; two of three decide (plan §3, PD20). */
 export const VENUE_KEYS = ["coinbase", "kraken", "bitstamp", "gemini"] as const;

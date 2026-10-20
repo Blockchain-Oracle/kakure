@@ -792,6 +792,7 @@ async fn start_trading(
     let tip = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
     let mut trading = serde_json::json!({
         "keyset": mint.keyset_json(),
+        "retiredKeysets": mint.retired_json(),
         "gatewayKeys": URL_SAFE_NO_PAD.encode(gateway.key_config()),
         "depositMemoPrefix": deposits::DEPOSIT_MEMO_PREFIX,
         "depositConfirmations": confirmations,
@@ -828,6 +829,10 @@ async fn start_trading(
         network: engine::domain_network(wallet.net),
         network_name: wallet.net.name(),
         confirmations,
+        prices: crate::prices::Prices::spawn(),
+        key: crate::signing::load(&wallet.dir)?,
+        sigma: rt.sigma_map(),
+        caps: rt.caps(),
     };
     tokio::spawn(async move {
         if let Err(e) = api::serve(api).await {

@@ -11,7 +11,8 @@ import { formatShortWhen, useNow } from "@/lib/time";
 import { DepositSheet } from "./deposit-sheet";
 import { MoneyCard } from "./money-card";
 import type { DepositRecord } from "./records";
-import { resumeWallet, useWallet } from "./wallet-store";
+import { resumeWallet } from "./spending";
+import { useWallet } from "./wallet-store";
 import { WithdrawSheet } from "./withdraw-sheet";
 
 /**

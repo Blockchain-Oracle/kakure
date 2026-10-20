@@ -6,8 +6,9 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NETWORK_COIN } from "@/constants";
 import { MintError } from "./api";
+import { advanceDeposit, type DepositStep, depositUri, startDeposit } from "./deposits";
 import { PayQr } from "./pay-qr";
-import { advanceDeposit, type DepositStep, depositUri, startDeposit, useWallet } from "./wallet-store";
+import { useWallet } from "./wallet-store";
 
 /**
  * Deposit (plan §00): pick an amount, pay it by QR from Zodl or Zingo, and watch it become chips. The deposit id is

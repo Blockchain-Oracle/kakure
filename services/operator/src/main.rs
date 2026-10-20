@@ -10,6 +10,7 @@ mod deposits;
 #[allow(dead_code)]
 mod domain;
 mod engine;
+mod exits;
 mod fair;
 mod gateway;
 mod history;
@@ -20,6 +21,8 @@ mod mint;
 mod minutes;
 mod params;
 mod payouts;
+mod positions;
+mod prices;
 mod publish;
 mod push;
 mod realtime;
@@ -33,6 +36,7 @@ mod settle;
 mod sigma;
 mod signing;
 mod store;
+mod trading;
 mod venues;
 mod wallet;
 

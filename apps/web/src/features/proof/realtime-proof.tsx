@@ -7,12 +7,14 @@ import {
   type LatestV2,
   type Network,
   outcomeOf,
+  PRICE_SCALE_E4,
   type Prints,
   parseWindowId,
   referenceOf,
   type VenueKey,
   vote,
   type WindowState,
+  zatToZec,
 } from "@kakure/domain";
 import { OPERATOR_PUBLIC_KEYS, printsQuery } from "@kakure/query";
 import { Button, EmptyState, Mark, Skeleton } from "@kakure/ui-web";
@@ -42,6 +44,8 @@ const KEY_HEAD = 10;
 const KEY_TAIL = 8;
 const SETTLED_SHOWN = 24;
 const PERCENT = 100;
+/** Prices are shown with four decimals (the 1/10,000 grid). */
+const PRICE_DECIMALS = 4;
 
 export function RealtimeProof() {
   const data = useRealtime();
@@ -135,14 +139,19 @@ function Signed({ latest, bundle, network }: { latest: LatestV2; bundle: BundleV
   );
 }
 
+const e4 = (value: number) => (value / PRICE_SCALE_E4).toFixed(PRICE_DECIMALS);
+const zec = (zat: string) => zatToZec(BigInt(zat));
+
 function PricingInputs({ bundle }: { bundle: BundleV2 }) {
   const { pricing } = bundle;
   return (
     <Card id="pricing-title" title="Pricing inputs">
       <p className="text-row-detail text-muted-foreground">
-        Every quote is P(Up) = Φ(ln(price ÷ opening) ÷ (σ√time left)), plus or minus a spread of {pricing.halfSpread},
-        between {pricing.minAsk} and {pricing.maxAsk}. Entry closes {pricing.entryBufferSec} s before a Window ends. σ
-        as of {formatClock(pricing.sigmaAt)}:
+        Every quote is P(Up) = Φ(ln(price ÷ opening) ÷ (σ√time left)), plus or minus {e4(pricing.halfSpreadE4)}. A side
+        is sold while its ask is at most {e4(pricing.maxAskE4)} and bought back while its bid is at least{" "}
+        {e4(pricing.minBidE4)}; nothing is clamped. Entry and early close stop {pricing.entryBufferSec} s before a
+        Window ends. Stakes run from {zec(pricing.caps.minStakeZat)} to {zec(pricing.caps.maxStakeZat)}. σ as of{" "}
+        {formatClock(pricing.sigmaAt)}:
       </p>
       <dl className="grid grid-cols-3 gap-3 md:grid-cols-6">
         {Object.entries(pricing.sigma).map(([asset, sigma]) => (
@@ -161,7 +170,8 @@ function recompute(window: WindowState, lanes: ReadonlyMap<string, LaneInfo>) {
   const parsed = parseWindowId(window.id);
   const lane = parsed ? lanes.get(parsed.lane.id) : undefined;
   if (!lane) return null;
-  const reference = referenceOf(lane.venues, window.opening ?? {});
+  // The reference comes from the venues that had committed when it was set (published with it).
+  const reference = referenceOf(window.referenceVenues ?? lane.venues, window.opening ?? {});
   const outcome = reference === null ? "refund" : outcomeOf(lane.venues, window.opening ?? {}, window.closing ?? {});
   return { lane, ok: outcome === window.outcome && (reference ?? undefined) === window.reference };
 }

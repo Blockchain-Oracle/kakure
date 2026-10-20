@@ -13,16 +13,20 @@
 //! It shares `engine.sqlite` with the pool engine, so the bundle sequence (and `previous` hash
 //! chain) carries on across the cut-over and the worker's "latest only moves forward" holds.
 
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Context, Result};
 use serde_json::{Map, Value, json};
 
 use crate::{
     catalog::iso,
-    fair::{HALF_SPREAD, MAX_ASK, MIN_ASK, MIN_TAU_SECS},
+    fair::{CHIP_GRID_ZAT, HALF_SPREAD_E4, MAX_ASK_E4, MIN_BID_E4, MIN_TAU_SECS},
     lanes::{self, ENTRY_BUFFER_SECS, LaneAsset},
     minutes::{self, MINUTE_SECS},
+    positions,
     publish::{LATEST_FILE, Publisher, sign_file},
     push::Push,
     rt_store::{self, WindowRow},
@@ -30,19 +34,27 @@ use crate::{
     sigma,
     signing::{self, Keypair},
     store::Store,
+    trading::Caps,
     venues,
     wallet::Wallet,
 };
 
+/// The published σ per asset, shared with the trading API so it quotes on the same numbers.
+pub type SigmaMap = Arc<Mutex<BTreeMap<&'static str, String>>>;
+/// Window activity is published in groups of this many trades (never one trade's size).
+const VOLUME_GROUP: usize = 3;
+
 pub const SCHEMA_VERSION_V2: u32 = 2;
-/// The minute's work starts this long after each minute, once venues have committed its candle.
-pub const TICK_OFFSET_SECS: i64 = 20;
+/// The minute's work starts this long after each minute, once venues have committed its candle
+/// (measured 2026-10-19: Kraken and Bitstamp by +2 s, Coinbase by +1 s plus its 5 s settle rule).
+pub const TICK_OFFSET_SECS: i64 = 7;
+/// A Window's reference is recorded once this many venues have committed its opening minute.
+const MIN_VENUES_FOR_REFERENCE: usize = 2;
 /// A Window starts trading without a venue that still hasn't committed its opening minute after
 /// this long (that venue doesn't vote).
 const OPEN_GRACE_SECS: i64 = 3 * MINUTE_SECS;
 /// A Window settles without a venue that still hasn't committed its closing minute after this long.
 const CLOSE_GRACE_SECS: i64 = 10 * MINUTE_SECS;
-const SIGMA_REFRESH_SECS: i64 = 5 * MINUTE_SECS;
 /// Settled Windows stay in the bundle this long; the hourly prints files keep them for good.
 const BUNDLE_SETTLED_KEEP_SECS: i64 = 10 * MINUTE_SECS;
 const HOUR_SECS: i64 = 3_600;
@@ -58,7 +70,8 @@ pub struct Realtime {
     http: reqwest::Client,
     publisher: Publisher,
     network: &'static str,
-    sigma: BTreeMap<&'static str, String>,
+    sigma: SigmaMap,
+    caps: Caps,
     /// When σ was last estimated; `None` until the first estimate.
     sigma_at: Option<i64>,
     /// What clients need to trade (keyset, gateway key, deposit address and rules), once the
@@ -92,7 +105,8 @@ impl Realtime {
             http: venues::client()?,
             publisher,
             network: wallet.net.name(),
-            sigma: BTreeMap::new(),
+            sigma: Arc::new(Mutex::new(BTreeMap::new())),
+            caps: Caps::for_network(matches!(wallet.net, crate::wallet::Net::Mainnet)),
             sigma_at: None,
             trading: None,
         })
@@ -106,26 +120,35 @@ impl Realtime {
         self.trading = Some(trading);
     }
 
+    pub fn sigma_map(&self) -> SigmaMap {
+        self.sigma.clone()
+    }
+
+    pub fn caps(&self) -> Caps {
+        self.caps
+    }
+
     pub async fn tick(&mut self, now: i64) -> Result<TickReport> {
-        let reads = minutes::read_all(&self.http, now).await;
+        // The first read after a start reaches back over σ's whole window.
+        let lookback = if self.sigma_at.is_none() {
+            minutes::STARTUP_LOOKBACK_SECS
+        } else {
+            minutes::LOOKBACK_SECS
+        };
+        let reads = minutes::read_all(&self.http, now, lookback).await;
         let minutes = rt_store::put_minutes(&mut self.store.conn, &reads)?;
         let (opened, settled) = self.advance_windows(now)?;
-        if self
-            .sigma_at
-            .is_none_or(|at| now - at >= SIGMA_REFRESH_SECS)
-        {
-            match sigma::estimate(&self.http).await {
-                Ok(sigma) => {
-                    // An asset with too little history keeps its last σ.
-                    self.sigma.extend(sigma);
-                    self.sigma_at = Some(now);
-                }
-                Err(e) => eprintln!("serve: σ refresh failed, keeping the last values: {e:#}"),
-            }
+        // σ from the committed closes, every minute (an asset with too little history keeps its
+        // last value).
+        let sigma = sigma::from_closes(&self.store.conn, now)?;
+        if let Ok(mut map) = self.sigma.lock() {
+            map.extend(sigma);
         }
+        self.sigma_at = Some(now);
         let prints = self.publish_prints(now)?;
         let (seq, windows) = self.publish_bundle(now)?;
         rt_store::prune(&self.store.conn, now)?;
+        positions::prune(&self.store.conn, now)?;
         let uploaded = match self.publisher.push() {
             None => None,
             Some(_) => match self.publisher.sync_push(&self.http, &self.store, now).await {
@@ -163,25 +186,33 @@ impl Realtime {
             };
             let keys = venue_keys(asset);
             let mut reference = row.reference.clone();
-            if row.opening.is_none() {
-                let (prints, complete) = gather(conn, asset, row.start - MINUTE_SECS)?;
-                if !complete && now < row.start + OPEN_GRACE_SECS {
-                    continue;
+            if !row.opening_final {
+                let (prints, committed) = gather(conn, asset, row.start - MINUTE_SECS)?;
+                let last = committed.len() == keys.len() || now >= row.start + OPEN_GRACE_SECS;
+                // The pricing line from the first two venues in, so a short Window trades within
+                // seconds of its start; the third still votes when it lands. The venues it was
+                // taken from are published, so anyone recomputes it from the same prints.
+                let mut fresh = None;
+                if reference.is_none() && (committed.len() >= MIN_VENUES_FOR_REFERENCE || last) {
+                    reference = settle::reference_of(&committed, &prints);
+                    opened += usize::from(reference.is_some());
+                    fresh = reference.clone();
                 }
-                reference = settle::reference_of(&keys, &prints);
-                rt_store::set_opening(conn, &row.id, &prints, reference.as_deref())?;
-                opened += 1;
+                if reference.is_some() || last {
+                    let set = fresh.as_deref().map(|r| (r, committed.as_slice()));
+                    rt_store::set_opening(conn, &row.id, &prints, set, last)?;
+                }
             }
             if now < row.expiry {
                 continue;
             }
-            let (closing, complete) = gather(conn, asset, row.expiry - MINUTE_SECS)?;
-            if !complete && now < row.expiry + CLOSE_GRACE_SECS {
+            let (closing, committed) = gather(conn, asset, row.expiry - MINUTE_SECS)?;
+            if committed.len() < keys.len() && now < row.expiry + CLOSE_GRACE_SECS {
                 continue;
             }
-            let opening = match &row.opening {
-                Some(json) => prints_from_json(json),
-                None => gather(conn, asset, row.start - MINUTE_SECS)?.0,
+            let opening = match (&row.opening, row.opening_final) {
+                (Some(json), true) => prints_from_json(json),
+                _ => gather(conn, asset, row.start - MINUTE_SECS)?.0,
             };
             let outcome = if reference.is_none() {
                 "refund"
@@ -277,18 +308,20 @@ impl Realtime {
             for id in [current.id, next.id] {
                 if let Some(row) = rt_store::window(conn, &id)? {
                     seen.insert(row.id.clone());
-                    windows.push(window_json(&row));
+                    windows.push(with_volume(conn, &row)?);
                 }
             }
         }
         for row in rt_store::settled_since(conn, now - BUNDLE_SETTLED_KEEP_SECS)? {
             if seen.insert(row.id.clone()) {
-                windows.push(window_json(&row));
+                windows.push(with_volume(conn, &row)?);
             }
         }
 
         let sigma: Map<String, Value> = self
             .sigma
+            .lock()
+            .map_err(|_| anyhow::anyhow!("σ poisoned"))?
             .iter()
             .map(|(asset, s)| ((*asset).to_string(), Value::String(s.clone())))
             .collect();
@@ -304,13 +337,16 @@ impl Realtime {
             "pricing": {
                 "entryBufferSec": ENTRY_BUFFER_SECS,
                 "minTauSec": MIN_TAU_SECS,
-                "halfSpread": HALF_SPREAD,
-                "minAsk": MIN_ASK,
-                "maxAsk": MAX_ASK,
+                "halfSpreadE4": HALF_SPREAD_E4,
+                "maxAskE4": MAX_ASK_E4,
+                "minBidE4": MIN_BID_E4,
+                "chipGridZat": CHIP_GRID_ZAT,
                 "sigma": sigma,
                 "sigmaAt": iso(self.sigma_at.unwrap_or(now)),
+                "caps": self.caps.json(),
             },
             "windows": windows,
+            "house": positions::liabilities(conn)?,
             "prints": rt_store::prints_files_since(conn, now - DAY_SECS)?,
         });
         let mut document = document;
@@ -361,20 +397,24 @@ fn venue_keys(asset: &LaneAsset) -> Vec<&'static str> {
     asset.venues.iter().map(|p| p.venue.key()).collect()
 }
 
-/// Each venue's print for the minute starting at `start`, and whether every venue has committed it.
-fn gather(conn: &rusqlite::Connection, asset: &LaneAsset, start: i64) -> Result<(Prints, bool)> {
+/// Each venue's print for the minute starting at `start`, and the venues that have committed it.
+fn gather(
+    conn: &rusqlite::Connection,
+    asset: &LaneAsset,
+    start: i64,
+) -> Result<(Prints, Vec<&'static str>)> {
     let mut prints = Vec::new();
-    let mut complete = true;
+    let mut committed = Vec::new();
     for pair in &asset.venues {
         match rt_store::minute(conn, asset.ticker, pair.venue.key(), start)? {
-            Some(close) => prints.push((pair.venue.key(), close)),
-            None => {
-                complete = false;
-                prints.push((pair.venue.key(), None));
+            Some(close) => {
+                committed.push(pair.venue.key());
+                prints.push((pair.venue.key(), close));
             }
+            None => prints.push((pair.venue.key(), None)),
         }
     }
-    Ok((prints, complete))
+    Ok((prints, committed))
 }
 
 fn prints_from_json(json: &str) -> Prints {
@@ -393,6 +433,16 @@ fn prints_from_json(json: &str) -> Prints {
     .collect()
 }
 
+/// A Window as published, with its activity once at least `VOLUME_GROUP` trades opened on it.
+fn with_volume(conn: &rusqlite::Connection, row: &WindowRow) -> Result<Value> {
+    let mut value = window_json(row);
+    if let Some((trades, volume)) = positions::window_volume(conn, &row.id, VOLUME_GROUP)? {
+        value["trades"] = Value::from(trades);
+        value["volumeZat"] = Value::String(volume.to_string());
+    }
+    Ok(value)
+}
+
 fn window_json(row: &WindowRow) -> Value {
     let mut out = Map::new();
     out.insert("id".into(), Value::String(row.id.clone()));
@@ -406,6 +456,13 @@ fn window_json(row: &WindowRow) -> Value {
     }
     if let Some(reference) = &row.reference {
         out.insert("reference".into(), Value::String(reference.clone()));
+    }
+    if let Some(venues) = row
+        .reference_venues
+        .as_deref()
+        .and_then(|v| serde_json::from_str::<Value>(v).ok())
+    {
+        out.insert("referenceVenues".into(), venues);
     }
     if let Some(closing) = &row.closing {
         out.insert(

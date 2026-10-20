@@ -28,9 +28,13 @@ use crate::{
 pub const MINUTE_SECS: i64 = 60;
 /// How far back each read reaches; any minute a slow venue missed is filled on a later read.
 pub const LOOKBACK_SECS: i64 = 15 * MINUTE_SECS;
+/// The first read after a start reaches back far enough for σ's whole window (Coinbase serves
+/// at most 300 candles a request, so a few minutes short of it).
+pub const STARTUP_LOOKBACK_SECS: i64 = 290 * MINUTE_SECS;
 /// Coinbase may still revise a minute for a few seconds after it ends.
 const SETTLE_LAG_SECS: i64 = 5;
-const BITSTAMP_LIMIT: i64 = 16;
+/// The most candles Bitstamp serves per request.
+const BITSTAMP_MAX: i64 = 1_000;
 
 /// One venue's committed minutes for one asset: `start → Close / NoTrades`, and the newest
 /// committed start (minutes after it are not known yet).
@@ -42,12 +46,11 @@ pub struct VenueMinutes {
 
 /// Reads every lane asset on every venue. A venue that fails is skipped this minute (and logged);
 /// its minutes are filled on a later read within `LOOKBACK_SECS`.
-pub async fn read_all(http: &reqwest::Client, now: i64) -> Vec<VenueMinutes> {
+pub async fn read_all(http: &reqwest::Client, now: i64, lookback: i64) -> Vec<VenueMinutes> {
     let reads = LANE_ASSETS.iter().flat_map(|asset| {
-        asset
-            .venues
-            .iter()
-            .map(move |pair| async move { (asset.ticker, *pair, read(http, pair, now).await) })
+        asset.venues.iter().map(move |pair| async move {
+            (asset.ticker, *pair, read(http, pair, now, lookback).await)
+        })
     });
     let mut out = Vec::new();
     for (asset, pair, result) in join_all(reads).await {
@@ -63,9 +66,15 @@ pub async fn read_all(http: &reqwest::Client, now: i64) -> Vec<VenueMinutes> {
     out
 }
 
-async fn read(http: &reqwest::Client, pair: &VenuePair, now: i64) -> Result<BTreeMap<i64, Candle>> {
+async fn read(
+    http: &reqwest::Client,
+    pair: &VenuePair,
+    now: i64,
+    lookback: i64,
+) -> Result<BTreeMap<i64, Candle>> {
     let p = pair.pair;
-    let from = now - LOOKBACK_SECS;
+    let from = now - lookback;
+    let limit = (lookback / MINUTE_SECS + 1).min(BITSTAMP_MAX);
     let url = match pair.venue {
         Venue::Coinbase => format!(
             "https://api.exchange.coinbase.com/products/{p}/candles?granularity=60&start={from}&end={now}"
@@ -74,7 +83,7 @@ async fn read(http: &reqwest::Client, pair: &VenuePair, now: i64) -> Result<BTre
             format!("https://api.kraken.com/0/public/OHLC?pair={p}&interval=1&since={from}")
         }
         Venue::Bitstamp => format!(
-            "https://www.bitstamp.net/api/v2/ohlc/{p}/?step=60&limit={BITSTAMP_LIMIT}&exclude_current_candle=true"
+            "https://www.bitstamp.net/api/v2/ohlc/{p}/?step=60&limit={limit}&exclude_current_candle=true"
         ),
         Venue::Gemini => format!("https://api.gemini.com/v2/candles/{p}/1m"),
     };

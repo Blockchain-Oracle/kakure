@@ -1,0 +1,947 @@
+{
+  "cdf": [
+    {
+      "z": -8,
+      "p": 6.106226635438361e-16
+    },
+    {
+      "z": -6,
+      "p": 9.9012192888992e-10
+    },
+    {
+      "z": -2.5,
+      "p": 0.006209680111438021
+    },
+    {
+      "z": -1,
+      "p": 0.15865526383236372
+    },
+    {
+      "z": -0.3,
+      "p": 0.3820886460848238
+    },
+    {
+      "z": 0,
+      "p": 0.5000000005
+    },
+    {
+      "z": 0.3,
+      "p": 0.6179113539151762
+    },
+    {
+      "z": 1,
+      "p": 0.8413447361676363
+    },
+    {
+      "z": 2.5,
+      "p": 0.993790319888562
+    },
+    {
+      "z": 6,
+      "p": 0.999999999009878
+    },
+    {
+      "z": 8,
+      "p": 0.9999999999999993
+    }
+  ],
+  "fair": [
+    {
+      "spot": 67012.5,
+      "reference": 66950.1,
+      "sigma": 0.45,
+      "secondsLeft": 45,
+      "pUp": 0.9584582385655482,
+      "up": {
+        "askE4": null,
+        "bidE4": 9334
+      },
+      "down": {
+        "askE4": 666,
+        "bidE4": null
+      }
+    },
+    {
+      "spot": 67012.5,
+      "reference": 66950.1,
+      "sigma": 0.45,
+      "secondsLeft": 5,
+      "pUp": 0.9999998997371533,
+      "up": {
+        "askE4": null,
+        "bidE4": 9749
+      },
+      "down": {
+        "askE4": 251,
+        "bidE4": null
+      }
+    },
+    {
+      "spot": 67012.5,
+      "reference": 66950.1,
+      "sigma": 0.45,
+      "secondsLeft": 2,
+      "pUp": 0.9999998997371533,
+      "up": {
+        "askE4": null,
+        "bidE4": 9749
+      },
+      "down": {
+        "askE4": 251,
+        "bidE4": null
+      }
+    },
+    {
+      "spot": 66900,
+      "reference": 66950.1,
+      "sigma": 0.45,
+      "secondsLeft": 86400,
+      "pUp": 0.4873228449277587,
+      "up": {
+        "askE4": 5124,
+        "bidE4": 4623
+      },
+      "down": {
+        "askE4": 5377,
+        "bidE4": 4876
+      }
+    },
+    {
+      "spot": 0.12345,
+      "reference": 0.123,
+      "sigma": 1.2,
+      "secondsLeft": 120,
+      "pUp": 0.9406289625810026,
+      "up": {
+        "askE4": 9657,
+        "bidE4": 9156
+      },
+      "down": {
+        "askE4": 844,
+        "bidE4": 343
+      }
+    },
+    {
+      "spot": 3120.55,
+      "reference": 3120.55,
+      "sigma": 0.6,
+      "secondsLeft": 600,
+      "pUp": 0.5000000005,
+      "up": {
+        "askE4": 5251,
+        "bidE4": 4750
+      },
+      "down": {
+        "askE4": 5250,
+        "bidE4": 4749
+      }
+    },
+    {
+      "spot": 71000,
+      "reference": 66950.1,
+      "sigma": 0.2,
+      "secondsLeft": 60,
+      "pUp": 1,
+      "up": {
+        "askE4": null,
+        "bidE4": 9750
+      },
+      "down": {
+        "askE4": 250,
+        "bidE4": null
+      }
+    },
+    {
+      "spot": 58.31,
+      "reference": 58.4,
+      "sigma": 2.5,
+      "secondsLeft": 14400,
+      "pUp": 0.48848408976286495,
+      "up": {
+        "askE4": 5135,
+        "bidE4": 4634
+      },
+      "down": {
+        "askE4": 5366,
+        "bidE4": 4865
+      }
+    }
+  ],
+  "sides": [
+    {
+      "p": 0.5,
+      "askE4": 5250,
+      "bidE4": 4750
+    },
+    {
+      "p": 0.955,
+      "askE4": 9800,
+      "bidE4": 9300
+    },
+    {
+      "p": 0.9551,
+      "askE4": null,
+      "bidE4": 9301
+    },
+    {
+      "p": 0.9549,
+      "askE4": 9799,
+      "bidE4": 9299
+    },
+    {
+      "p": 0.045,
+      "askE4": 700,
+      "bidE4": 200
+    },
+    {
+      "p": 0.0449,
+      "askE4": 699,
+      "bidE4": null
+    },
+    {
+      "p": 0.0451,
+      "askE4": 701,
+      "bidE4": 201
+    },
+    {
+      "p": 0.0001,
+      "askE4": 251,
+      "bidE4": null
+    },
+    {
+      "p": 0.9999,
+      "askE4": null,
+      "bidE4": 9749
+    },
+    {
+      "p": 0.123456789,
+      "askE4": 1485,
+      "bidE4": 984
+    }
+  ],
+  "window": {
+    "startSec": 1792400160,
+    "expirySec": 1792400220
+  },
+  "windows": [
+    {
+      "now": 1792400100,
+      "state": null,
+      "spot": 67012.5,
+      "sigma": 0.45,
+      "quote": {
+        "phase": "pre",
+        "pUp": 0.5,
+        "up": {
+          "askE4": 5250,
+          "bidE4": 4750
+        },
+        "down": {
+          "askE4": 5250,
+          "bidE4": 4750
+        }
+      }
+    },
+    {
+      "now": 1792400163,
+      "state": null,
+      "spot": 67012.5,
+      "sigma": 0.45,
+      "quote": {
+        "phase": "opening",
+        "pUp": null,
+        "up": {
+          "askE4": null,
+          "bidE4": null
+        },
+        "down": {
+          "askE4": null,
+          "bidE4": null
+        }
+      }
+    },
+    {
+      "now": 1792400170,
+      "state": {
+        "reference": "66950.1"
+      },
+      "spot": 67012.5,
+      "sigma": 0.45,
+      "quote": {
+        "phase": "live",
+        "pUp": 0.9499256043193258,
+        "up": {
+          "askE4": 9750,
+          "bidE4": 9249
+        },
+        "down": {
+          "askE4": 751,
+          "bidE4": 250
+        }
+      }
+    },
+    {
+      "now": 1792400189,
+      "state": {
+        "reference": "66950.1"
+      },
+      "spot": 67012.5,
+      "sigma": 0.45,
+      "quote": {
+        "phase": "live",
+        "pUp": 0.981603422561993,
+        "up": {
+          "askE4": null,
+          "bidE4": 9566
+        },
+        "down": {
+          "askE4": 434,
+          "bidE4": null
+        }
+      }
+    },
+    {
+      "now": 1792400190,
+      "state": {
+        "reference": "66950.1"
+      },
+      "spot": 67012.5,
+      "sigma": 0.45,
+      "quote": {
+        "phase": "riding",
+        "pUp": null,
+        "up": {
+          "askE4": null,
+          "bidE4": null
+        },
+        "down": {
+          "askE4": null,
+          "bidE4": null
+        }
+      }
+    },
+    {
+      "now": 1792400230,
+      "state": {
+        "reference": "66950.1",
+        "outcome": "U"
+      },
+      "spot": 67012.5,
+      "sigma": 0.45,
+      "quote": {
+        "phase": "settled",
+        "pUp": null,
+        "up": {
+          "askE4": null,
+          "bidE4": null
+        },
+        "down": {
+          "askE4": null,
+          "bidE4": null
+        }
+      }
+    }
+  ],
+  "payouts": [
+    {
+      "stake": 100000,
+      "askE4": 5250,
+      "payout": 190000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 3000
+        },
+        {
+          "bidE4": 4750,
+          "value": 90000
+        },
+        {
+          "bidE4": 9550,
+          "value": 181000
+        }
+      ]
+    },
+    {
+      "stake": 100000,
+      "askE4": 9800,
+      "payout": 102000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 2000
+        },
+        {
+          "bidE4": 4750,
+          "value": 48000
+        },
+        {
+          "bidE4": 9550,
+          "value": 97000
+        }
+      ]
+    },
+    {
+      "stake": 100000,
+      "askE4": 300,
+      "payout": 3333000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 66000
+        },
+        {
+          "bidE4": 4750,
+          "value": 1583000
+        },
+        {
+          "bidE4": 9550,
+          "value": 3183000
+        }
+      ]
+    },
+    {
+      "stake": 100000,
+      "askE4": 7777,
+      "payout": 128000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 2000
+        },
+        {
+          "bidE4": 4750,
+          "value": 60000
+        },
+        {
+          "bidE4": 9550,
+          "value": 122000
+        }
+      ]
+    },
+    {
+      "stake": 123000,
+      "askE4": 5250,
+      "payout": 234000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 4000
+        },
+        {
+          "bidE4": 4750,
+          "value": 111000
+        },
+        {
+          "bidE4": 9550,
+          "value": 223000
+        }
+      ]
+    },
+    {
+      "stake": 123000,
+      "askE4": 9800,
+      "payout": 125000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 2000
+        },
+        {
+          "bidE4": 4750,
+          "value": 59000
+        },
+        {
+          "bidE4": 9550,
+          "value": 119000
+        }
+      ]
+    },
+    {
+      "stake": 123000,
+      "askE4": 300,
+      "payout": 4100000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 82000
+        },
+        {
+          "bidE4": 4750,
+          "value": 1947000
+        },
+        {
+          "bidE4": 9550,
+          "value": 3915000
+        }
+      ]
+    },
+    {
+      "stake": 123000,
+      "askE4": 7777,
+      "payout": 158000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 3000
+        },
+        {
+          "bidE4": 4750,
+          "value": 75000
+        },
+        {
+          "bidE4": 9550,
+          "value": 150000
+        }
+      ]
+    },
+    {
+      "stake": 1000000,
+      "askE4": 5250,
+      "payout": 1904000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 38000
+        },
+        {
+          "bidE4": 4750,
+          "value": 904000
+        },
+        {
+          "bidE4": 9550,
+          "value": 1818000
+        }
+      ]
+    },
+    {
+      "stake": 1000000,
+      "askE4": 9800,
+      "payout": 1020000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 20000
+        },
+        {
+          "bidE4": 4750,
+          "value": 484000
+        },
+        {
+          "bidE4": 9550,
+          "value": 974000
+        }
+      ]
+    },
+    {
+      "stake": 1000000,
+      "askE4": 300,
+      "payout": 33333000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 666000
+        },
+        {
+          "bidE4": 4750,
+          "value": 15833000
+        },
+        {
+          "bidE4": 9550,
+          "value": 31833000
+        }
+      ]
+    },
+    {
+      "stake": 1000000,
+      "askE4": 7777,
+      "payout": 1285000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 25000
+        },
+        {
+          "bidE4": 4750,
+          "value": 610000
+        },
+        {
+          "bidE4": 9550,
+          "value": 1227000
+        }
+      ]
+    },
+    {
+      "stake": 10000000,
+      "askE4": 5250,
+      "payout": 19047000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 380000
+        },
+        {
+          "bidE4": 4750,
+          "value": 9047000
+        },
+        {
+          "bidE4": 9550,
+          "value": 18189000
+        }
+      ]
+    },
+    {
+      "stake": 10000000,
+      "askE4": 9800,
+      "payout": 10204000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 204000
+        },
+        {
+          "bidE4": 4750,
+          "value": 4846000
+        },
+        {
+          "bidE4": 9550,
+          "value": 9744000
+        }
+      ]
+    },
+    {
+      "stake": 10000000,
+      "askE4": 300,
+      "payout": 333333000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 6666000
+        },
+        {
+          "bidE4": 4750,
+          "value": 158333000
+        },
+        {
+          "bidE4": 9550,
+          "value": 318333000
+        }
+      ]
+    },
+    {
+      "stake": 10000000,
+      "askE4": 7777,
+      "payout": 12858000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 257000
+        },
+        {
+          "bidE4": 4750,
+          "value": 6107000
+        },
+        {
+          "bidE4": 9550,
+          "value": 12279000
+        }
+      ]
+    },
+    {
+      "stake": 100000000,
+      "askE4": 5250,
+      "payout": 190476000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 3809000
+        },
+        {
+          "bidE4": 4750,
+          "value": 90476000
+        },
+        {
+          "bidE4": 9550,
+          "value": 181904000
+        }
+      ]
+    },
+    {
+      "stake": 100000000,
+      "askE4": 9800,
+      "payout": 102040000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 2040000
+        },
+        {
+          "bidE4": 4750,
+          "value": 48469000
+        },
+        {
+          "bidE4": 9550,
+          "value": 97448000
+        }
+      ]
+    },
+    {
+      "stake": 100000000,
+      "askE4": 300,
+      "payout": 3333333000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 66666000
+        },
+        {
+          "bidE4": 4750,
+          "value": 1583333000
+        },
+        {
+          "bidE4": 9550,
+          "value": 3183333000
+        }
+      ]
+    },
+    {
+      "stake": 100000000,
+      "askE4": 7777,
+      "payout": 128584000,
+      "closes": [
+        {
+          "bidE4": 200,
+          "value": 2571000
+        },
+        {
+          "bidE4": 4750,
+          "value": 61077000
+        },
+        {
+          "bidE4": 9550,
+          "value": 122797000
+        }
+      ]
+    }
+  ],
+  "slippage": [
+    {
+      "priceE4": 5250,
+      "bps": 100,
+      "direction": "up",
+      "result": 5403
+    },
+    {
+      "priceE4": 5250,
+      "bps": 100,
+      "direction": "down",
+      "result": 5097
+    },
+    {
+      "priceE4": 9799,
+      "bps": 500,
+      "direction": "up",
+      "result": 10389
+    },
+    {
+      "priceE4": 201,
+      "bps": 50,
+      "direction": "down",
+      "result": 99
+    }
+  ],
+  "parlays": [
+    {
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220
+        },
+        {
+          "askE4": 5250,
+          "expirySec": 1792400280
+        }
+      ],
+      "price": {
+        "ok": true,
+        "priceE8": 27562500
+      },
+      "payout": 36281000
+    },
+    {
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220
+        },
+        {
+          "askE4": 6100,
+          "expirySec": 1792400220
+        }
+      ],
+      "price": {
+        "ok": true,
+        "priceE8": 32025000
+      },
+      "payout": 31225000
+    },
+    {
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220
+        },
+        {
+          "askE4": 3333,
+          "expirySec": 1792400280
+        },
+        {
+          "askE4": 7001,
+          "expirySec": 1792400520
+        }
+      ],
+      "price": {
+        "ok": true,
+        "priceE8": 12250525
+      },
+      "payout": 81629000
+    },
+    {
+      "legs": [
+        {
+          "askE4": 300,
+          "expirySec": 1792400220
+        },
+        {
+          "askE4": 300,
+          "expirySec": 1792400280
+        }
+      ],
+      "price": {
+        "ok": false,
+        "reason": "long-shot"
+      },
+      "payout": null
+    },
+    {
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220
+        }
+      ],
+      "price": {
+        "ok": false,
+        "reason": "legs"
+      },
+      "payout": null
+    }
+  ],
+  "settled": [
+    {
+      "stake": 10000000,
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220,
+          "outcome": "won"
+        },
+        {
+          "askE4": 3333,
+          "expirySec": 1792400280,
+          "outcome": "won"
+        },
+        {
+          "askE4": 7001,
+          "expirySec": 1792400520,
+          "outcome": "won"
+        }
+      ],
+      "value": 81629000
+    },
+    {
+      "stake": 10000000,
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220,
+          "outcome": "won"
+        },
+        {
+          "askE4": 3333,
+          "expirySec": 1792400280,
+          "outcome": "lost"
+        },
+        {
+          "askE4": 7001,
+          "expirySec": 1792400520,
+          "outcome": "won"
+        }
+      ],
+      "value": 0
+    },
+    {
+      "stake": 10000000,
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220,
+          "outcome": "won"
+        },
+        {
+          "askE4": 3333,
+          "expirySec": 1792400280,
+          "outcome": "refund"
+        },
+        {
+          "askE4": 7001,
+          "expirySec": 1792400520,
+          "outcome": "won"
+        }
+      ],
+      "value": 27206000
+    },
+    {
+      "stake": 10000000,
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220,
+          "outcome": "refund"
+        },
+        {
+          "askE4": 3333,
+          "expirySec": 1792400280,
+          "outcome": "refund"
+        },
+        {
+          "askE4": 7001,
+          "expirySec": 1792400520,
+          "outcome": "won"
+        }
+      ],
+      "value": 14283000
+    },
+    {
+      "stake": 10000000,
+      "legs": [
+        {
+          "askE4": 5250,
+          "expirySec": 1792400220,
+          "outcome": "refund"
+        },
+        {
+          "askE4": 3333,
+          "expirySec": 1792400280,
+          "outcome": "refund"
+        },
+        {
+          "askE4": 7001,
+          "expirySec": 1792400520,
+          "outcome": "refund"
+        }
+      ],
+      "value": 10000000
+    }
+  ]
+}

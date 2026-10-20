@@ -17,6 +17,7 @@ import {
   HTTP_SWITCHING_PROTOCOLS,
   IDLE_UPSTREAM_GRACE_MS,
   KRAKEN_WS,
+  LANE_STREAM_SYMBOLS,
   MINUTE_BACKFILL_SYMBOLS,
   NOTE_CHARS,
   NOTES_KEPT,
@@ -293,9 +294,17 @@ export class PriceHub extends DurableObject<HubEnv> {
 
 const SYMBOLS = new Set<string>(CRYPTO_STREAM_SYMBOLS);
 
+const LANE = new Set<string>(LANE_STREAM_SYMBOLS);
+
 function subscribeMessage(source: SocketFeed): unknown {
   if (source === "coinbase") {
-    return { type: "subscribe", product_ids: CRYPTO_STREAM_SYMBOLS, channels: ["ticker_batch"] };
+    return {
+      type: "subscribe",
+      channels: [
+        { name: "ticker", product_ids: LANE_STREAM_SYMBOLS },
+        { name: "ticker_batch", product_ids: CRYPTO_STREAM_SYMBOLS.filter((symbol) => !LANE.has(symbol)) },
+      ],
+    };
   }
   const symbols = CRYPTO_STREAM_SYMBOLS.map((symbol) => symbol.replace("-", "/"));
   return { method: "subscribe", params: { channel: "ticker", symbol: symbols } };
