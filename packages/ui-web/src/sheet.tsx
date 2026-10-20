@@ -51,7 +51,13 @@ export function Sheet({ open, onClose, title, children, className, size = "defau
       }}
     >
       <div className="flex max-h-[inherit] flex-col rail:h-full">
-        <div className="flex min-h-0 flex-auto flex-col overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] rail:p-6">
+        {/* Chrome makes an overflowing scroller focusable, so opening a long sheet focused this box and drew the
+            browser's outline round it. Held at tabindex -1 it stays out of the Tab order and takes the opening focus
+            unmarked: the WAI dialog pattern's static element at the top of long content, so the start stays in view. */}
+        <div
+          tabIndex={-1}
+          className="flex min-h-0 flex-auto flex-col overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] outline-none rail:p-6"
+        >
           <div aria-hidden className="mx-auto mb-3.5 h-1 w-9 shrink-0 rounded-full bg-sheet-handle rail:hidden" />
           <div className="mb-4 flex items-start justify-between gap-4">
             <h2 id={titleId} className="font-display text-sheet-title text-foreground">
