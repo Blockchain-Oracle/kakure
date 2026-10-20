@@ -1,35 +1,29 @@
 "use client";
 
-import type { Market } from "@kakure/domain";
+import { cadenceLabel, parseWindowId, type WindowState } from "@kakure/domain";
 import { OPERATOR_PUBLIC_KEYS } from "@kakure/query";
 import { Mark, RollingNumber, Skeleton } from "@kakure/ui-web";
 import { BadgeCheck } from "lucide-react";
 import Link from "next/link";
-import { useMarkets } from "@/features/data/use-markets";
+import { useRealtime } from "@/features/data/use-realtime";
 import { assetFor } from "@/features/markets/assets";
-import { WINDOW_LABEL } from "@/features/markets/market-view";
+import { LENGTHS, liveCount } from "@/features/markets/live-lanes";
 import { formatClock, useNow } from "@/lib/time";
 import { WORDS } from "./words";
 
 /**
- * "Every close is signed." (Mitoshi's proof section): three rolling counts and the latest closes, all read from the
- * signed batch this browser just verified against the operator key built into the site.
+ * "Every minute is signed." (Mitoshi's proof section): three rolling counts and the Windows that just settled, all read
+ * from the signed bundle this browser just verified against the operator key built into the site. The bundle keeps
+ * every Window settled in the last 10 minutes with each venue's closing print, so each row here can be recomputed.
  */
-const HOUR_MS = 3_600_000;
-const SETTLED_HOURS = 12;
-const SETTLED_WINDOW_MS = SETTLED_HOURS * HOUR_MS;
+const MS = 1000;
 const LATEST = 5;
 const KEY_HEAD = 8;
 const KEY_TAIL = 6;
-const DONE = new Set<Market["state"]>(["resolved", "paid"]);
-const LIVE = new Set<Market["state"]>(["scheduled", "open", "closing"]);
-const OUTCOME: Record<string, string> = {
-  U: WORDS.proof.won.up,
-  D: WORDS.proof.won.down,
-  Y: WORDS.proof.won.yes,
-  N: WORDS.proof.won.no,
-  refund: WORDS.proof.won.void,
-};
+const OUTCOME = { U: WORDS.proof.won.up, D: WORDS.proof.won.down, refund: WORDS.proof.won.void } as const;
+const TONE = { U: "text-up", D: "text-down", refund: "text-muted-foreground" } as const;
+
+type Settled = WindowState & { outcome: NonNullable<WindowState["outcome"]> };
 
 export function Proof() {
   const { proof } = WORDS;
@@ -53,60 +47,62 @@ export function Proof() {
 }
 
 function Live() {
-  const data = useMarkets();
-  const now = useNow();
+  const data = useRealtime();
+  const nowSec = Math.floor(useNow() / MS);
   const { proof } = WORDS;
   if (data.status === "loading") return <Skeleton className="h-80 rounded-lg" />;
   if (data.status !== "ready") return null;
-  const markets = data.bundle.markets;
-  const done = markets
-    .filter((m) => DONE.has(m.state) && m.outcome)
-    .sort((a, b) => Date.parse(b.closesAt) - Date.parse(a.closesAt));
-  const recent = now ? done.filter((m) => now - Date.parse(m.closesAt) < SETTLED_WINDOW_MS).length : done.length;
+  const { bundle } = data;
+  const settled = bundle.windows
+    .filter((w): w is Settled => w.outcome !== undefined)
+    .sort((a, b) => Date.parse(b.expiresAt) - Date.parse(a.expiresAt));
+  const live = nowSec > 0 ? LENGTHS.reduce((n, sec) => n + liveCount(sec, bundle, nowSec), 0) : 0;
   const key = OPERATOR_PUBLIC_KEYS[data.network];
   return (
     <div className="flex flex-col gap-6">
       <dl className="grid grid-cols-3 gap-4">
-        <Figure label={proof.figures.batch} value={data.bundle.seq} />
-        <Figure label={proof.figures.live} value={markets.filter((m) => LIVE.has(m.state)).length} />
-        <Figure label={proof.figures.settled} value={recent} />
+        <Figure label={proof.figures.bundle} value={bundle.seq} />
+        <Figure label={proof.figures.live} value={live} />
+        <Figure label={proof.figures.settled} value={settled.length} />
       </dl>
       {key ? (
         <p className="flex items-center gap-2 font-mono text-[12px] text-muted-foreground">
           <BadgeCheck aria-hidden className="size-4 text-up" />
-          batch {data.bundle.seq} verified here · key {key.slice(0, KEY_HEAD)}…{key.slice(-KEY_TAIL)}
+          bundle {bundle.seq} verified here · key {key.slice(0, KEY_HEAD)}…{key.slice(-KEY_TAIL)}
         </p>
       ) : null}
       <div className="lp-card px-5 py-2">
         <p className="pt-3 pb-1 text-label text-muted-foreground">{proof.settled}</p>
-        {done.length === 0 ? (
+        {settled.length === 0 ? (
           <p className="py-4 text-row-detail text-muted-foreground">{proof.none}</p>
         ) : (
           <ul>
-            {done.slice(0, LATEST).map((market) => {
-              const asset = assetFor(market);
-              const up = market.outcome === "U" || market.outcome === "Y";
-              return (
-                <li key={market.id} className="lp-settled last:border-b-0">
-                  <Mark mark={asset.mark} label={asset.symbol} size="inline" />
-                  <span className="text-row-detail">
-                    <span className="font-semibold text-foreground">{asset.symbol}</span>{" "}
-                    <span className="text-muted-foreground">
-                      {WINDOW_LABEL[market.window]} · closed {formatClock(market.closesAt)}
-                    </span>
-                  </span>
-                  <span
-                    className={`font-mono text-[12px] font-semibold ${market.outcome === "refund" ? "text-muted-foreground" : up ? "text-up" : "text-down"}`}
-                  >
-                    {OUTCOME[market.outcome ?? "refund"]}
-                  </span>
-                </li>
-              );
-            })}
+            {settled.slice(0, LATEST).map((window) => (
+              <SettledRow key={window.id} window={window} />
+            ))}
           </ul>
         )}
       </div>
     </div>
+  );
+}
+
+function SettledRow({ window }: { window: Settled }) {
+  const parsed = parseWindowId(window.id);
+  if (!parsed) return null;
+  const { asset, cadenceSec } = parsed.lane;
+  const info = assetFor({ kind: "close", subject: asset });
+  return (
+    <li className="lp-settled last:border-b-0">
+      <Mark mark={info.mark} label={asset} size="inline" />
+      <span className="text-row-detail">
+        <span className="font-semibold text-foreground">{asset}</span>{" "}
+        <span className="text-muted-foreground">
+          {cadenceLabel(cadenceSec)} · closed {formatClock(window.expiresAt)}
+        </span>
+      </span>
+      <span className={`font-mono text-[12px] font-semibold ${TONE[window.outcome]}`}>{OUTCOME[window.outcome]}</span>
+    </li>
   );
 }
 

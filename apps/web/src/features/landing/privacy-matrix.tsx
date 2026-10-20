@@ -3,8 +3,8 @@ import Link from "next/link";
 import { WORDS } from "./words";
 
 /**
- * Who sees what, as a matrix (plan §0 R3: You / Operator / Everyone else). Rows are the facts of one bet; each cell
- * says whether that party can see it. The words match /privacy and the docs (features/privacy/words.ts).
+ * Who sees what, as a matrix (plan §00 "Who sees what": You / The relay / The operator / Everyone else). Rows are the
+ * facts of one trade; each cell says whether that party can see it.
  */
 export function PrivacyMatrix() {
   const { privacy } = WORDS;
@@ -33,7 +33,7 @@ export function PrivacyMatrix() {
             {privacy.rows.map((row) => (
               <tr key={row.what}>
                 <th scope="row">{row.what}</th>
-                {[row.you, row.operator, row.public].map((sees, i) => (
+                {row.sees.map((sees, i) => (
                   <td key={privacy.columns[i]}>
                     {sees ? (
                       <span className="lp-yes" role="img" aria-label={privacy.sees}>

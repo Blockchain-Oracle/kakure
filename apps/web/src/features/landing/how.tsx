@@ -1,7 +1,7 @@
 import { Phone } from "./phone";
 import { WORDS } from "./words";
 
-/** "Pick. Pay. Get paid." (Mitoshi's "Pick. Call. Settle."): three steps over cropped captures of the real app. */
+/** "Deposit. Trade. Withdraw." (Mitoshi's "Pick. Call. Settle."): three steps over cropped captures of the real app. */
 export function How() {
   const { how } = WORDS;
   return (

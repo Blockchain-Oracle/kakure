@@ -1,13 +1,13 @@
-import { CandlestickChart, EyeOff, Gamepad2, Layers, Swords } from "lucide-react";
+import { AlignVerticalSpaceAround, EyeOff, Gamepad2, Layers, Swords } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CryptoSparks, SoonUnlessListed, SparkRow } from "./bento-live";
+import { CryptoSparks, SparkRow } from "./bento-live";
 import { SHIPPED, START, WORDS } from "./words";
 
 /**
- * "Crypto, Zcash and stocks. Same two buttons." (Mitoshi's bento, mitoshi-code-study §7; 21st.dev manuarora700/
- * bento-grid #1197's grid, reskinned): one idea a tile, a live fragment where there is one. A tile for something not
- * live yet carries "Soon": stocks and Range from the signed batch, the arcade from `SHIPPED`.
+ * "Six assets. Seven Window lengths. Two buttons." (Mitoshi's bento, mitoshi-code-study §7; 21st.dev manuarora700/
+ * bento-grid #1197's grid, reskinned): one idea a tile, a live fragment where there is one. Range and parlays trade
+ * today; the arcade and Duel carry "Soon" until their stage flips `SHIPPED`.
  */
 export function Bento() {
   const { bento } = WORDS;
@@ -33,14 +33,15 @@ export function Bento() {
               <SparkRow symbol="ZEC" stream="ZEC-USD" />
             </div>
           </Link>
-          <Tile href="/markets#range" icon={<Layers />} title={bento.range.title} line={bento.range.line}>
-            <SoonUnlessListed kind="strike" />
-          </Tile>
-          <Tile href="/markets#stocks" icon={<CandlestickChart />} title={bento.stocks.title} line={bento.stocks.line}>
-            <SoonUnlessListed kind="stock" />
-          </Tile>
+          <Tile
+            href="/games/range"
+            icon={<AlignVerticalSpaceAround />}
+            title={bento.range.title}
+            line={bento.range.line}
+          />
+          <Tile href={START} icon={<Layers />} title={bento.parlay.title} line={bento.parlay.line} />
           <Tile href="/games" icon={<Gamepad2 />} title={bento.games.title} line={bento.games.line}>
-            {SHIPPED.games ? null : <span className="lp-sticker">{bento.soon}</span>}
+            {SHIPPED.arcade ? null : <span className="lp-sticker">{bento.soon}</span>}
           </Tile>
           <Tile href="/games" icon={<Swords />} title={bento.duel.title} line={bento.duel.line}>
             {SHIPPED.duel ? null : <span className="lp-sticker">{bento.soon}</span>}

@@ -7,8 +7,8 @@ import { Brand } from "@/features/shell/brand";
 import { START, WORDS } from "./words";
 
 /**
- * The final call and the footer (Mitoshi's LandingEnd): the one action and a QR to the download page, then the
- * columns, the operator keys built into this site, and the outlined 隠れ watermark. Server components.
+ * The final call and the footer (Mitoshi's LandingEnd): the one action and a QR that opens the terminal on a phone,
+ * then the columns, the operator keys built into this site, and the outlined 隠れ watermark. Server components.
  */
 const QR_SIZE = 120;
 const KEY_HEAD = 12;
@@ -32,7 +32,7 @@ export function FinalCall() {
           </Link>
           <figure className="flex items-center gap-3 text-left">
             <span className="lp-qr">
-              <DottedQr value={`${SITE_ORIGIN}/download`} size={QR_SIZE} label={final.qr} />
+              <DottedQr value={`${SITE_ORIGIN}/trade`} size={QR_SIZE} label={final.qr} />
             </span>
             <figcaption className="max-w-[9rem] text-meta text-muted-foreground">{final.scan}</figcaption>
           </figure>
@@ -57,7 +57,7 @@ const COLUMNS: ReadonlyArray<{ title: string; links: ReadonlyArray<readonly [str
     links: [
       ["/privacy", "How privacy works"],
       ["/proof", "Signed files"],
-      ["/verify", "Verify a ticket"],
+      ["/verify", "Verify your positions"],
       ["/status", "Status"],
     ],
   },

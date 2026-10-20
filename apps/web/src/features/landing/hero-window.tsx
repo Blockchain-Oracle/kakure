@@ -1,40 +1,42 @@
 "use client";
 
-import { quoteTicket, type Side } from "@kakure/domain";
-import { usePrice } from "@kakure/feeds";
-import type { StreamSymbol } from "@kakure/feeds/protocol";
-import { DecryptText, Mark, RollingNumber, Skeleton } from "@kakure/ui-web";
+import { formatUsd, priceDecimals } from "@kakure/chart";
+import { cadenceLabel, type LaneAsset } from "@kakure/domain";
+import { Mark, RollingNumber, Skeleton } from "@kakure/ui-web";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { LiveWindowChart } from "@/features/chart/live-window-chart";
-import { useMarkets } from "@/features/data/use-markets";
-import { formatUsd } from "@/features/market/live-price";
+import { useRealtime } from "@/features/data/use-realtime";
 import { assetFor } from "@/features/markets/assets";
-import { featuredWindow, referencePrice, sidesOf } from "@/features/markets/market-view";
-import { formatCountdown, useNow } from "@/lib/time";
+import { heroPick, tradeHref } from "@/features/markets/live-lanes";
+import { multipleOf, windowStatus } from "@/features/terminal/format";
+import { pickWindow, useCommittedSpot, useQuote } from "@/features/terminal/use-window";
+import { useNow } from "@/lib/time";
 import { WORDS } from "./words";
 
 /**
- * The live window at the rim of the hole: BTC's open hourly market from the signed batch, its price rolling in from
- * the relay, the Window chart, and what each side pays for a 0.1 ticket as the pools stand (`quoteTicket`, the payout
- * formula with your stake added, as the terminal's ticket). A sealed pool's figures scramble until a signed batch
- * releases them. Every side links into the terminal on this market.
+ * The live Window at the rim of the hole (plan §00: "the hero window card shows the shortest live Window"): picked once
+ * the signed bundle is in and held, its Line, the price rolling in from the relay, Mitoshi's Window chart, and what Up
+ * and Down pay at the house's live price. Every side opens the terminal on this asset and length.
  */
-const QUOTE_SIZE_ZAT = 10_000_000n;
-const BPS = 10_000;
-const MULTIPLE_DECIMALS = 2;
+const MS = 1000;
 const PERCENT = 100;
 const CHANGE_DECIMALS = 2;
-const SIGN: Record<string, string> = { U: "▲", D: "▼", Y: "✓", N: "✕" };
-const UPWARD = new Set(["U", "Y"]);
 
 export function HeroWindow() {
-  const data = useMarkets();
-  const now = useNow();
+  const data = useRealtime();
+  const nowSec = Math.floor(useNow() / MS);
+  const bundle = data.status === "ready" ? data.bundle : null;
+  const [pick, setPick] = useState<{ asset: LaneAsset; cadenceSec: number } | null>(null);
+  useEffect(() => {
+    if (!pick && bundle && nowSec > 0) setPick(heroPick(bundle, nowSec));
+  }, [pick, bundle, nowSec]);
   const w = WORDS.window;
-  if (data.status === "loading") return <Skeleton className="lp-window h-[22rem] rounded-lg" />;
-  const market = data.status === "ready" ? featuredWindow(data.bundle.markets, now) : undefined;
-  if (!market) {
+  if (data.status === "loading" || (data.status === "ready" && !pick)) {
+    return <Skeleton className="lp-window h-[22rem] rounded-lg" />;
+  }
+  if (!pick || !bundle) {
     return (
       <div className="lp-window">
         <p className="text-row-detail text-muted-foreground">{w.none}</p>
@@ -44,87 +46,90 @@ export function HeroWindow() {
       </div>
     );
   }
-  const asset = assetFor(market);
-  const href = `/trade#${data.status === "ready" ? data.network : "testnet"}/${market.id}`;
-  const reference = referencePrice(market);
-  const cutoff = Date.parse(market.cutoffAt);
-  const pool = (side: string) => BigInt(market.released?.sides[side as Side]?.zat ?? "0");
-  const sealed = market.sealed || !market.released;
-  const [a, b] = sidesOf(market);
+  return <Card asset={pick.asset} cadenceSec={pick.cadenceSec} />;
+}
+
+function Card({ asset, cadenceSec }: { asset: LaneAsset; cadenceSec: number }) {
+  const data = useRealtime();
+  const bundle = data.status === "ready" ? data.bundle : null;
+  const nowSec = Math.floor(useNow() / MS);
+  const spot = useCommittedSpot(`${asset}-USD`);
+  const screen = nowSec > 0 ? pickWindow(asset, cadenceSec, bundle, nowSec, new Set()) : null;
+  const sigmaText = bundle?.pricing.sigma[asset];
+  const quote = useQuote(screen, spot, sigmaText ? Number(sigmaText) : null, nowSec);
+  const info = assetFor({ kind: "close", subject: asset });
+  const w = WORDS.window;
+  const line = screen?.state?.reference ? Number(screen.state.reference) : null;
+  const change = spot !== null && line ? ((spot - line) / line) * PERCENT : null;
+  const href = tradeHref(asset, cadenceSec);
+  const usd = (n: number) => formatUsd(n, priceDecimals(n));
+  const sides = [
+    { word: w.up, sign: "▲", ask: quote?.up.askE4 ?? null, up: true },
+    { word: w.down, sign: "▼", ask: quote?.down.askE4 ?? null, up: false },
+  ];
 
   return (
-    <article className="lp-window" aria-label={w.label(asset.symbol)}>
+    <article className="lp-window" aria-label={w.label(asset)}>
       <header className="flex items-center gap-3">
-        <Mark mark={asset.mark} label={asset.symbol} size="token" />
+        <Mark mark={info.mark} label={asset} size="token" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 font-display text-[15px] font-bold">
-            {asset.symbol} <span className="text-meta font-normal text-muted-foreground">· {w.lane}</span>
+            {asset}{" "}
+            <span className="text-meta font-normal text-muted-foreground">· {w.length(cadenceLabel(cadenceSec))}</span>
           </div>
           <div className="font-mono text-[12px] text-muted-foreground tabular-nums">
-            {now ? w.closesIn(formatCountdown(Math.max(0, cutoff - now))) : " "}
+            {windowStatus({
+              phase: screen?.phase ?? null,
+              startSec: screen?.window.startSec ?? null,
+              cutoffSec: screen ? screen.window.expirySec - (bundle?.pricing.entryBufferSec ?? 0) : null,
+              expirySec: screen?.window.expirySec ?? null,
+              nowSec,
+            })}
           </div>
         </div>
-        {asset.stream ? <Price stream={asset.stream} reference={reference} /> : null}
+        {spot === null ? (
+          <span className="text-meta text-muted-foreground">{w.connecting}</span>
+        ) : (
+          <div className="flex flex-col items-end">
+            <RollingNumber value={usd(spot)} className="font-mono text-[17px] font-semibold" />
+            {change === null ? null : (
+              <span className={`font-mono text-[12px] ${change >= 0 ? "text-up" : "text-down"}`}>
+                {change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(CHANGE_DECIMALS)}%
+              </span>
+            )}
+          </div>
+        )}
       </header>
-      {reference !== null ? (
-        <p className="text-row-detail text-muted-foreground">
-          {w.question(asset.symbol, formatUsd(String(reference)))}
-        </p>
-      ) : null}
-      {asset.stream ? (
+      {line !== null ? <p className="text-row-detail text-muted-foreground">{w.question(asset, usd(line))}</p> : null}
+      {screen ? (
         <LiveWindowChart
-          symbol={asset.stream}
-          label={`${asset.symbol} price since the window opened`}
+          symbol={`${asset}-USD`}
+          label={`${info.name} price over this ${cadenceLabel(cadenceSec)} Window`}
           className="lp-window-chart"
           spec={{
-            opensAt: Date.parse(market.opensAt),
-            closesAt: Date.parse(market.closesAt),
-            reference,
-            referenceLabel: reference === null ? "Open" : `Open ${formatUsd(String(reference))}`,
+            opensAt: screen.window.startSec * MS,
+            closesAt: screen.window.expirySec * MS,
+            reference: line,
+            referenceLabel: line === null ? "Line" : `Line ${usd(line)}`,
           }}
         />
       ) : null}
       <div className="lp-sides">
-        {[a, b].map((side) => {
-          const quote = sealed ? null : quoteTicket(QUOTE_SIZE_ZAT, pool(side), pool(side === a ? b : a));
-          const multiple = quote ? `${(Number(quote.multipleBps) / BPS).toFixed(MULTIPLE_DECIMALS)}×` : null;
-          const up = UPWARD.has(side);
-          return (
-            <Link key={side} href={href} className={`lp-side ${up ? "lp-side--up" : "lp-side--down"}`}>
-              <span>
-                {SIGN[side]} {up ? w.up : w.down}
-              </span>
-              <small>
-                {multiple ? "pays " : ""}
-                <DecryptText text={multiple} sealed={w.sealed} length={5} />
-              </small>
-            </Link>
-          );
-        })}
+        {sides.map((side) => (
+          <Link key={side.word} href={href} className={`lp-side ${side.up ? "lp-side--up" : "lp-side--down"}`}>
+            <span>
+              {side.sign} {side.word}
+            </span>
+            <small>{side.ask !== null ? w.pays(multipleOf(side.ask)) : w.notOffered}</small>
+          </Link>
+        ))}
       </div>
       <footer className="flex items-center justify-between gap-3 text-meta text-muted-foreground">
-        <span>{sealed ? w.sealedLine : `as the pools stand · batch ${market.released?.seq}`}</span>
+        <span>{w.house}</span>
         <Link href={href} className="flex shrink-0 items-center gap-1 font-semibold text-foreground hover:underline">
           {w.open} <ArrowRight aria-hidden className="size-3.5" />
         </Link>
       </footer>
     </article>
-  );
-}
-
-function Price({ stream, reference }: { stream: StreamSymbol; reference: number | null }) {
-  const price = usePrice(stream);
-  if (!price.price) return <span className="text-meta text-muted-foreground">{WORDS.window.connecting}</span>;
-  const value = Number(price.price);
-  const change = reference ? ((value - reference) / reference) * PERCENT : null;
-  return (
-    <div className="flex flex-col items-end">
-      <RollingNumber value={formatUsd(price.price)} className="font-mono text-[17px] font-semibold" />
-      {change === null ? null : (
-        <span className={`font-mono text-[12px] ${change >= 0 ? "text-up" : "text-down"}`}>
-          {change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(CHANGE_DECIMALS)}%
-        </span>
-      )}
-    </div>
   );
 }

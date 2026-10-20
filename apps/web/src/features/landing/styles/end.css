@@ -111,7 +111,7 @@
   border-bottom: 1px solid var(--lp-line);
 }
 
-/* ── Arcade strip ────────────────────────────────────────────────────────────────────────────────────────────── */
+/* ── Games strip ─────────────────────────────────────────────────────────────────────────────────────────────── */
 .lp-cabinets {
   display: grid;
   gap: 12px;
@@ -137,6 +137,14 @@
     0 0,
     14px 14px;
   box-shadow: inset 0 0 0 1px var(--lp-line);
+  height: 100%;
+  transition:
+    background-color 200ms,
+    transform 300ms var(--ease-out);
+}
+a.lp-cabinet:hover {
+  background-color: var(--lp-card-2);
+  transform: translateY(-2px);
 }
 .lp-cabinet h3 {
   font: 700 22px / 1 var(--font-display);

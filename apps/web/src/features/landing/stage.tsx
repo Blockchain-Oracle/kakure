@@ -2,8 +2,8 @@ import { Phone } from "./phone";
 import { WORDS } from "./words";
 
 /**
- * "One app" (Mitoshi's phone stage, mitoshi-code-study §7): the trade terminal in front, Markets and a ticket fanned
- * behind it, over the neon 隠れ outline that breathes and sweeps. Real captures of the testnet app.
+ * "One app" (Mitoshi's phone stage, mitoshi-code-study §7): the trade terminal in front, Markets and open positions
+ * fanned behind it, over the neon 隠れ outline that breathes and sweeps. Real captures of the testnet app.
  */
 export function Stage() {
   const { stage } = WORDS;
@@ -24,7 +24,7 @@ export function Stage() {
             <Phone shot="markets" place="stage-l" />
           </div>
           <div className="lp-stage-side lp-stage-side--r" aria-hidden>
-            <Phone shot="ticket" place="stage-r" />
+            <Phone shot="positions" place="stage-r" />
           </div>
           <div className="lp-stage-main">
             <Phone shot="trade" place="stage-main" />

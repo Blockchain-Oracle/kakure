@@ -1,15 +1,12 @@
 "use client";
 
+import { formatUsd, priceDecimals } from "@kakure/chart";
 import { usePrice } from "@kakure/feeds";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
 import { Mark } from "@kakure/ui-web";
 import { Sparkline } from "@/features/chart/sparkline";
-import { useMarkets } from "@/features/data/use-markets";
-import { formatUsd } from "@/features/market/live-price";
-import { assetFor } from "@/features/markets/assets";
-import { WORDS } from "./words";
 
-/** The bento's live islands: real sparklines and prices from the relay, and availability read from the signed batch. */
+/** The bento's live islands: real sparklines and prices from the relay, the same stream the terminal trades on. */
 const CRYPTO: ReadonlyArray<{ symbol: string; stream: StreamSymbol }> = [
   { symbol: "BTC", stream: "BTC-USD" },
   { symbol: "ETH", stream: "ETH-USD" },
@@ -28,6 +25,7 @@ export function CryptoSparks() {
 
 export function SparkRow({ symbol, stream }: { symbol: string; stream: StreamSymbol }) {
   const price = usePrice(stream);
+  const value = price.price ? Number(price.price) : null;
   return (
     <div className="lp-spark-row">
       <span className="flex items-center gap-2 font-sans font-semibold">
@@ -35,17 +33,7 @@ export function SparkRow({ symbol, stream }: { symbol: string; stream: StreamSym
         {symbol}
       </span>
       <Sparkline symbol={stream} className="h-8 w-full" />
-      <span>{price.price ? formatUsd(price.price) : "—"}</span>
+      <span>{value === null ? "—" : formatUsd(value, priceDecimals(value))}</span>
     </div>
   );
-}
-
-/** "Soon" until the signed batch lists a market of this kind; then nothing (the tile is live). */
-export function SoonUnlessListed({ kind }: { kind: "strike" | "stock" }) {
-  const data = useMarkets();
-  if (data.status !== "ready") return null;
-  const listed = data.bundle.markets.some((m) =>
-    kind === "strike" ? Boolean(m.strike) : assetFor(m).category === "stocks",
-  );
-  return listed ? null : <span className="lp-sticker">{WORDS.bento.soon}</span>;
 }

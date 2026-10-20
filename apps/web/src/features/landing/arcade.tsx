@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { SHIPPED, WORDS } from "./words";
 
-/** The arcade strip (Mitoshi's games hall, Senryo's cabinets): checkered cabinets with sticker labels. */
+/**
+ * The games strip (Mitoshi's games hall, Senryo's cabinets): checkered cabinets with sticker labels. Range and Moonshot
+ * open their screens; the arcade cabinets read "Soon" until `SHIPPED.arcade` flips.
+ */
 export function Arcade() {
   const { games, bento } = WORDS;
   return (
@@ -21,10 +24,12 @@ export function Arcade() {
         </div>
         <ul className="lp-cabinets">
           {games.cabinets.map((cabinet) => (
-            <li key={cabinet.name} className="lp-cabinet">
-              <span className="lp-cabinet-tag">{SHIPPED.games ? cabinet.tag : bento.soon}</span>
-              <h3>{cabinet.name}</h3>
-              <p>{cabinet.line}</p>
+            <li key={cabinet.name}>
+              <Link href={cabinet.href} className="lp-cabinet">
+                <span className="lp-cabinet-tag">{cabinet.live || SHIPPED.arcade ? cabinet.tag : bento.soon}</span>
+                <h3>{cabinet.name}</h3>
+                <p>{cabinet.line}</p>
+              </Link>
             </li>
           ))}
         </ul>
