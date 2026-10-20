@@ -77,6 +77,9 @@ pub struct Engine {
     /// The payout window new markets state in their rules and use (O2).
     pub(crate) payout_window: Window,
     tick_secs: i64,
+    /// Draining before the cut-over to the real-time market (`run --drain`): no new markets or ladders are
+    /// listed, while the open ones close, resolve and schedule their payouts and refunds as usual.
+    pub drain: bool,
 }
 
 pub struct TickReport {
@@ -87,6 +90,8 @@ pub struct TickReport {
     pub receipts: usize,
     pub addresses: String,
     pub uploaded: Option<usize>,
+    /// Markets not yet resolved or cancelled: a drain is done when this reaches 0.
+    pub unresolved: usize,
 }
 
 pub fn domain_network(net: Net) -> Network {
@@ -122,6 +127,7 @@ impl Engine {
             publisher,
             payout_window,
             tick_secs,
+            drain: false,
         })
     }
 
@@ -150,8 +156,10 @@ impl Engine {
             .tip()
             .ok_or_else(|| anyhow!("the wallet has no scanned blocks yet (run sync)"))?;
 
-        self.create_markets(now, tip)?;
-        self.create_ladders(now).await?;
+        if !self.drain {
+            self.create_markets(now, tip)?;
+            self.create_ladders(now).await?;
+        }
         self.record_openings(now).await?;
         self.ensure_address_list(tip, now)?;
 
@@ -199,6 +207,12 @@ impl Engine {
                 .map(|(_, f)| f)
                 .unwrap_or_default(),
             uploaded,
+            unresolved: self
+                .store
+                .markets()?
+                .iter()
+                .filter(|m| m.outcome.is_none() && !m.cancelled)
+                .count(),
         })
     }
 

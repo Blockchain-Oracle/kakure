@@ -171,6 +171,9 @@ enum Command {
         /// Skip the chain sync (publish from the wallet as it is).
         #[arg(long)]
         no_sync: bool,
+        /// List no new markets; finish the open ones (resolve, refund, pay) before the cut-over to `serve`.
+        #[arg(long)]
+        drain: bool,
         #[arg(long, default_value_t = 4)]
         parallel: usize,
         #[arg(long, default_value_t = 8)]
@@ -412,12 +415,19 @@ impl Cli {
                 interval_secs,
                 once,
                 no_sync,
+                drain,
                 parallel,
                 blocks_per_circuit,
             } => {
                 ensure!(interval_secs >= 10, "--interval-secs must be at least 10");
                 let interval = i64::try_from(interval_secs)?;
                 let mut engine = Engine::open(common.wallet(), interval)?;
+                engine.drain = drain;
+                if drain {
+                    eprintln!(
+                        "run: draining: no new markets; the open ones finish, then switch to `serve`"
+                    );
+                }
                 let tor = if no_sync {
                     None
                 } else {
@@ -484,18 +494,23 @@ impl Cli {
                         }
                     }
                     match engine.tick(tor.as_ref(), &opts).await {
-                        Ok(r) => println!(
-                            "{} tick: bundle-{}.json, tip {}, {} markets, {} tickets, {} receipts, {}{}",
-                            catalog::iso(chrono::Utc::now().timestamp()),
-                            r.seq,
-                            r.tip,
-                            r.markets,
-                            r.tickets,
-                            r.receipts,
-                            r.addresses,
-                            r.uploaded
-                                .map_or(String::new(), |n| format!(", {n} file(s) pushed")),
-                        ),
+                        Ok(r) => {
+                            println!(
+                                "{} tick: bundle-{}.json, tip {}, {} markets, {} tickets, {} receipts, {}{}",
+                                catalog::iso(chrono::Utc::now().timestamp()),
+                                r.seq,
+                                r.tip,
+                                r.markets,
+                                r.tickets,
+                                r.receipts,
+                                r.addresses,
+                                r.uploaded
+                                    .map_or(String::new(), |n| format!(", {n} file(s) pushed")),
+                            );
+                            if drain {
+                                drain_report(&engine, r.unresolved);
+                            }
+                        }
                         Err(e) => eprintln!("tick failed: {e:#}"),
                     }
                     synced = true;
@@ -696,6 +711,19 @@ fn record_bet(dir: &Path, txid: &str, bet: &BetMemo, leaf: &str, to: &str) -> Re
         .open(dir.join("bets.jsonl"))?;
     writeln!(file, "{line}")?;
     Ok(())
+}
+
+/// One line per tick while draining: how many pool markets are still open and what payouts remain. `serve`
+/// sends every scheduled payout, so the cut-over can go once no market is open.
+fn drain_report(engine: &Engine, unresolved: usize) {
+    let payouts = payouts::summary(&engine.store, chrono::Utc::now().timestamp())
+        .map(|lines| lines.join("; "))
+        .unwrap_or_else(|e| format!("payouts unreadable: {e:#}"));
+    if unresolved == 0 {
+        eprintln!("drain: every pool market is resolved; switch to `serve` ({payouts})");
+    } else {
+        eprintln!("drain: {unresolved} pool market(s) still open ({payouts})");
+    }
 }
 
 fn status(wallet: &Wallet) -> Result<()> {
