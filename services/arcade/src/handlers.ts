@@ -17,6 +17,7 @@ import {
   type RunIssued,
   replayArcade,
   type ScoreAccepted,
+  SIGNED_SKEW_SEC,
   type Standing,
   seedFromBytes,
   ticksToMs,
@@ -25,7 +26,7 @@ import {
 import { verifyDocument } from "@kakure/signing";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { z } from "zod";
-import { DAY_SEC, HOUR_SEC, PER_PLAYER_PER_HOUR, SEED_GRACE_SEC, WEEK_DAYS } from "./constants";
+import { DAY_SEC, HOUR_SEC, PER_PLAYER_PER_HOUR, SEED_GRACE_SEC, SEEDS_MAX, WEEK_DAYS } from "./constants";
 import type { ArcadeStore } from "./store";
 import { tapeFor } from "./tapes";
 
@@ -33,8 +34,9 @@ import { tapeFor } from "./tapes";
  * The arcade's answers (Mitoshi `web/src/features/games/arcade/score.server.ts`, on a nickname and device key instead
  * of a wallet session). A score is accepted only when the service's replay of the same engine over the same seed, tape
  * and inputs reproduces it to the tick; it can't prove a browser wasn't scripted, and the board says "server-checked".
- * Cheapest refusal first: the shape, the signature, the player, the engine build, the envelope, the seed, the replay,
- * then the hourly limit and the record.
+ * Cheapest refusal first: the shape, the signature, the player, the engine build, the envelope, the hourly limit (a
+ * post counts before it's replayed, so replays per key are bounded), the seed, then the replay, capped at the run's
+ * claimed length, and the record.
  */
 export type Verdict<T> = { ok: true; body: T } | { ok: false; status: number; error: string };
 
@@ -43,6 +45,8 @@ const SEED_BYTES = 4;
 const ISSUE_TRIES = 4;
 const HEX_KEY = /^[0-9a-f]{64}$/;
 const DATE_DIGITS = 8;
+/** The replay plays at most the claimed length and this many ticks more (the length check allows one either way). */
+const REPLAY_SLACK_TICKS = 2;
 
 const nowSec = () => Math.floor(Date.now() / MS);
 
@@ -71,25 +75,40 @@ export function readBoard(store: ArcadeStore, game: ArcadeGame, period: BoardPer
   return { game, period, engineVersion, rows };
 }
 
-/** A device key's standing on one game's all-time board: its nickname, best and rank (nulls before its first run). */
-export function readMe(store: ArcadeStore, game: ArcadeGame, player: string): Standing {
+const standingSchema = z.object({ game: z.enum(["line-rider", "candle-hop"]), player: z.string().regex(HEX_KEY) });
+
+/** `POST /me`: a device key's standing on one game's all-time board (nulls before its first run). */
+export function readMe(store: ArcadeStore, raw: unknown): Verdict<Standing> {
+  const parsed = standingSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, status: 400, error: "that isn't a standing request" };
+  const { game, player } = parsed.data;
   const engineVersion = ENGINE_VERSION[game];
   const best = store.best(player, game, engineVersion);
   return {
-    nickname: store.nicknameOf(player),
-    best,
-    rank: best === null ? null : store.rank(game, engineVersion, best),
+    ok: true,
+    body: {
+      nickname: store.nicknameOf(player),
+      best,
+      rank: best === null ? null : store.rank(game, engineVersion, best),
+    },
   };
 }
 
-/** A seed for the next run, with the tape it rides, both kept so the score check replays the same terrain. */
-export async function issueRun(store: ArcadeStore, game: ArcadeGame): Promise<RunIssued> {
+/** How long an issued seed stays good. */
+export const SEED_LIFE_SEC = MAX_RUN_SEC + SEED_GRACE_SEC;
+
+/**
+ * A seed for the next run, with the tape it rides, both kept so the score check replays the same terrain. Past
+ * `SEEDS_MAX` outstanding seeds a run is refused until some are posted or expire, so issuing can't fill the disk.
+ */
+export async function issueRun(store: ArcadeStore, game: ArcadeGame): Promise<Verdict<RunIssued>> {
+  if (store.outstanding() >= SEEDS_MAX) return { ok: false, status: 503, error: "the arcade is busy; try again soon" };
   for (let i = 0; i < ISSUE_TRIES; i++) {
     const seed = seedFromBytes(randomBytes(SEED_BYTES));
     const now = nowSec();
     const tape = await tapeFor(seed, now * MS);
-    if (store.issue(seed, game, tape, now, MAX_RUN_SEC + SEED_GRACE_SEC)) {
-      return { seed, tape, engineVersion: ENGINE_VERSION[game] };
+    if (store.issue(seed, game, tape, now)) {
+      return { ok: true, body: { seed, tape, engineVersion: ENGINE_VERSION[game] } };
     }
   }
   throw new Error("couldn't issue a seed");
@@ -104,6 +123,7 @@ const registrationSchema = z.object({
   player: z.string().regex(HEX_KEY),
   nickname: z.string().regex(NICKNAME_PATTERN),
   nonce: z.number().int().nonnegative(),
+  at: z.number().int(),
   sig: z.string(),
 });
 
@@ -121,6 +141,9 @@ export function register(store: ArcadeStore, raw: unknown): Verdict<{ nickname: 
     };
   const claim = parsed.data;
   if (!signedBy(claim, claim.player)) return { ok: false, status: 401, error: "the claim isn't signed by its key" };
+  if (Math.abs(nowSec() - claim.at) > SIGNED_SKEW_SEC) {
+    return { ok: false, status: 400, error: "the claim is stale; try again" };
+  }
   if (!powMeets(claim, claim.nonce)) return { ok: false, status: 422, error: "the claim's work falls short" };
   if (!store.claim(claim.player, claim.nickname)) return { ok: false, status: 409, error: "that nickname is taken" };
   return { ok: true, body: { nickname: claim.nickname } };
@@ -151,21 +174,24 @@ export function acceptScore(store: ArcadeStore, raw: unknown): Verdict<ScoreAcce
   const envelope = envelopeCheck(claim.game, claim.durationMs, claim.trace, claim.score);
   if (!envelope.ok) return { ok: false, status: 422, error: envelope.why };
   const now = nowSec();
-  const tape = store.take(claim.seed, claim.game, now, MAX_RUN_SEC + SEED_GRACE_SEC);
+  if (!store.allowPost(claim.player, Math.floor(now / HOUR_SEC), PER_PLAYER_PER_HOUR)) {
+    return { ok: false, status: 429, error: "too many runs this hour" };
+  }
+  const tape = store.take(claim.seed, claim.game, now, SEED_LIFE_SEC);
   if (tape === undefined) {
     return { ok: false, status: 422, error: "that run's seed wasn't issued here, was posted, or expired" };
   }
-  const replay = replayArcade(claim.game, claim.seed, claim.trace, {
-    calm: claim.calm,
-    ...(tape ? { tape: tape.points, moves: tape.moves } : {}),
-  });
+  const replay = replayArcade(
+    claim.game,
+    claim.seed,
+    claim.trace,
+    { calm: claim.calm, ...(tape ? { tape: tape.points, moves: tape.moves } : {}) },
+    envelope.ticks + REPLAY_SLACK_TICKS,
+  );
   if (!replay.ended) return { ok: false, status: 422, error: "the run never ended" };
   if (replay.score !== claim.score) return { ok: false, status: 422, error: "the replay doesn't reproduce that score" };
   if (Math.abs(replay.ticks - envelope.ticks) > 1) {
     return { ok: false, status: 422, error: "the replay doesn't reproduce that length" };
-  }
-  if (!store.allowPost(claim.player, Math.floor(now / HOUR_SEC), PER_PLAYER_PER_HOUR)) {
-    return { ok: false, status: 429, error: "too many runs this hour" };
   }
   const previous = store.best(claim.player, claim.game, engineVersion);
   store.record({

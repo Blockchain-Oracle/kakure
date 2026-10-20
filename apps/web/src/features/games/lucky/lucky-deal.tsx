@@ -94,7 +94,7 @@ export function LuckyDealCard({
         maxAskE4: withSlippage(ask, slippageBps, "up"),
         ...(spot === null ? {} : { entrySpot: spot }),
       });
-      markPlaced(deal.seed, record.key);
+      markPlaced(network, deal.seed, record.key);
       fire("send");
       feedback("card-win");
       setState({ kind: "done" });

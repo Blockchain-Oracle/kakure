@@ -24,6 +24,8 @@ export type BoardPeriod = (typeof BOARD_PERIODS)[number];
 export const NICKNAME_PATTERN = /^[A-Za-z0-9_-]{3,16}$/;
 /** Leading zero bits a nickname claim's work must reach: about a quarter of a million hashes, under a second. */
 export const POW_BITS = 18;
+/** A signed request (a nickname claim, a Duel call) carries `at`, unix seconds, and is good this long either side. */
+export const SIGNED_SKEW_SEC = 120;
 
 /** `POST /arcade/v1/run/<game>`: a seed for the next run, with the real-price tape it rides (null: the seed's line). */
 export interface RunIssued {
@@ -61,7 +63,7 @@ export interface ScoreClaim {
   player: string;
 }
 
-/** `GET /arcade/v1/me/<game>/<player>`: a device key's nickname, best and all-time rank (nulls before a first run). */
+/** `POST /arcade/v1/me` with `{ game, player }` (a key stays out of paths): its nickname, best and all-time rank. */
 export interface Standing {
   nickname: string | null;
   best: number | null;
@@ -75,11 +77,21 @@ export interface ScoreAccepted {
   board: Board;
 }
 
-/** `POST /arcade/v1/player`: claims a nickname for a device key (signed, with proof of work in `nonce`). */
+/** `POST /arcade/v1/me`: whose standing, on which game's all-time board. */
+export interface StandingRequest {
+  game: ArcadeGame;
+  player: string;
+}
+
+/**
+ * `POST /arcade/v1/player`: claims a nickname for a device key (signed, with proof of work in `nonce`). `at` dates the
+ * claim, so an old one can't be sent again later to undo a rename.
+ */
 export interface Registration {
   player: string;
   nickname: string;
   nonce: number;
+  at: number;
 }
 
 /** What the work hashes: the key and the nickname (case-folded, as uniqueness is) with the nonce. */

@@ -1,12 +1,14 @@
+import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type { ArcadeGame, BoardRow, Tape } from "@kakure/arcade";
 import { DuelStore } from "./duel-store";
 
 /**
  * The arcade's book (Mitoshi `@cwf/db` arcade store, in one SQLite file): players (a device key and its nickname),
- * issued seeds with their tapes until they're posted or expire, accepted runs, and an hourly post count per player.
- * Nothing about a visitor: no IP (the service never receives one), no times beyond a run's day, and the hourly counts
- * leave as soon as their hour is over.
+ * issued seeds until they're posted or expire, the tapes they ride (each stored once, by its hash, while a seed
+ * needs it), accepted runs, and an hourly post count per player. Nothing about a visitor: no IP (the service never
+ * receives one), no times beyond a run's day, and the hourly counts leave once their hour is over. Deleted rows are
+ * overwritten on disk (`secure_delete`), so an expired seed's time doesn't linger in free pages.
  */
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS players (
@@ -17,8 +19,13 @@ CREATE TABLE IF NOT EXISTS players (
 CREATE TABLE IF NOT EXISTS seeds (
   seed TEXT PRIMARY KEY,
   game TEXT NOT NULL,
-  tape TEXT,
+  tape_id TEXT,
   issued_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS seeds_issued ON seeds (issued_at);
+CREATE TABLE IF NOT EXISTS tapes (
+  id TEXT PRIMARY KEY,
+  tape TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +68,10 @@ export class ArcadeStore {
   constructor(path: string) {
     this.db = new DatabaseSync(path);
     this.db.exec("PRAGMA journal_mode = WAL;");
+    this.db.exec("PRAGMA secure_delete = ON;");
+    // The first build kept each seed's whole tape on its row; those seeds are short-lived, so they simply go.
+    const columns = this.db.prepare("PRAGMA table_info(seeds)").all() as Array<{ name: string }>;
+    if (columns.some((c) => c.name === "tape")) this.db.exec("DROP TABLE seeds;");
     this.db.exec(SCHEMA);
     this.duels = new DuelStore(this.db);
   }
@@ -88,22 +99,40 @@ export class ArcadeStore {
     return true;
   }
 
-  issue(seed: string, game: ArcadeGame, tape: Tape | null, nowSec: number, graceSec: number): boolean {
-    this.db.prepare("DELETE FROM seeds WHERE issued_at < ?").run(nowSec - graceSec);
+  /** Seeds issued and not yet posted or swept. */
+  outstanding(): number {
+    return (this.db.prepare("SELECT COUNT(*) AS n FROM seeds").get() as { n: number }).n;
+  }
+
+  /** Keeps a seed with its tape (stored once by its hash); false when the seed is already out. */
+  issue(seed: string, game: ArcadeGame, tape: Tape | null, nowSec: number): boolean {
+    const text = tape ? JSON.stringify(tape) : null;
+    const tapeId = text ? createHash("sha256").update(text).digest("hex") : null;
+    if (text && tapeId) this.db.prepare("INSERT OR IGNORE INTO tapes (id, tape) VALUES (?, ?)").run(tapeId, text);
     const result = this.db
-      .prepare("INSERT OR IGNORE INTO seeds (seed, game, tape, issued_at) VALUES (?, ?, ?, ?)")
-      .run(seed, game, tape ? JSON.stringify(tape) : null, nowSec);
-    return result.changes === 1;
+      .prepare("INSERT OR IGNORE INTO seeds (seed, game, tape_id, issued_at) VALUES (?, ?, ?, ?)")
+      .run(seed, game, tapeId, nowSec);
+    return Number(result.changes) === 1;
   }
 
   /** The seed's tape, taken (one score per seed); undefined when it wasn't issued here for this game, or expired. */
   take(seed: string, game: ArcadeGame, nowSec: number, graceSec: number): Tape | null | undefined {
-    const row = this.db.prepare("SELECT tape, issued_at FROM seeds WHERE seed = ? AND game = ?").get(seed, game) as
-      | { tape: string | null; issued_at: number }
-      | undefined;
+    const row = this.db
+      .prepare(
+        `SELECT s.issued_at AS issued_at, t.tape AS tape FROM seeds s LEFT JOIN tapes t ON t.id = s.tape_id
+         WHERE s.seed = ? AND s.game = ?`,
+      )
+      .get(seed, game) as { tape: string | null; issued_at: number } | undefined;
     if (!row || row.issued_at < nowSec - graceSec) return undefined;
     this.db.prepare("DELETE FROM seeds WHERE seed = ?").run(seed);
     return row.tape === null ? null : (JSON.parse(row.tape) as Tape);
+  }
+
+  /** The hourly clean-up: expired seeds, tapes no seed needs, and past hours' post counts. */
+  sweep(nowSec: number, graceSec: number, hour: number): void {
+    this.db.prepare("DELETE FROM seeds WHERE issued_at < ?").run(nowSec - graceSec);
+    this.db.exec("DELETE FROM tapes WHERE id NOT IN (SELECT tape_id FROM seeds WHERE tape_id IS NOT NULL)");
+    this.db.prepare("DELETE FROM posts WHERE hour < ?").run(hour);
   }
 
   /** Counts a post against the player's hour; false past the limit. Earlier hours' counts are dropped. */

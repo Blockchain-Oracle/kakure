@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyDuelResult,
+  applyForfeit,
   dealDuelDeck,
   duelCommitment,
   duelScore,
@@ -77,4 +78,13 @@ test("Elo moves both players, a newcomer at double weight", () => {
   assert.equal(next.a.rating, 1024);
   assert.equal(next.b.rating, 988);
   assert.equal(next.a.verified, 1);
+});
+
+test("a forfeit costs the absent player and gives the present one no rating", () => {
+  const absent = { rating: INITIAL_RATING, verified: 0 };
+  const present = { rating: INITIAL_RATING, verified: 0 };
+  const next = applyForfeit(absent, present);
+  assert.equal(next.absent.rating, 976);
+  assert.equal(next.absent.verified, 1);
+  assert.deepEqual(next.present, present);
 });

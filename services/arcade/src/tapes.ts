@@ -9,16 +9,26 @@ import {
 } from "@kakure/domain";
 import { verifyDocument } from "@kakure/signing";
 import { hexToBytes } from "@noble/hashes/utils.js";
-import { DATA_ORIGIN, DEV_KEYS, HOUR_SEC, LATEST_TTL_MS, PRINTS_HOURS, TAPE_NETWORK } from "./constants";
+import {
+  DATA_ORIGIN,
+  DEV_KEYS,
+  FETCH_TIMEOUT_MS,
+  HOUR_SEC,
+  LATEST_TTL_MS,
+  PRINTS_HOURS,
+  TAPE_NETWORK,
+} from "./constants";
 
 /**
- * Tapes from the signed hourly prints files (plan §0 R4): the same files every visitor downloads from the site, each
- * checked against the operator key pinned in the build before it's read. Prints files never change, so each is
- * fetched once; the bundle naming them is read again each minute.
+ * Tapes and outcomes from the signed public files (plan §0 R4, R5): the same files every visitor downloads from the
+ * site, each checked against the operator key pinned in the build before it's read. Prints files never change, so
+ * each is fetched once and kept while the latest bundle still lists it; the bundle naming them is read again each
+ * minute. Every fetch gives up after `FETCH_TIMEOUT_MS`, so a slow site can't stall the tick.
  */
 const MS = 1000;
 const files = new Map<string, Prints>();
 let latest: { at: number; bundle: BundleV2 } | null = null;
+const HOUR_DIGITS = "yyyymmddhh".length;
 
 function operatorKey(): Uint8Array {
   const hex = DEV_KEYS[TAPE_NETWORK] ?? OPERATOR_PUBLIC_KEYS[TAPE_NETWORK];
@@ -27,7 +37,9 @@ function operatorKey(): Uint8Array {
 }
 
 async function signed<T extends { network: string }>(file: string, schema: { parse: (raw: unknown) => T }): Promise<T> {
-  const response = await fetch(`${DATA_ORIGIN}/data/${TAPE_NETWORK}/${file}`);
+  const response = await fetch(`${DATA_ORIGIN}/data/${TAPE_NETWORK}/${file}`, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error(`${file}: HTTP ${response.status}`);
   const raw = (await response.json()) as Record<string, unknown>;
   if (!verifyDocument(raw, operatorKey())) throw new Error(`${file}: not signed by the operator`);
@@ -40,7 +52,35 @@ export async function latestBundle(nowMs: number): Promise<BundleV2> {
   if (latest && nowMs - latest.at < LATEST_TTL_MS) return latest.bundle;
   const pointer = await signed("latest.json", latestV2Schema);
   latest = { at: nowMs, bundle: await signed(pointer.bundle, bundleV2Schema) };
+  const listed = new Set(latest.bundle.prints);
+  for (const name of files.keys()) if (!listed.has(name)) files.delete(name);
   return latest.bundle;
+}
+
+/** `prints-yyyymmddhh.json` for the hour starting at `hourSec`. */
+function printsName(hourSec: number): string {
+  return `prints-${new Date(hourSec * MS).toISOString().replace(/\D/g, "").slice(0, HOUR_DIGITS)}.json`;
+}
+
+/**
+ * The signed outcomes of Windows that have left the bundle's ten-minute list, from the prints file of the hour each
+ * settled in (its close's hour or the next, as settling waits for the venues). Windows not found yet are left out.
+ */
+export async function printedOutcomes(
+  bundle: BundleV2,
+  windows: readonly { id: string; expirySec: number }[],
+): Promise<Map<string, "U" | "D" | "refund">> {
+  const listed = new Set(bundle.prints);
+  const found = new Map<string, "U" | "D" | "refund">();
+  for (const window of windows) {
+    const hour = Math.floor(window.expirySec / HOUR_SEC) * HOUR_SEC;
+    for (const name of [printsName(hour), printsName(hour + HOUR_SEC)]) {
+      if (!listed.has(name) || found.has(window.id)) continue;
+      const outcome = (await prints(name).catch(() => null))?.windows.find((w) => w.id === window.id)?.outcome;
+      if (outcome) found.set(window.id, outcome);
+    }
+  }
+  return found;
 }
 
 async function prints(name: string): Promise<Prints> {

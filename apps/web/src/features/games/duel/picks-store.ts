@@ -6,7 +6,8 @@ import { gameKey } from "../keys";
 
 /**
  * A match's picks and their salt, held on this device between the commitment and the reveal (so a reload in between
- * can still reveal). Dropped once the match is past revealing. Never sent until both players are locked in.
+ * can still commit or reveal). Whether they're committed is the service's word (the match view), never a note kept
+ * here. Dropped once the match is past revealing. Never sent until both players are locked in.
  */
 const KEY = gameKey("duelPicks");
 const SALT_BYTES = 16;
@@ -17,7 +18,6 @@ export interface HeldPicks {
   matchId: string;
   picks: DuelPick[];
   salt: string;
-  committed: boolean;
 }
 
 export function freshSalt(): string {

@@ -27,6 +27,14 @@ export const K_ESTABLISHED = 24;
 const ELO_SPREAD = 400;
 const ELO_BASE = 10;
 
+/**
+ * The same two keys meet at most this many times a UTC day, so the ladder can't be climbed on one friend, or on a
+ * second key of your own.
+ */
+export const PAIR_DAILY_MAX = 3;
+/** At most this many wait at once; past it a join is refused until the queue drains. */
+export const QUEUE_MAX = 200;
+
 /** Matchmaking (Flicky's widening band): ±100 at once, +50 every 15 s, never past ±400. */
 export const BASE_BAND = 100;
 export const WIDEN_BY = 50;
@@ -169,4 +177,16 @@ export function applyDuelResult(
       verified: b.verified + 1,
     },
   };
+}
+
+/**
+ * A forfeit (a missed pick or reveal deadline): the absent player's rating falls as for a loss, and the present player
+ * is credited the win with their rating left where it was, so a no-show, or a second key that never picks, can't be
+ * farmed for rating.
+ */
+export function applyForfeit(
+  absent: RatingRecord,
+  present: RatingRecord,
+): { absent: RatingRecord; present: RatingRecord } {
+  return { absent: applyDuelResult(absent, present, 0).a, present };
 }

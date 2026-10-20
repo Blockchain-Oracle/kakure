@@ -1,6 +1,6 @@
 "use client";
 
-import type { DeckCard, DuelMatchView } from "@kakure/arcade";
+import type { DeckCard } from "@kakure/arcade";
 import { useState } from "react";
 import { useNow } from "@/lib/time";
 import { SearchingBanner } from "../art/pixel-art";
@@ -23,27 +23,26 @@ import "./duel.css";
  * your opponent, call three live Windows on the swipe deck, wait sealed while both lock in, then watch the cards settle
  * on their Windows' signed outcomes. More right calls wins; Elo moves; nothing is staked.
  */
-function seatOf(match: DuelMatchView, nickname: string | null): 0 | 1 | null {
-  if (!nickname) return null;
-  if (match.seats[0].nickname === nickname) return 0;
-  if (match.seats[1].nickname === nickname) return 1;
-  return null;
-}
-
 export function DuelStage() {
   const { feedback, reducedMotion } = useGames();
   const held = useNickname();
   const standing = useStanding("line-rider");
   const nickname = held ?? standing.data?.nickname ?? null;
   const duel = useDuelState(nickname !== null);
-  const matchId = duel.state?.status === "paired" ? duel.state.matchId : null;
-  const matchQuery = useDuelMatch(matchId);
+  // The duel on screen, and the seat the service says this key holds in it (a nickname can change, a seat can't). It
+  // stays after the service stops calling it yours to play (settling, then decided) until "Duel again".
+  const [shown, setShown] = useState<{ matchId: string; seat: 0 | 1 } | null>(null);
+  const [left, setLeft] = useState<string | null>(null);
+  const paired = duel.state?.status === "paired" ? duel.state : null;
+  if (paired && paired.matchId !== shown?.matchId && paired.matchId !== left) {
+    setShown({ matchId: paired.matchId, seat: paired.seat });
+  }
+  const matchQuery = useDuelMatch(shown?.matchId ?? null);
   const match = matchQuery.data;
-  const seat = match ? seatOf(match, nickname) : null;
+  const seat = match ? (shown?.seat ?? null) : null;
   const { picks, pick, error: pickError } = useDuelPicks(match, seat);
   const nowMs = useNow();
   const [nameOpen, setNameOpen] = useState(false);
-  const [left, setLeft] = useState<string | null>(null);
   const live = match && (match.status === "picking" || match.status === "revealing");
   useImmersive(Boolean(live) || duel.state?.status === "waiting");
 
@@ -58,7 +57,7 @@ export function DuelStage() {
   };
 
   // A finished duel stays on screen until "Duel again"; then the floor.
-  const showMatch = match && match.id !== left;
+  const showMatch = match && match.id === shown?.matchId;
   const cards: DeckCard[] = (match?.deck ?? []).map((card, index) => ({
     index,
     marketId: card.window,
@@ -103,7 +102,10 @@ export function DuelStage() {
               seat={seat}
               nowMs={nowMs}
               reduced={reducedMotion}
-              onAgain={() => setLeft(match.id)}
+              onAgain={() => {
+                setLeft(match.id);
+                setShown(null);
+              }}
             />
           )}
           {pickError ? <p className="du-fail">{pickError}</p> : null}

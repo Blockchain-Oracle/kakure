@@ -41,6 +41,10 @@ export const LUCKY = {
     set: "Candidates",
     candidates: (n: number, hash: string) => `${n} Windows · ${hash}`,
     rule: "HMAC-SHA256, keyed by the bundle's hash, over the policy, the candidates' hash and your seed.",
+    whose:
+      "Nobody knew the bundle's hash before that minute, so nobody could aim the draw. Your browser made the seed, so this proves the draw follows from these inputs, not that you couldn't have picked them.",
+    copy: "Copy the inputs",
+    copied: "Copied · clears in a minute",
     verified: "Recomputed here · the draw matches",
     mismatch: "Recomputed here · the draw does NOT match",
   },

@@ -1,31 +1,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { ARCADE_PATH, BOARD_LIMIT } from "@kakure/arcade";
-import { BODY_MAX_BYTES, DB_PATH, PORT } from "./constants";
-import {
-  commitPicks,
-  duelBoard,
-  duelHistory,
-  duelRecent,
-  duelState,
-  isMatchId,
-  isPlayer,
-  joinQueue,
-  leaveQueue,
-  matchView,
-  pairQueue,
-  revealPicks,
-  settleDuels,
-} from "./duel";
+import { BODY_MAX_BYTES, DB_PATH, HOUR_SEC, PORT } from "./constants";
+import { commitPicks, duelState, joinQueue, leaveQueue, matchView, pairQueue, revealPicks, settleDuels } from "./duel";
+import { duelBoard, duelHistory, duelRecent, isMatchId } from "./duel-views";
 import {
   acceptScore,
   attractTape,
   isGame,
   isPeriod,
-  isPlayerKey,
   issueRun,
   readBoard,
   readMe,
   register,
+  SEED_LIFE_SEC,
   type Verdict,
 } from "./handlers";
 import { ArcadeStore } from "./store";
@@ -37,25 +24,27 @@ import { ArcadeStore } from "./store";
  *
  *   POST /arcade/v1/run/<game>              a seed and the real-price tape it rides
  *   GET  /arcade/v1/board/<game>/<period>[/<limit>]   each nickname's best, day, week or all (up to 50)
- *   GET  /arcade/v1/me/<game>/<player>      a device key's nickname, best and all-time rank
- *   POST /arcade/v1/player                  claim a nickname for a device key (signed, with proof of work)
+ *   POST /arcade/v1/me                      a device key's nickname, best and all-time rank ({ game, player })
+ *   POST /arcade/v1/player                  claim a nickname for a device key (signed, dated, with proof of work)
  *   POST /arcade/v1/score                   a signed run, replayed before it ranks
  *   GET  /arcade/v1/tape                    a tape for the cabinets' attract loops
- *   GET  /arcade/v1/duel/state/<player>     the Duel: queue or match for a key, and how many wait
+ *   POST /arcade/v1/duel/state | history    the Duel: a key's queue or match, and its duels (signed)
  *   POST /arcade/v1/duel/queue | leave      join or leave the queue (signed)
  *   GET  /arcade/v1/duel/match/<id>         a match; picks show once both are revealed
  *   POST /arcade/v1/duel/commit | reveal    a commitment to the picks, then the picks (signed)
  *   GET  /arcade/v1/duel/board | recent     the Elo ladder; the last decided duels
- *   GET  /arcade/v1/duel/history/<player>   a key's duels
+ *
+ * A device key travels only in request bodies, never in a path.
  */
 const store = new ArcadeStore(DB_PATH);
-/** Duels read their cards' outcomes from the signed bundle this often. */
-const SETTLE_EVERY_MS = 20_000;
+/** The tick: duels read their cards' outcomes and the queue pairs this often; the clean-up runs on each new hour. */
+const TICK_EVERY_MS = 20_000;
+const MS = 1000;
 const ATTRACT_CACHE = "public, max-age=300, stale-while-revalidate=900";
 const HTTP_OK = 200;
 const HTTP_BAD_REQUEST = 400;
 const HTTP_NOT_FOUND = 404;
-/** Path segments after `/arcade/v1/`: `tape`, `run/<game>`, `board/<game>/<period>[/<limit>]`, `me/<game>/<player>`. */
+/** Path segments after `/arcade/v1/`: `tape`, `me`, `run/<game>`, `board/<game>/<period>[/<limit>]`. */
 const ONE = 1;
 const TWO = 2;
 const THREE = 3;
@@ -92,14 +81,14 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     const limit = parts.length === FOUR ? Number(parts[THREE]) : BOARD_LIMIT;
     if (parts.length === THREE || parts.length === FOUR) return send(response, HTTP_OK, readBoard(store, a, b, limit));
   }
-  if (request.method === "GET" && what === "me" && a && b && isGame(a) && isPlayerKey(b) && parts.length === THREE) {
-    return send(response, HTTP_OK, readMe(store, a, b));
+  if (request.method === "POST" && what === "me" && parts.length === ONE) {
+    return answer(response, readMe(store, await body(request)));
   }
   if (request.method === "GET" && what === "tape" && parts.length === ONE) {
     return send(response, HTTP_OK, { tape: await attractTape() }, ATTRACT_CACHE);
   }
   if (request.method === "POST" && what === "run" && a && isGame(a) && parts.length === TWO) {
-    return send(response, HTTP_OK, await issueRun(store, a));
+    return answer(response, await issueRun(store, a));
   }
   if (request.method === "POST" && what === "player" && parts.length === ONE) {
     return answer(response, register(store, await body(request)));
@@ -115,10 +104,10 @@ async function duelRoute(request: IncomingMessage, response: ServerResponse, res
   const [what, id] = rest;
   const get = request.method === "GET";
   const post = request.method === "POST";
-  if (get && what === "state" && id && isPlayer(id)) return send(response, HTTP_OK, duelState(store, id));
+  if (post && what === "state" && !id) return answer(response, duelState(store, await body(request)));
+  if (post && what === "history" && !id) return answer(response, duelHistory(store, await body(request)));
   if (get && what === "board" && !id) return send(response, HTTP_OK, duelBoard(store));
   if (get && what === "recent" && !id) return send(response, HTTP_OK, duelRecent(store));
-  if (get && what === "history" && id && isPlayer(id)) return send(response, HTTP_OK, duelHistory(store, id));
   if (get && what === "match" && id && isMatchId(id)) {
     const match = matchView(store, id);
     return match ? send(response, HTTP_OK, match) : send(response, HTTP_NOT_FOUND, { error: "no such duel" });
@@ -130,10 +119,26 @@ async function duelRoute(request: IncomingMessage, response: ServerResponse, res
   return send(response, HTTP_NOT_FOUND, { error: "not found" });
 }
 
+/** One tick at a time: a slow fetch from the site makes the next tick wait, never run beside it. */
+let ticking = false;
+let sweptHour = 0;
+async function tick(): Promise<void> {
+  await settleDuels(store).catch(() => undefined);
+  await pairQueue(store).catch(() => undefined);
+  const now = Math.floor(Date.now() / MS);
+  const hour = Math.floor(now / HOUR_SEC);
+  if (hour !== sweptHour) {
+    store.sweep(now, SEED_LIFE_SEC, hour);
+    sweptHour = hour;
+  }
+}
 setInterval(() => {
-  void settleDuels(store).catch(() => undefined);
-  void pairQueue(store).catch(() => undefined);
-}, SETTLE_EVERY_MS);
+  if (ticking) return;
+  ticking = true;
+  void tick().finally(() => {
+    ticking = false;
+  });
+}, TICK_EVERY_MS);
 
 createServer((request, response) => {
   route(request, response).catch(() => {

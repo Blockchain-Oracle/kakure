@@ -10,9 +10,10 @@ import {
   type ScoreAccepted,
   type ScoreClaim,
   type Standing,
+  type StandingRequest,
   type Tape,
 } from "@kakure/arcade";
-import { POW_YIELD_EVERY } from "./constants";
+import { MS_PER_SEC, POW_YIELD_EVERY } from "./constants";
 import { playerKey, signAsPlayer } from "./device-key";
 
 /**
@@ -46,7 +47,9 @@ async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Pr
 export const readBoard = (game: ArcadeGame, period: BoardPeriod, limit?: number): Promise<Board> =>
   call("GET", `/board/${game}/${period}${limit ? `/${limit}` : ""}`);
 
-export const readStanding = (game: ArcadeGame): Promise<Standing> => call("GET", `/me/${game}/${playerKey()}`);
+/** This device key's standing; the key goes in the body, never in a URL. */
+export const readStanding = (game: ArcadeGame): Promise<Standing> =>
+  call("POST", "/me", { game, player: playerKey() } satisfies StandingRequest);
 
 /** A seed for the next run and the signed-prints tape it rides (null: the seed draws its own line). */
 export const issueRun = (game: ArcadeGame): Promise<RunIssued> => call("POST", `/run/${game}`);
@@ -67,7 +70,8 @@ async function solve(nickname: string, player: string): Promise<number> {
 export async function claimNickname(nickname: string): Promise<string> {
   const player = playerKey();
   const nonce = await solve(nickname, player);
-  const answer = await call<{ nickname: string }>("POST", "/player", signAsPlayer({ player, nickname, nonce }));
+  const at = Math.floor(Date.now() / MS_PER_SEC);
+  const answer = await call<{ nickname: string }>("POST", "/player", signAsPlayer({ player, nickname, nonce, at }));
   return answer.nickname;
 }
 

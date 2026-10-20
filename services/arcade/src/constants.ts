@@ -24,10 +24,16 @@ export const BODY_MAX_BYTES = 64 * 1024;
 export const SEED_GRACE_SEC = 1_800;
 /** Runs a player may post in an hour (Mitoshi: 120 a wallet); counted per hour, the count dropped when it passes. */
 export const PER_PLAYER_PER_HOUR = 120;
+/** A fetch from the site gives up after this long. */
+export const FETCH_TIMEOUT_MS = 10_000;
+/** At most this many seeds are outstanding at once; past it a new run is refused until some are posted or expire. */
+export const SEEDS_MAX = 20_000;
 /** The latest bundle is read again after this long; prints files never change, so they're kept. */
 export const LATEST_TTL_MS = 60_000;
 /** Hours of prints files read for a tape: the twelve it spans, and one more for the hour still being written. */
 export const PRINTS_HOURS = 13;
 export const HOUR_SEC = 3_600;
+/** A Duel card with no signed outcome in the bundle or its hour's prints this long after its close is a refund. */
+export const DUEL_OUTCOME_GRACE_SEC = 3 * HOUR_SEC;
 export const DAY_SEC = 86_400;
 export const WEEK_DAYS = 7;

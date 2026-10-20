@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS duel_matches (
 );
 CREATE INDEX IF NOT EXISTS duel_matches_a ON duel_matches (a, status);
 CREATE INDEX IF NOT EXISTS duel_matches_b ON duel_matches (b, status);
+CREATE INDEX IF NOT EXISTS duel_matches_day ON duel_matches (day);
+CREATE INDEX IF NOT EXISTS duel_matches_status ON duel_matches (status);
 `;
 
 export type MatchStatus = "picking" | "revealing" | "settling" | "final" | "forfeit" | "void";
@@ -86,6 +88,9 @@ interface RawMatch {
 }
 
 const LIVE: readonly MatchStatus[] = ["picking", "revealing", "settling"];
+export const isLive = (status: MatchStatus): boolean => LIVE.includes(status);
+/** Two keys, in either seat, as one key. */
+export const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 const parse = <T>(text: string | null): T | null => (text === null ? null : (JSON.parse(text) as T));
 
 function toRow(r: RawMatch): MatchRow {
@@ -159,15 +164,47 @@ export class DuelStore {
     this.db.prepare("DELETE FROM duel_queue WHERE player = ?").run(player);
   }
 
-  /** The live match this key plays in, if any. */
-  liveMatchOf(player: string): MatchRow | null {
+  /**
+   * The match this key is playing (picking or revealing), if any: the one thing that keeps it out of the queue. A
+   * duel that is only waiting on its Windows' outcomes needs nothing more from its players.
+   */
+  playingMatchOf(player: string): MatchRow | null {
     const row = this.db
       .prepare(
-        `SELECT * FROM duel_matches WHERE (a = ? OR b = ?) AND status IN (${LIVE.map(() => "?").join(",")})
+        `SELECT * FROM duel_matches WHERE (a = ? OR b = ?) AND status IN ('picking', 'revealing')
          ORDER BY rowid DESC LIMIT 1`,
       )
-      .get(player, player, ...LIVE) as RawMatch | undefined;
+      .get(player, player) as RawMatch | undefined;
     return row ? toRow(row) : null;
+  }
+
+  anyLive(): boolean {
+    return (
+      this.db
+        .prepare(`SELECT 1 FROM duel_matches WHERE status IN (${LIVE.map(() => "?").join(",")}) LIMIT 1`)
+        .get(...LIVE) !== undefined
+    );
+  }
+
+  /** How often each pair of keys has been paired on a day, by `pairKey`. */
+  meetingsOn(day: number): Map<string, number> {
+    const rows = this.db
+      .prepare("SELECT a, b, COUNT(*) AS n FROM duel_matches WHERE day = ? GROUP BY a, b")
+      .all(day) as Array<{ a: string; b: string; n: number }>;
+    const met = new Map<string, number>();
+    for (const r of rows) met.set(pairKey(r.a, r.b), (met.get(pairKey(r.a, r.b)) ?? 0) + r.n);
+    return met;
+  }
+
+  /**
+   * Ends a live match: true only for the call that moved it out of a live status, so its result (Elo) is applied once
+   * however many paths reach the deadline.
+   */
+  end(id: string, status: MatchStatus): boolean {
+    const changed = this.db
+      .prepare(`UPDATE duel_matches SET status = ? WHERE id = ? AND status IN (${LIVE.map(() => "?").join(",")})`)
+      .run(status, id, ...LIVE);
+    return Number(changed.changes) === 1;
   }
 
   liveMatches(): MatchRow[] {

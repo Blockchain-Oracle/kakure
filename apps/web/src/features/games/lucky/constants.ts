@@ -12,8 +12,6 @@ export const LUCKY_STAKES_ZAT = [100_000, 500_000, 1_000_000, 5_000_000] as cons
 /** The draws this device keeps for its floor and streaks. */
 export const DRAWS_KEPT = 50;
 export const MS_PER_SEC = 1_000;
-/** The proof shows hashes cut to this many characters each side. */
-export const HASH_EDGE = 10;
 
 /** The reels' voices (Owarine's reel-sfx, in this app's numbers). */
 export const REEL_SFX = {

@@ -14,7 +14,7 @@ import "./lucky-floor.css";
  * never leaves the device, so the floor is this device's own, each with what its Window decided, and the streak.
  */
 export function useLuckyRecord(network: Network, positions: readonly PositionRecord[]) {
-  const draws = useKeptDraws().filter((d) => d.network === network);
+  const draws = useKeptDraws(network);
   const byKey = new Map(positions.map((p) => [p.key, p]));
   const rows = draws.map((d) => ({
     draw: d,

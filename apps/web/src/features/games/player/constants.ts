@@ -12,6 +12,7 @@ export const STANDING_STALE_MS = 60_000;
 /** The attract tape is the same for five minutes on the service (its cache header). */
 export const TAPE_STALE_MS = 300_000;
 export const HEX_RADIX = 16;
+export const MS_PER_SEC = 1_000;
 export const HEX_PAD = 2;
 /** The longest nickname (the service's NICKNAME_PATTERN: 3–16 characters). */
 export const NICKNAME_MAX = 16;

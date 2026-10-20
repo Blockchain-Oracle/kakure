@@ -85,7 +85,7 @@ export const RESIDUALS = [
   "The gateway key changes every hour, and the old one is deleted ten minutes later. If the operator were ever broken into, requests recorded on the way in the last hour or so could be read, never older ones. In those ten minutes, a request's key also shows whether its device had fetched the new key yet.",
   "The operator keeps deposit records and the fingerprints of spent chips for good: they are what stop a deposit minting twice or a chip spending twice. A withdrawal's address and amount are deleted a week after it is paid, and an address already paid can't be used again.",
   "The arcade isn't sealed like trades: the site sees your arcade calls (your nickname and scores) along with your IP, though it keeps no logs, and the arcade service never sees the IP. A nickname is public, so pick one that doesn't name you.",
-  "This browser keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and runs, Practice's tally and Lucky's draws, and its history keeps the pages you opened. Forget this device clears the app's part, nickname included.",
+  "This browser keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and runs and Practice's tally, and its history keeps the pages you opened. Lucky's draws, like your chips and positions, are kept encrypted in its vault. Forget this device clears the app's part, nickname included.",
   "Your own funding history and your wallet's server are outside Kakure's control.",
 ];
 

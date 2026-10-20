@@ -15,7 +15,7 @@ import {
   readMatch,
   revealPicks,
 } from "./api";
-import { dropPicks, freshSalt, heldPicks, holdPicks } from "./picks-store";
+import { dropPicks, freshSalt, type HeldPicks, heldPicks, holdPicks } from "./picks-store";
 
 /**
  * The Duel's client state (Mitoshi `duel/useDuel.ts`, over the arcade's HTTP instead of a chain): the queue polled
@@ -76,8 +76,10 @@ export function useDuelMatch(matchId: string | null) {
 }
 
 /**
- * The picks for one match: made one card at a time on the device, committed as a hash once all are in, revealed as
- * soon as the service says both are committed. A reload in between resumes from the held picks.
+ * The picks for one match: made one card at a time on the device, held with their salt once all are in, then sent as a
+ * commitment whenever the service's view says this seat hasn't committed while picks are open, and revealed as soon
+ * as it says both are committed. The service's view decides, so a commitment lost on the way is simply sent again
+ * (the first one in stands). A reload in between resumes from the held picks.
  */
 export function useDuelPicks(match: DuelMatchView | undefined, seat: 0 | 1 | null) {
   const qc = useQueryClient();
@@ -85,6 +87,23 @@ export function useDuelPicks(match: DuelMatchView | undefined, seat: 0 | 1 | nul
   const [picks, setPicks] = useState<DuelPick[]>([]);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
+
+  /** One write at a time, with the held picks; its answer replaces the match on screen. */
+  const send = useCallback(
+    (matchId: string, write: (held: HeldPicks) => Promise<DuelMatchView>) => {
+      const held = heldPicks(matchId);
+      if (!held || busy.current) return;
+      busy.current = true;
+      setError(null);
+      write(held)
+        .then((view) => qc.setQueryData(duelKeys.match(matchId), view))
+        .catch((cause) => setError(cause instanceof ArcadeError ? cause.message : String(cause)))
+        .finally(() => {
+          busy.current = false;
+        });
+    },
+    [qc],
+  );
 
   useEffect(() => {
     if (!matchId) return;
@@ -97,49 +116,25 @@ export function useDuelPicks(match: DuelMatchView | undefined, seat: 0 | 1 | nul
       const next = [...picks, side];
       setPicks(next);
       if (next.length < match.deck.length) return;
-      const held = { matchId: match.id, picks: next, salt: freshSalt(), committed: false };
-      holdPicks(held);
-      busy.current = true;
-      commitPicks(match.id, next, held.salt)
-        .then((view) => {
-          holdPicks({ ...held, committed: true });
-          qc.setQueryData(duelKeys.match(match.id), view);
-        })
-        .catch((cause) => setError(cause instanceof ArcadeError ? cause.message : String(cause)))
-        .finally(() => {
-          busy.current = false;
-        });
+      holdPicks({ matchId: match.id, picks: next, salt: freshSalt() });
+      send(match.id, (held) => commitPicks(match.id, held.picks, held.salt));
     },
-    [match, picks, qc],
+    [match, picks],
   );
 
-  // Reveal once both are committed; drop the held picks once the match is past revealing.
+  // From the service's view: commit while this seat hasn't, reveal once both have, drop the picks once it's past both.
   useEffect(() => {
-    if (!match || seat === null || busy.current) return;
+    if (!match || seat === null) return;
     const held = heldPicks(match.id);
-    if (match.status === "revealing" && held && !match.seats[seat].revealed) {
-      busy.current = true;
-      revealPicks(match.id, held.picks, held.salt)
-        .then((view) => qc.setQueryData(duelKeys.match(match.id), view))
-        .catch((cause) => setError(cause instanceof ArcadeError ? cause.message : String(cause)))
-        .finally(() => {
-          busy.current = false;
-        });
-    } else if (match.status === "picking" && held && !held.committed && !match.seats[seat].committed) {
-      busy.current = true;
-      commitPicks(match.id, held.picks, held.salt)
-        .then((view) => {
-          holdPicks({ ...held, committed: true });
-          qc.setQueryData(duelKeys.match(match.id), view);
-        })
-        .catch((cause) => setError(cause instanceof ArcadeError ? cause.message : String(cause)))
-        .finally(() => {
-          busy.current = false;
-        });
+    if (!held) return;
+    if (match.status === "picking" && !match.seats[seat].committed) {
+      send(match.id, (h) => commitPicks(match.id, h.picks, h.salt));
+    } else if (match.status === "revealing" && !match.seats[seat].revealed) {
+      send(match.id, (h) => revealPicks(match.id, h.picks, h.salt));
     } else if (!LIVE.has(match.status) || match.status === "settling") {
-      if (held) dropPicks();
+      dropPicks();
     }
-  }, [match, seat, qc]);
+  }, [match, seat, send]);
 
   return { picks, pick, error };
 }

@@ -104,7 +104,7 @@ export function LuckyStage() {
               </button>
             ))}
           </div>
-          <button type="button" className="gm-cta lk-cta" disabled={busy || !bundle} onClick={spin}>
+          <button type="button" className="gm-cta lk-cta" disabled={busy || !lucky.ready} onClick={spin}>
             {busy ? LUCKY.spinning : lucky.phase === "empty" ? LUCKY.again : LUCKY.spin}
           </button>
           {record.best > 0 ? <p className="lk-note lk-streak">{LUCKY.streak(record.streak, record.best)}</p> : null}

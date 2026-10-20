@@ -18,10 +18,15 @@ import { keepDraw } from "./lucky-store";
  * One Lucky spin, from the tap to the dealt Window (Mitoshi `useLuckyDraw.ts`, drawn here on the device): the seed is
  * made at the tap, the draw is keyed by the latest signed bundle's hash, and the Window is the drawn asset's live one
  * whose drawn side pays closest to the drawn reach, from the public formula on the live price. Nothing is sent.
+ *
+ * A spin waits for `ready`: the bundle on screen is the one `latest.json` names, so the draw's key, its candidates and
+ * the seq it's labelled with all come from the same minute. A deal belongs to the network it was drawn on; switching
+ * network puts the machine back to idle, so the lever can never place it elsewhere.
  */
 export type LuckyPhase = "idle" | "spinning" | "landing" | "dealt" | "empty";
 
 export interface LuckyDeal {
+  network: Network;
   draw: LuckyDraw;
   seed: string;
   bundleSeq: number;
@@ -44,12 +49,19 @@ export function useLucky(input: {
   spotOf: (asset: string) => number | null;
 }) {
   const { network, bundle, latest, spotOf } = input;
-  const [phase, setPhase] = useState<LuckyPhase>("idle");
-  const [deal, setDeal] = useState<LuckyDeal | null>(null);
+  const [machine, setMachine] = useState<{ network: Network; phase: LuckyPhase; deal: LuckyDeal | null }>({
+    network,
+    phase: "idle",
+    deal: null,
+  });
+  const here = machine.network === network;
+  const phase = here ? machine.phase : "idle";
+  const deal = here ? machine.deal : null;
+  const ready = bundle !== null && latest !== null && bundle.seq === latest.seq;
 
   const spin = useCallback(
     (stakeZat: number) => {
-      if (!bundle || !latest) return;
+      if (!bundle || !latest || bundle.seq !== latest.seq) return;
       const nowSec = Math.floor(Date.now() / MS_PER_SEC);
       const eligible = eligibleLuckyWindows(
         practiceCandidates(bundle, nowSec).map((c) => ({
@@ -62,8 +74,7 @@ export function useLucky(input: {
         nowSec,
       );
       if (eligible.length === 0) {
-        setDeal(null);
-        setPhase("empty");
+        setMachine({ network, phase: "empty", deal: null });
         return;
       }
       const seed = luckySeed();
@@ -84,6 +95,7 @@ export function useLucky(input: {
         .filter((q): q is { id: string; expirySec: number; askE4: number } => q.askE4 !== null);
       const chosen = chooseLuckyWindow(quotes, draw.multiplier);
       const next: LuckyDeal = {
+        network,
         draw,
         seed,
         bundleSeq: bundle.seq,
@@ -108,23 +120,18 @@ export function useLucky(input: {
         stakeZat,
         positionKey: null,
       });
-      setDeal(null);
-      setPhase("spinning");
+      setMachine({ network, phase: "spinning", deal: null });
       window.setTimeout(() => {
-        setDeal(next);
-        setPhase("landing");
+        setMachine((m) => (m.network === network ? { network, phase: "landing", deal: next } : m));
       }, TUMBLE_MS);
     },
     [network, bundle, latest, spotOf],
   );
 
-  const landed = useCallback(() => setPhase((p) => (p === "landing" ? "dealt" : p)), []);
-  const reset = useCallback(() => {
-    setPhase("idle");
-    setDeal(null);
-  }, []);
+  const landed = useCallback(() => setMachine((m) => (m.phase === "landing" ? { ...m, phase: "dealt" } : m)), []);
+  const reset = useCallback(() => setMachine({ network, phase: "idle", deal: null }), [network]);
 
-  return { phase, deal, spin, landed, reset };
+  return { phase, deal, ready, spin, landed, reset };
 }
 
 /** The browser's own check of a deal: the same inputs give the same draw. */

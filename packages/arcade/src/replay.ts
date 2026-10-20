@@ -26,12 +26,17 @@ export interface ReplayResult {
 }
 
 /** Line Rider, the sled: the code holds from its tick until the next pair; it opens at 0. */
-export function replaySled(seed: string, trace: SledTrace, config: ArcadeRunConfig): ReplayResult {
+export function replaySled(
+  seed: string,
+  trace: SledTrace,
+  config: ArcadeRunConfig,
+  budget = MAX_RUN_TICKS,
+): ReplayResult {
   const rng = createRng(seed);
   const state = createSledState(rng, config);
   let cursor = 0;
   let code = 0;
-  while (!state.over && state.tick < MAX_RUN_TICKS) {
+  while (!state.over && state.tick < budget) {
     while (cursor < trace.length && (trace[cursor] as number) === state.tick) {
       code = trace[cursor + 1] as number;
       cursor += 2;
@@ -42,11 +47,16 @@ export function replaySled(seed: string, trace: SledTrace, config: ArcadeRunConf
 }
 
 /** Candle Hop, the canyon: a press is a tick in the trace. */
-export function replayHop(seed: string, trace: HopTrace, config: ArcadeRunConfig): ReplayResult {
+export function replayHop(
+  seed: string,
+  trace: HopTrace,
+  config: ArcadeRunConfig,
+  budget = MAX_RUN_TICKS,
+): ReplayResult {
   const rng = createRng(seed);
   const state = createHopState(rng, config);
   let cursor = 0;
-  while (!state.over && state.tick < MAX_RUN_TICKS) {
+  while (!state.over && state.tick < budget) {
     let press = false;
     while (cursor < trace.length && (trace[cursor] as number) === state.tick) {
       press = true;
@@ -57,12 +67,17 @@ export function replayHop(seed: string, trace: HopTrace, config: ArcadeRunConfig
   return { score: state.score, ticks: state.tick, ended: state.over };
 }
 
-/** The server's replay: Line Rider is the sled, Candle Hop the canyon. */
+/**
+ * The server's replay: Line Rider is the sled, Candle Hop the canyon. `budget` caps the ticks played (the server passes
+ * the claimed length plus a tick or two), so a claim can't buy more replay than the run it claims.
+ */
 export function replayArcade(
   game: ArcadeGame,
   seed: string,
   trace: readonly number[],
   config: ArcadeRunConfig,
+  budget = MAX_RUN_TICKS,
 ): ReplayResult {
-  return game === "line-rider" ? replaySled(seed, trace, config) : replayHop(seed, trace, config);
+  const cap = Math.min(budget, MAX_RUN_TICKS);
+  return game === "line-rider" ? replaySled(seed, trace, config, cap) : replayHop(seed, trace, config, cap);
 }

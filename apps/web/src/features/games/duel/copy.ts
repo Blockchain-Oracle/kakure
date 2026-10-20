@@ -41,7 +41,7 @@ export const DUEL = {
     lost: "Your opponent won",
     tie: "A draw",
     void: "No result · every card refunded, or nobody called",
-    forfeitWon: "Your opponent didn't call in time · you win",
+    forfeitWon: "Your opponent didn't call in time · you win, your rating holds",
     forfeitLost: "You didn't call in time · it counts as a loss",
     waiting: "Each card settles at its Window's close",
     settlesIn: (clock: string) => `settles in ${clock}`,

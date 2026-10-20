@@ -40,27 +40,36 @@ chips, through the same sealed path as the terminal, settled at the Window's clo
 
 - **Drawn on your device.** The draw is HMAC-SHA256, keyed by the hash of the latest signed bundle (the operator's
   `latest.json` names it; nobody knows it before that minute is published), over the policy, a hash of the candidate
-  Windows and a seed your browser makes at the spin. **Proof** shows each input and recomputes the draw.
+  Windows and a seed your browser makes at the spin. **Proof** shows every input in full, recomputes the draw and
+  copies the inputs so anyone can redo it. Your browser makes the seed, so this proves the draw follows from those
+  inputs and that nobody could aim it before that minute, not that you couldn't have picked them.
 - **Nothing is sent until you place it.** A server-dealt draw would learn your bet before it's a bet, so there is no
-  draw server. Your draws, placed or not, are listed on your device only, each with what its Window decided.
+  draw server. Your draws, placed or not, are listed on your device only, each with what its Window decided. They're
+  kept encrypted in the same vault as your chips, under the same lock, and aren't part of a backup.
 - A Window needs a minute and a half left to be drawn, so there's time to slide before entry closes 30 seconds out.
 
 ## Duel
 
 Find a duel and the arcade service pairs you with another nickname near your rating (±100 Elo at first, widening by
-50 every 15 seconds to ±400; whoever has waited longest goes first). You both get the same deck: three live Windows,
-on different assets where it can, each with at least three minutes before entry closes and closing within half an
-hour. Call each one Up or Down at its close.
+50 every 15 seconds to ±400; whoever has waited longest goes first). The same two players meet at most three times a
+day, and up to 200 can wait at once. You both get the same deck: three live Windows, on different assets where it
+can, each with at least three minutes before entry closes and closing within half an hour. Call each one Up or Down at
+its close. Once both of you have revealed, you can queue for the next duel while this one settles.
 
 1. **Sealed calls.** When your third call is in, your browser sends only a commitment: SHA-256 of the duel, your key,
    your calls and a random salt kept on your device. You have 75 seconds from the pairing.
 2. **Reveal.** Once both of you have committed, each browser sends its calls and salt, and the service checks them
    against the commitment. Neither your opponent nor the service can read a call before both are locked in, and nobody
    can change one after.
-3. **Scoring.** Each card is decided by its Window's signed outcome. More right calls wins; a tie is a draw; a refunded
+3. **Scoring.** Each card is decided by its Window's signed outcome, from the bundle or, once the Window has left the
+   bundle's ten-minute list, from its hour's signed prints file. More right calls wins; a tie is a draw; a refunded
    Window counts for nobody, and if every card refunds the duel is void.
-4. **Deadlines.** Miss the call or the reveal deadline and the duel counts as a loss for you; if both miss, it's void.
+4. **Deadlines.** Miss the call or the reveal deadline and you forfeit: your rating falls as for a loss, and your
+   opponent is credited the win but their rating doesn't move, so a no-show can't be farmed. If both miss, it's void.
 5. **Elo.** Everyone starts at 1,000. Your first ten finished duels move at K = 48, then K = 24. A void moves nothing.
+
+Every Duel call that names your key is signed by it, with the call it's for and the time, so it can't be replayed later
+or as another call; your key travels in the request body, never in a URL.
 
 The ladder, the last duels and your history show nicknames, results and days only. Nothing is staked.
 
@@ -81,14 +90,16 @@ minute-to-minute moves into a slope to sled; Candle Hop turns each minute into a
    within an hour of being issued (the longest run, 30 minutes, plus 30 to start and post it).
 2. Your browser records every input by the engine's tick (60 a second) and, when the run ends, sends the seed, the
    score, the length and the inputs, signed by your device's key.
-3. The service **replays** the same engine over the same seed, tape and inputs. The score counts only if the replay
-   reproduces it to the tick. It can't prove a person rather than a script played, so the boards say "server-checked".
-4. Each nickname may post 120 runs an hour.
+3. The service **replays** the same engine over the same seed, tape and inputs, for no longer than the run claims.
+   The score counts only if the replay reproduces it to the tick. It can't prove a person rather than a script played,
+   so the boards say "server-checked".
+4. Each nickname may post 120 runs an hour, counted before the replay.
 
 ## Nicknames and boards
 
 A nickname is 3–16 letters, digits, `_` or `-`, case-insensitively unique. It's bound to an Ed25519 key your browser
-makes for the arcade; claiming one takes a small proof of work instead of a captcha, so nothing third-party loads.
+makes for the arcade; claiming one takes a small proof of work instead of a captcha, so nothing third-party loads. A
+claim is signed and dated, so an old one can't be sent again to undo a rename.
 
 - The boards show each nickname's best run, today, this week or all time, with the **day** it was played and never a
   time. No address, wallet or IP is ever attached.
@@ -100,7 +111,8 @@ makes for the arcade; claiming one takes a small proof of work instead of a capt
 | | Kept by |
 | --- | --- |
 | Nicknames, device public keys, runs (game, score, inputs' hash, day), duels (the deck, both calls once revealed, the result, ratings, the day) | The arcade service |
-| Your arcade key, your runs list, Practice's tally, Lucky's draws, your streaks and achievements | This browser |
+| Your arcade key, your runs list, Practice's tally, your streaks and achievements | This browser |
+| Lucky's draws | This browser's vault, encrypted with your chips |
 | Your IP | Nobody on the arcade's side: the site forwards only the request's method, path and body |
 
 The arcade's calls aren't sealed like trades: the site sees them with your IP, though it keeps no logs. See
