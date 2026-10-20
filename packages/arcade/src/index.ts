@@ -1,15 +1,13 @@
-export { CandleHop, type HopCandle, replayHop } from "./candle-hop";
-export {
-  BAND_BOTTOM,
-  BAND_TOP,
-  FIELD_H,
-  FIELD_W,
-  HOP,
-  MAX_RUN_TICKS,
-  MAX_TRACE_INPUTS,
-  RIDE,
-  STEP_HZ,
-} from "./constants";
-export { LineRider, type RideInput, type RidePoint, replayRide } from "./line-rider";
-export { Rng } from "./rng";
-export { moveAt, type Tape, tapeFromCloses } from "./tape";
+/**
+ * The arcade's engines (plan §0 R4; Mitoshi `packages/core/src/games/arcade`): Line Rider's sled and Candle Hop's
+ * canyon as pure, seeded, fixed-step simulations on a real-price tape, with the trace a browser records and the replay
+ * the arcade worker runs over it. Nothing here draws, sounds or touches money.
+ */
+export * from "./field";
+export * from "./hop";
+export * from "./replay";
+export * from "./rng";
+export * from "./sled";
+export * from "./sled-world";
+export * from "./tape";
+export * from "./trace";
