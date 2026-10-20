@@ -42,7 +42,7 @@ One every minute.
 | `windows` | Each lane's current and next Window, and every Window settled in the last 10 minutes |
 | `prints` | The hourly prints files published in the last 24 hours |
 | `house` | The liability statement, taken once an hour: `chipsOutstandingZat` and `openMaxPayoutZat`, each rounded up to a multiple of `quantumZat` (the per-side cap), and `asOf` |
-| `trading` | The chip keyset (and older ones that still spend), the gateway's Oblivious HTTP key, the deposit address and memo prefix, confirmations, and the withdrawal minimum and window; absent while trading is off |
+| `trading` | The chip keyset (and older ones that still spend), the gateway's current Oblivious HTTP key (it changes every hour), the deposit address and memo prefix, confirmations, and the withdrawal minimum and window; absent while trading is off |
 | `sig` | The signature |
 
 **A Window** carries its id (`<lane>-<start>`, such as `btc-5m-1792400280`), when it starts and ends, each

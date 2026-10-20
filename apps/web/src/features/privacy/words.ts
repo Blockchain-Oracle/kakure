@@ -82,7 +82,7 @@ export const RESIDUALS = [
   "The operator reads the chain from public light-wallet servers over Tor, so it relies on them to serve the chain honestly.",
   "While few people use Kakure, the crowd you hide among is small.",
   "Oblivious HTTP and Zcash's note encryption use elliptic-curve key exchange, so traffic and transactions recorded today could be read after a future break of that cryptography (harvest now, decrypt later).",
-  "The operator's gateway key doesn't rotate yet. If it were ever stolen, requests recorded on the way could be read.",
+  "The gateway key changes every hour, and the old one is deleted ten minutes later. If the operator were ever broken into, requests recorded on the way in the last hour or so could be read, never older ones. In those ten minutes, a request's key also shows whether its device had fetched the new key yet.",
   "The operator keeps deposit records and the fingerprints of spent chips for good: they are what stop a deposit minting twice or a chip spending twice. A withdrawal's address and amount are deleted a week after it is paid, and an address already paid can't be used again.",
   "The arcade isn't sealed like trades: the site sees your arcade calls (your nickname and scores) along with your IP, though it keeps no logs, and the arcade service never sees the IP. A nickname is public, so pick one that doesn't name you.",
   "This browser keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and runs, Practice's tally and Lucky's draws, and its history keeps the pages you opened. Forget this device clears the app's part, nickname included.",

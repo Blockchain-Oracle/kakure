@@ -19,11 +19,13 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Map, Value, json};
 
 use crate::{
     catalog::iso,
     fair::{CHIP_GRID_ZAT, HALF_SPREAD_E4, MAX_ASK_E4, MIN_BID_E4, MIN_TAU_SECS},
+    gateway::Gateway,
     lanes::{self, ENTRY_BUFFER_SECS, LaneAsset},
     minutes::{self, MINUTE_SECS},
     positions,
@@ -74,9 +76,11 @@ pub struct Realtime {
     caps: Caps,
     /// When σ was last estimated; `None` until the first estimate.
     sigma_at: Option<i64>,
-    /// What clients need to trade (keyset, gateway key, deposit address and rules), once the
-    /// trading side has started; published in every bundle.
+    /// What clients need to trade (keyset, deposit address and rules), once the trading side has
+    /// started; published in every bundle with the gateway's current key.
     trading: Option<Value>,
+    /// The Oblivious HTTP gateway, whose key this loop rotates before each bundle (re-audit V11).
+    gateway: Option<Arc<Gateway>>,
     /// The house's statement for the current hour: (hour, statement). Taken once an hour and
     /// rounded up to the per-side cap, so consecutive bundles never show one trade (re-audit V1).
     house: Option<(i64, Value)>,
@@ -112,6 +116,7 @@ impl Realtime {
             caps: Caps::for_network(matches!(wallet.net, crate::wallet::Net::Mainnet)),
             sigma_at: None,
             trading: None,
+            gateway: None,
             house: None,
         })
     }
@@ -120,8 +125,9 @@ impl Realtime {
         self.publisher.dir()
     }
 
-    pub fn set_trading(&mut self, trading: Value) {
+    pub fn set_trading(&mut self, trading: Value, gateway: Arc<Gateway>) {
         self.trading = Some(trading);
+        self.gateway = Some(gateway);
     }
 
     pub fn sigma_map(&self) -> SigmaMap {
@@ -146,6 +152,12 @@ impl Realtime {
         }
         self.sigma_at = Some(now);
         let prints = self.publish_prints(now)?;
+        // A failed rotation keeps the current key working; the next minute tries again.
+        if let Some(gateway) = &self.gateway
+            && let Err(e) = gateway.rotate(now)
+        {
+            eprintln!("gateway: rotation failed, keeping the current key: {e:#}");
+        }
         let (seq, windows) = self.publish_bundle(now)?;
         rt_store::prune(&self.store.conn, now)?;
         positions::prune(&self.store.conn, now)?;
@@ -366,7 +378,12 @@ impl Realtime {
         });
         let mut document = document;
         if let Some(trading) = &self.trading {
-            document["trading"] = trading.clone();
+            let mut trading = trading.clone();
+            if let Some(gateway) = &self.gateway {
+                trading["gatewayKeys"] =
+                    Value::String(URL_SAFE_NO_PAD.encode(gateway.key_config()));
+            }
+            document["trading"] = trading;
         }
         let name = format!("bundle-{seq}.json");
         let signed = sign_file(&self.key, &document)?;

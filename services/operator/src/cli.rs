@@ -813,7 +813,7 @@ async fn start_trading(
     sync: SyncOpts,
 ) -> Result<Option<Chain>> {
     let mut chain = None;
-    let gateway = Gateway::load(&wallet.dir)?;
+    let gateway = std::sync::Arc::new(Gateway::load(&wallet.dir, chrono::Utc::now().timestamp())?);
     let mint = Mint::load(&wallet.dir)?;
     let mainnet = matches!(wallet.net, Net::Mainnet);
     let confirmations = deposits::confirmations(mainnet);
@@ -821,7 +821,6 @@ async fn start_trading(
     let mut trading = serde_json::json!({
         "keyset": mint.keyset_json(),
         "retiredKeysets": mint.retired_json(),
-        "gatewayKeys": URL_SAFE_NO_PAD.encode(gateway.key_config()),
         "depositMemoPrefix": deposits::DEPOSIT_MEMO_PREFIX,
         "depositConfirmations": confirmations,
         "minWithdrawZat": api::MIN_WITHDRAW_ZAT.to_string(),
@@ -849,7 +848,8 @@ async fn start_trading(
             wallet.dir.display()
         );
     }
-    rt.set_trading(trading);
+    // The bundle adds the gateway's current key each minute (`gatewayKeys`), as it rotates.
+    rt.set_trading(trading, gateway.clone());
     let api = api::Api {
         gateway,
         mint,

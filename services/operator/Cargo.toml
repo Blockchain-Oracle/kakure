@@ -56,3 +56,7 @@ zcash_proofs = { version = "=0.31.0-pre.2", features = ["bundled-prover"] }
 zcash_protocol = "=0.11.0-pre.1"
 zip32 = "0.3"
 zip321 = "=0.10.0-pre.2"
+
+[dev-dependencies]
+# The gateway's tests encrypt requests as a client would (the same crate, its client half).
+ohttp = { version = "0.8", default-features = false, features = ["client", "server", "rust-hpke"] }

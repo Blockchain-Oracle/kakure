@@ -43,11 +43,43 @@ function latestRefetchInterval(latest: LatestV2 | null | undefined, now = Date.n
   return due > 0 ? due : LATEST_RETRY_MS;
 }
 
+function fetchLatestV2(source: DataSource, network: Network, signal?: AbortSignal): Promise<LatestV2 | null> {
+  return fetchSigned(source, network, LATEST_FILE, latestV2Schema, {
+    allowMissing: true,
+    ...(signal ? { signal } : {}),
+  });
+}
+
+async function fetchBundleV2(
+  source: DataSource,
+  network: Network,
+  latest: LatestV2,
+  signal?: AbortSignal,
+): Promise<BundleV2> {
+  const bundle = await fetchSigned(source, network, latest.bundle, bundleV2Schema, {
+    sha256: latest.bundleHash,
+    ...(signal ? { signal } : {}),
+  });
+  if (!bundle) throw new DataError("missing", latest.bundle);
+  if (bundle.seq !== latest.seq) {
+    throw new DataError("mismatch", latest.bundle, `seq ${bundle.seq}, expected ${latest.seq}`);
+  }
+  return bundle;
+}
+
+/**
+ * The current bundle, fetched and checked now, outside the query cache: for the wallet when the gateway says its key
+ * rotated and the bundle on screen is older than the key. Null when nothing is published.
+ */
+export async function loadBundleV2(source: DataSource, network: Network): Promise<BundleV2 | null> {
+  const latest = await fetchLatestV2(source, network);
+  return latest ? fetchBundleV2(source, network, latest) : null;
+}
+
 export function latestV2Query(source: DataSource, network: Network) {
   return queryOptions({
     queryKey: realtimeKeys.latest(network),
-    queryFn: ({ signal }): Promise<LatestV2 | null> =>
-      fetchSigned(source, network, LATEST_FILE, latestV2Schema, { allowMissing: true, signal }),
+    queryFn: ({ signal }): Promise<LatestV2 | null> => fetchLatestV2(source, network, signal),
     staleTime: (query) => Math.min(BUNDLE_INTERVAL_MS, latestRefetchInterval(query.state.data)),
     refetchInterval: (query) => latestRefetchInterval(query.state.data),
     retry,
@@ -57,19 +89,7 @@ export function latestV2Query(source: DataSource, network: Network) {
 export function bundleV2Query(source: DataSource, network: Network, latest: LatestV2 | null | undefined) {
   return queryOptions({
     queryKey: realtimeKeys.bundle(network, latest?.bundle ?? ""),
-    queryFn: latest
-      ? async ({ signal }): Promise<BundleV2> => {
-          const bundle = await fetchSigned(source, network, latest.bundle, bundleV2Schema, {
-            sha256: latest.bundleHash,
-            signal,
-          });
-          if (!bundle) throw new DataError("missing", latest.bundle);
-          if (bundle.seq !== latest.seq) {
-            throw new DataError("mismatch", latest.bundle, `seq ${bundle.seq}, expected ${latest.seq}`);
-          }
-          return bundle;
-        }
-      : skipToken,
+    queryFn: latest ? ({ signal }): Promise<BundleV2> => fetchBundleV2(source, network, latest, signal) : skipToken,
     // Immutable: once fetched, a bundle never needs fetching again.
     staleTime: Number.POSITIVE_INFINITY,
     // When `latest.json` names the next minute's bundle, the one on screen stays until it lands, so quotes, Windows and

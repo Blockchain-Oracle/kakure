@@ -9,6 +9,7 @@ import {
   OHTTP_MAX_BYTES,
   OHTTP_REQUEST_TYPE,
   OHTTP_RESPONSE_TYPE,
+  PROBLEM_TYPE,
 } from "./constants";
 
 /**
@@ -56,7 +57,7 @@ export async function relay(request: Request, network: Network, gateway: string 
     status: upstream.status,
     headers: {
       ...BASE_HEADERS,
-      "content-type": type === OHTTP_RESPONSE_TYPE ? OHTTP_RESPONSE_TYPE : "text/plain; charset=utf-8",
+      "content-type": type === OHTTP_RESPONSE_TYPE || type === PROBLEM_TYPE ? type : "text/plain; charset=utf-8",
       "cache-control": "no-store",
     },
   });

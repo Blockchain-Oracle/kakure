@@ -1,12 +1,14 @@
 "use client";
 
 import { fromBase64Url, type Network, type Trading } from "@kakure/domain";
-import { obliviousFetch } from "@kakure/ohttp";
+import { ObliviousError, obliviousFetch } from "@kakure/ohttp";
+import { loadBundleV2 } from "@kakure/query";
+import { DATA_SOURCE } from "@/constants";
 
 /**
  * The mint's API, every call through the Oblivious HTTP relay on this site's own origin (`/ohttp/<network>`): the relay
  * sees this device's IP but not the call; the operator sees the call but not the IP. The gateway key comes from the
- * signed bundle (`trading.gatewayKeys`), so every visitor encrypts to the same key.
+ * signed bundle (`trading.gatewayKeys`), so every visitor encrypts to the same key. It rotates every hour.
  */
 const HTTP_OK = 200;
 
@@ -38,6 +40,25 @@ export const MINT_CODES = {
   notSettled: 20_017,
 } as const;
 
+type Send = (gatewayKeys: string) => Promise<Response>;
+
+/**
+ * Sends a call; if the gateway says it no longer holds the key the bundle on screen named (the hour turned while this
+ * device slept), fetches the current signed bundle and, when it names a different key, sends the same bytes to it once.
+ * That's safe: the gateway couldn't read the first request, every spending call is answered from the mint's cache when
+ * repeated (NUT-19), and every other call only reads. A forged rejection with no new key behind it is just a failure.
+ */
+async function sendToCurrentKey(network: Network, trading: Trading, send: Send): Promise<Response> {
+  try {
+    return await send(trading.gatewayKeys);
+  } catch (error) {
+    if (!(error instanceof ObliviousError && error.keyRejected)) throw error;
+    const current = (await loadBundleV2(DATA_SOURCE, network).catch(() => null))?.trading;
+    if (!current || current.gatewayKeys === trading.gatewayKeys) throw error;
+    return send(current.gatewayKeys);
+  }
+}
+
 export async function mintCall<T>(
   network: Network,
   trading: Trading,
@@ -47,11 +68,8 @@ export async function mintCall<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await obliviousFetch(
-      { relay: `/ohttp/${network}`, keyConfig: fromBase64Url(trading.gatewayKeys) },
-      method,
-      path,
-      body,
+    response = await sendToCurrentKey(network, trading, (gatewayKeys) =>
+      obliviousFetch({ relay: `/ohttp/${network}`, keyConfig: fromBase64Url(gatewayKeys) }, method, path, body),
     );
   } catch (error) {
     throw new MintError(0, error instanceof Error ? error.message : "the relay didn't answer", false);

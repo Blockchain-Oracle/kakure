@@ -35,7 +35,9 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
   the mint can't mark a chip to recognise it later, and your app refuses proceeds that aren't paid in the standard
   split. When you trade, you spend chips the mint has never seen unblinded, so it can't tell which deposit paid.
 - **Oblivious HTTP for every request.** Deposits, trades, closes, redemptions and withdrawals are each sealed to the
-  operator's gateway key (RFC 9458, HPKE with X25519, HKDF-SHA256 and AES-128-GCM; the key is in the signed bundle).
+  operator's gateway key (RFC 9458, HPKE with X25519, HKDF-SHA256 and AES-128-GCM). The key is in the signed bundle,
+  so everyone encrypts to the same one, and it changes every hour; a device that slept through a change gets the new
+  key from the next bundle and sends the same request once more.
   The relay builds a fresh request carrying only its content type, so no header of yours, and not your IP, reaches
   the operator. Its Worker keeps no logs. Requests and answers are padded to a few fixed sizes, so their length says
   nothing about the call or how many chips it carries.
@@ -79,8 +81,10 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
 1. **A small crowd.** While few people use Kakure, the crowd you hide among is small.
 1. **Harvest now, decrypt later.** Oblivious HTTP and Zcash's note encryption use elliptic-curve key exchange, so
    traffic and transactions recorded today could be read after a future break of that cryptography.
-1. **The gateway key.** The operator's Oblivious HTTP key doesn't rotate yet: if it were ever stolen, requests
-   recorded on the way could be read.
+1. **The gateway key.** The operator's Oblivious HTTP key changes every hour and the old one is deleted ten minutes
+   later (RFC 9458 §6.6). If the operator were ever broken into, requests recorded on the way in the last hour or so
+   could be read, never older ones. In those ten minutes, a request's one-byte key id also shows whether its device had
+   fetched the new key yet.
 1. **What the operator keeps.** Deposit records and spent-chip fingerprints stay for good: they stop a deposit
    minting twice or a chip spending twice. A withdrawal's address and amount go a week after it's paid, and an address
    already paid can't be used again.

@@ -48,6 +48,8 @@ export const HTTP_SERVICE_UNAVAILABLE = 503;
 export const OHTTP_PREFIX = "/ohttp/";
 export const OHTTP_REQUEST_TYPE = "message/ohttp-req";
 export const OHTTP_RESPONSE_TYPE = "message/ohttp-res";
+/** RFC 9458 §5.3's answer to a request for a rotated-out gateway key, passed through so the client can tell. */
+export const PROBLEM_TYPE = "application/problem+json";
 export const OHTTP_MAX_BYTES = 64 * 1024;
 
 /** The arcade's API (`/arcade/v1/…`, src/arcade.ts), forwarded to the arcade service. A 30-minute run's trace fits. */

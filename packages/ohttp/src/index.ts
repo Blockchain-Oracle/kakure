@@ -1,6 +1,6 @@
 import { AEAD_AES_128_GCM, CipherSuite, KDF_HKDF_SHA256, KEM_DHKEM_X25519_HKDF_SHA256 } from "hpke";
 import { KeyConfig, OHTTPClient } from "ohttp-ts";
-import { REQUEST_BUCKETS } from "./constants";
+import { HTTP_BAD_REQUEST, KEY_PROBLEM_TYPE, REQUEST_BUCKETS } from "./constants";
 
 /**
  * Oblivious HTTP (RFC 9458) for Kakure's trading API (plan §00). Each call is Binary-HTTP encoded, HPKE-encrypted to the
@@ -8,6 +8,8 @@ import { REQUEST_BUCKETS } from "./constants";
  * the operator sees the request but not the IP. A fresh HPKE context per call (RFC 9458 §6.1). The key config comes
  * from the signed bundle, so every visitor encrypts to the same key and a relay can't swap it (§6.1, §7). Requests carry
  * no cookies, no referrer and no headers beyond the content type; a failed call is never retried on its own (§6.5).
+ * The gateway's key rotates every hour: a request to a key it no longer holds fails with `keyRejected`, and the caller
+ * decides whether a newer signed bundle names a different key to resend to.
  */
 
 /** The one suite browsers, Workers and the Rust gateway all support. */
@@ -36,9 +38,21 @@ export class ObliviousError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /**
+     * The gateway answered RFC 9458 §5.3's `ohttp-key` problem: it holds no key with this request's id, so it couldn't
+     * read the request. That answer isn't encrypted, so a relay could forge it; a caller resends only to a different
+     * key from a newer signed bundle, and only a request the mint answers the same way twice.
+     */
+    readonly keyRejected = false,
   ) {
     super(message);
   }
+}
+
+async function isKeyProblem(response: Response): Promise<boolean> {
+  if (response.status !== HTTP_BAD_REQUEST) return false;
+  const problem = (await response.json().catch(() => null)) as { type?: unknown } | null;
+  return problem?.type === KEY_PROBLEM_TYPE;
 }
 
 /**
@@ -65,6 +79,9 @@ export async function obliviousFetch(
     referrerPolicy: "no-referrer",
     cache: "no-store",
   });
-  if (!outer.ok) throw new ObliviousError(outer.status, `relay answered ${outer.status}`);
+  if (!outer.ok) {
+    if (await isKeyProblem(outer)) throw new ObliviousError(outer.status, "the gateway's key has rotated", true);
+    throw new ObliviousError(outer.status, `relay answered ${outer.status}`);
+  }
   return context.decapsulateResponse(outer);
 }

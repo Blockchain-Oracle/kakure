@@ -39,7 +39,7 @@ use crate::{
     deposits::DEPOSIT_ID_HEX,
     domain::{Network, check_payout_address},
     exits,
-    gateway::{Gateway, Inner, MAX_MESSAGE_BYTES, Reply},
+    gateway::{Gateway, GatewayError, Inner, KEY_PROBLEM_TYPE, MAX_MESSAGE_BYTES, Reply},
     mint::{self, Mint, Proof},
     payouts::{self, Window},
     positions,
@@ -71,7 +71,8 @@ pub(crate) const KAKURE_TOO_SMALL: u32 = 20_003;
 pub(crate) const KAKURE_BAD_REQUEST: u32 = 20_000;
 
 pub struct Api {
-    pub gateway: Gateway,
+    /// Shared with the minute loop, which rotates its key and publishes the current one.
+    pub gateway: Arc<Gateway>,
     pub mint: Mint,
     pub store: Mutex<Store>,
     pub tip: Arc<AtomicU32>,
@@ -106,7 +107,7 @@ pub async fn serve(api: Api) -> Result<()> {
 }
 
 async fn keys(State(api): State<Arc<Api>>) -> Response {
-    let mut response = api.gateway.key_config().to_vec().into_response();
+    let mut response = api.gateway.key_config().into_response();
     response.headers_mut().insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/ohttp-keys"),
@@ -124,8 +125,21 @@ async fn relay(State(api): State<Arc<Api>>, body: Bytes) -> Response {
             );
             response
         }
+        // RFC 9458 §5.3: a request to a key that has rotated out says so, and the client fetches the current bundle.
+        Err(GatewayError::UnknownKey) => {
+            let mut response = (
+                StatusCode::BAD_REQUEST,
+                json!({ "type": KEY_PROBLEM_TYPE, "title": "key identifier unknown" }).to_string(),
+            )
+                .into_response();
+            response.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/problem+json"),
+            );
+            response
+        }
         // RFC 9458 §5.2: an undecryptable request gets a plain error, never details.
-        Err(_) => StatusCode::BAD_REQUEST.into_response(),
+        Err(GatewayError::Invalid) => StatusCode::BAD_REQUEST.into_response(),
     }
 }
 
