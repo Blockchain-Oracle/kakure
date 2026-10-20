@@ -11,7 +11,7 @@ export {
   resolutionFiles,
   resolutionsQuery,
 } from "./options";
-export { bundleV2Query, latestV2Query, printsQuery, realtimeKeys } from "./realtime";
+export { bundleV2Query, latestV2Query, previousBundleQuery, printsQuery, realtimeKeys } from "./realtime";
 export { type RealtimeData, UniformRealtimeLoad, useRealtimeData } from "./realtime-hooks";
 export { SCHEMA_VERSION } from "./schemas";
 export {

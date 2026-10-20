@@ -11,10 +11,10 @@ import {
   vote,
   zatToZec,
 } from "@kakure/domain";
-import { OPERATOR_PUBLIC_KEYS, printsQuery } from "@kakure/query";
+import { OPERATOR_PUBLIC_KEYS, previousBundleQuery, printsQuery } from "@kakure/query";
 import { Button, EmptyState, Mark, Skeleton } from "@kakure/ui-web";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, FileJson, XCircle } from "lucide-react";
+import { CheckCircle2, FileJson, Loader2, XCircle } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { DATA_SOURCE, NETWORK_LABEL } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
@@ -122,16 +122,48 @@ function Signed({ latest, bundle, network }: { latest: LatestV2; bundle: BundleV
           </span>
           ), and the bundle's SHA-256 matches.
         </Ok>
-        <Ok ok>
-          Published {formatDateTime(bundle.publishedAt)}, after the bundle with hash{" "}
-          <span className="break-all font-mono text-num-sm">{bundle.previous ?? "none (the first)"}</span>.
-        </Ok>
+        <Chain bundle={bundle} network={network} />
         <Ok ok>
           {bundle.lanes.length} lanes on {new Set(bundle.lanes.map((l) => l.asset)).size} assets, Windows of{" "}
           {[...new Set(bundle.lanes.map((l) => cadenceLabel(l.cadenceSec)))].join(", ")}.
         </Ok>
       </ul>
     </Card>
+  );
+}
+
+/**
+ * The link to the minute before: `bundle-(N−1).json` is fetched, its signature checked, and its SHA-256 compared with
+ * this bundle's `previous` (packages/query `previousBundleQuery`), so a dropped or swapped minute shows here.
+ */
+function Chain({ bundle, network }: { bundle: BundleV2; network: Network }) {
+  const link = useQuery(previousBundleQuery(DATA_SOURCE, network, bundle));
+  const published = `Published ${formatDateTime(bundle.publishedAt)}`;
+  if (bundle.previous === null) return <Ok ok>{published}, the first bundle on this network.</Ok>;
+  const before = <FileLink network={network} file={`bundle-${bundle.seq - 1}.json`} />;
+  const hash = <span className="break-all font-mono text-num-sm">{bundle.previous}</span>;
+  if (link.isPending) {
+    return (
+      <li className="flex gap-2 text-row-detail text-muted-foreground">
+        <Loader2 aria-hidden className="mt-0.5 size-4 shrink-0 motion-safe:animate-spin" />
+        <span>
+          {published}. Checking the link to {before}…
+        </span>
+      </li>
+    );
+  }
+  if (link.isError) {
+    return (
+      <Ok ok={false}>
+        {published}, but {before} doesn't link to it (
+        {link.error instanceof Error ? link.error.message : "it couldn't be read"}). This bundle names {hash}.
+      </Ok>
+    );
+  }
+  return (
+    <Ok ok>
+      {published}, after {before}: its signature checks and its SHA-256 is this bundle's <code>previous</code>, {hash}.
+    </Ok>
   );
 }
 

@@ -28,6 +28,7 @@ export const realtimeKeys = {
   latest: (network: Network) => [network, "rt", "latest"] as const,
   bundle: (network: Network, file: string) => [network, "rt", "bundle", file] as const,
   prints: (network: Network, files: readonly string[]) => [network, "rt", "prints", files.join(",")] as const,
+  previous: (network: Network, seq: number, hash: string) => [network, "rt", "previous", seq, hash] as const,
 };
 
 function retry(failureCount: number, error: unknown): boolean {
@@ -73,6 +74,31 @@ export function bundleV2Query(source: DataSource, network: Network, latest: Late
     // When `latest.json` names the next minute's bundle, the one on screen stays until it lands, so quotes, Windows and
     // open sheets never blink out each minute. Never across networks: a switch starts from nothing.
     placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[0] === network ? previous : undefined),
+    retry,
+  });
+}
+
+/**
+ * The chain check (Proof): the bundle before this one, fetched by name, must carry the operator's signature and hash
+ * to this bundle's `previous`, so no minute can be dropped or swapped without the link breaking. Resolves to the
+ * previous bundle's seq; throws a DataError when the link doesn't hold.
+ */
+export function previousBundleQuery(source: DataSource, network: Network, bundle: BundleV2 | null | undefined) {
+  const previous = bundle?.previous ?? null;
+  const seq = bundle ? bundle.seq - 1 : -1;
+  return queryOptions({
+    queryKey: realtimeKeys.previous(network, seq, previous ?? ""),
+    queryFn:
+      previous && seq >= 0
+        ? async ({ signal }): Promise<number> => {
+            const file = `bundle-${seq}.json`;
+            const before = await fetchSigned(source, network, file, bundleV2Schema, { sha256: previous, signal });
+            if (!before) throw new DataError("missing", file);
+            if (before.seq !== seq) throw new DataError("mismatch", file, `seq ${before.seq}, expected ${seq}`);
+            return before.seq;
+          }
+        : skipToken,
+    staleTime: Number.POSITIVE_INFINITY,
     retry,
   });
 }

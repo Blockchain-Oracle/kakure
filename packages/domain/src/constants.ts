@@ -10,8 +10,8 @@ export type Network = (typeof NETWORKS)[number];
  * The operator's Ed25519 public keys, pinned in the build and never fetched (plan §2, §13.11).
  * Hex, 32 bytes (64 characters), one per network because the operator runs one process per network.
  *
- * Mainnet is unset until its operator key exists, so mainnet shows "This build has no operator key": unverified
- * data is never shown.
+ * Both are pinned. A network whose key is null would show "This build has no operator key": unverified data is
+ * never shown.
  */
 export const OPERATOR_PUBLIC_KEYS: Readonly<Record<Network, string | null>> = {
   /** The mainnet operator's key (base64url sG_wKO_4xxEWnCqkvVhmLuq-rwHxv7RjPlgqhLKFSzs), pinned 2026-10-17. */
@@ -70,9 +70,6 @@ export const FINALITY_CONFIRMATIONS = 10;
 /** The UI shows "Closing" this many blocks before the cutoff. */
 export const CLOSING_WARNING_BLOCKS = 3;
 
-/** Each payout note is sent at a random time inside this window after resolution (PD16). */
-export const PAYOUT_WINDOW_MIN_MS = 2 * 60 * 60_000;
-export const PAYOUT_WINDOW_MAX_MS = 6 * 60 * 60_000;
 /**
  * Mainnet sends pause this many blocks before a NU7 height the software does not know (plan §3). It exceeds the
  * post-NU7 expiry delta (120), so no pre-NU7 transaction straddles activation. Operator and app use the same margin.
@@ -218,3 +215,8 @@ export const VENUES_PER_ASSET = 3;
 /** A real-time bundle every minute; settled Windows stay in it this long, then live on in the hourly prints files. */
 export const BUNDLE_INTERVAL_SEC = 60;
 export const BUNDLE_SETTLED_KEEP_SEC = 600;
+/**
+ * An hour's signed prints file is written this long after the hour ends: the 10-minute grace a Window waits for a
+ * late venue's closing minute, plus 2 (operator `realtime.rs` PRINTS_DELAY_SECS).
+ */
+export const PRINTS_DELAY_SEC = 720;

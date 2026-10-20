@@ -5,6 +5,7 @@ import {
   bandOutcomeOf,
   cadenceLabel,
   type Network,
+  PRINTS_DELAY_SEC,
   parlayPayoutZat,
   parlayPriceE8,
   parlaySettledZat,
@@ -38,11 +39,12 @@ import { useWallet } from "@/features/wallet/wallet-store";
 type Check = { ok: boolean | null; text: string };
 const MS = 1000;
 const HOUR_SEC = 3_600;
-/** A Window settles about a minute after it ends; its hour's signed prints file follows the hour's end. */
+/** A Window settles about a minute after it ends, in that hour's prints file. */
 const SETTLE_LAG_SEC = 60;
 
-/** When the prints file that recomputes a Window ending at `expirySec` is published. */
-const printsAt = (expirySec: number) => Math.ceil((expirySec + SETTLE_LAG_SEC) / HOUR_SEC) * HOUR_SEC;
+/** When the prints file that recomputes a Window ending at `expirySec` is published: its hour's end plus the delay. */
+const printsAt = (expirySec: number) =>
+  Math.ceil((expirySec + SETTLE_LAG_SEC) / HOUR_SEC) * HOUR_SEC + PRINTS_DELAY_SEC;
 
 /**
  * A single's price, through any partial closes: the first signed terms against the formula, then each share sold
