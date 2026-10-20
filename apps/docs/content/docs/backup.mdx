@@ -1,0 +1,43 @@
+---
+title: Chips and backup
+description: Where your chips and positions live, the passphrase lock, exporting and importing, and Forget this device.
+---
+
+{/* Sources: apps/web/src/features/vault (vault-db.ts, backup.ts), settings (settings-screen.tsx, forget.ts),
+   wallet/spending.ts (NUT-07 check of imported chips), apps/web/src/constants.ts; WebKit bug 181849 comment 3
+   (Home Screen storage). */}
+
+## Where they live
+
+Your chips and positions live **only on this device**, in your browser's storage, each record encrypted with
+AES-GCM-256 under a key the browser won't export. There is no account and no server copy: lose the device or clear
+the site's data without a backup, and they're gone.
+
+Chips are bearer money. Anyone who holds them can spend them, so treat a backup file like cash.
+
+## Lock with a passphrase
+
+In **Settings → Vault lock**, add a passphrase. The vault's keys are then kept only wrapped by it (PBKDF2-SHA-256,
+310,000 rounds): you enter it once per tab to trade or see your positions, and **Lock now** or closing the tab forgets
+them. Forget the passphrase and only an exported backup brings the vault back.
+
+## Export and import
+
+**Settings → Backup** exports this network's whole vault to one encrypted file (`kakure-<network>-<date>.kakure`),
+sealed with a passphrase you choose. It holds your chips, open positions, deposits and withdrawals in flight, and any
+tickets from the earlier pool markets; it leaves out trade replays. Nothing is uploaded.
+
+**Import** adds what this device doesn't have and keeps what it does. Imported chips might have been spent since the
+file was made, so they're held apart until the mint confirms which are still unspent. A file from the other network
+is refused.
+
+## On an iPhone's Home Screen
+
+A web app added to an iPhone's Home Screen keeps its own storage, apart from Safari's. Chips held in Safari don't
+appear in the Home Screen app, and the other way round. Install it before you deposit, or export a backup in one and
+import it in the other.
+
+## Forget this device
+
+**Settings → This device → Forget this device** deletes every chip, position, key, cached file and setting Kakure
+stored in this browser, and its offline cache. Export a backup first if anything in it is worth keeping.

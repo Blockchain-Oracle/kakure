@@ -3,18 +3,24 @@ title: Networks
 description: Testnet with free TAZ, and mainnet with real ZEC.
 ---
 
-{/* Sources: apps/web/src/constants.ts (FAUCETS), context/05-node-and-infra/testnet-regtest-faucets.md, plan §1 Network toggle. */}
+{/* Sources: apps/web/src/constants.ts (FAUCETS), context/05-node-and-infra/testnet-regtest-faucets.md, plan §1 Network
+   toggle; packages/domain/src/constants.ts (both operator keys pinned 2026-10-17); services/operator/src (trading.rs
+   caps, deposits.rs confirmations); packages/query/src/realtime-hooks.ts (both networks loaded); vault/backup.ts. */}
 
-Kakure runs the same markets on two Zcash networks, and keeps them apart on your device: each network has its own
-markets, operator key, cached files and tickets.
+Kakure runs on two Zcash networks and keeps them apart on your device: each has its own operator key, chips,
+positions and cached files, and a backup from one can't be imported into the other.
 
 | | Testnet | Mainnet |
 | --- | --- | --- |
 | Coin | TAZ, which has no value | ZEC |
-| Status | Live | Opens once its operator key is published |
+| Status | Live | Its key is built in; trading opens when the operator publishes it |
+| Deposit confirmations | 2 | 3 |
+| Stake per trade | 0.001 to 1 | 0.001 to 0.05 |
 | Switching to it | One tap | A deliberate "Slide to use real money" |
 
-Switch with the network capsule at the top of the app; the whole app re-tints so you always know which one you're on.
+Switch with the network capsule at the top of the app; the whole app re-tints so you always know which one you're
+on. Every visit loads both networks' signed files, whichever you use, so browsing doesn't tell the site which one
+you're on; a trade does, since its relay path names the network.
 
 ## Getting TAZ
 
@@ -23,9 +29,9 @@ Testnet coins are free from a faucet:
 - [Fauzec](https://fauzec.com/) sends to Unified and Sapling addresses.
 - [Valar](https://faucet.testnet.valargroup.dev) sends a small amount once a day.
 
-Send them to your wallet's shielded address, then bet with TAZ exactly as you would with ZEC.
+Send them to your wallet's shielded address, then deposit TAZ exactly as you would ZEC.
 
-## Links to the other network
+## Links
 
-A market link carries its network (`/m#testnet/…`). If you open a mainnet link while you're on testnet, the app
-says so and asks you to switch; it never opens a market on the wrong network silently.
+A trade link names only the asset and Window length, after the `#` (`/trade#BTC/5m`), so the site never receives
+it. It opens on whichever network you're on.

@@ -1,52 +1,62 @@
 ---
 title: Troubleshooting
-description: When a ticket isn't counted, a page won't load, or an address is refused.
+description: When an order is refused, a deposit waits, a withdrawal is refused, or the app shows an error.
 ---
 
-{/* Sources: apps/web/src/features/data/data-states.tsx, apps/web/src/features/tickets/status.ts,
-   apps/web/src/features/bet/{payout-address,qr-step}.tsx, packages/domain/src/constants.ts (REFUND_MIN_ZAT),
-   context/15-plan/kakure-plan.md §3 (cutoff, settle or refund). */}
+{/* Sources: apps/web/src/features/terminal (use-trade.ts refusalWords, why.ts), wallet (deposit-sheet.tsx,
+   withdraw-sheet.tsx, api.ts codes), data/data-states.tsx; services/operator/src (trading.rs refusals, prices.rs). */}
 
-## My ticket says "Waiting for its batch"
+## "Price moved"
 
-It's counted once 3 new tickets arrive, and refunded in full if the market closes first. Tickets are listed in
-groups so that no single bet shows, so a paid ticket can wait a few batches (one goes out every 10 minutes). The site
-can't see your wallet either: check there that the payment went out. **Don't pay twice.**
+The house's price moved past your slippage between your tap and the mint. Nothing was spent: tap again to take the
+new price, or widen the tolerance in the order settings.
 
-## My ticket says "Not counted"
+## "Not offered right now"
 
-Its market's cutoff block is final and no signed batch listed it. If you didn't pay, nothing was lost. If you paid,
-it's refunded to your payout address: a late payment (mined at or after the cutoff block), a payment of the wrong
-amount (unless it's under 0.001 ZEC, which is kept as dust), and a last group of fewer than 3 tickets are all
-refunded under the rules.
+That side is all but decided: its ask would be above 98, so the house isn't selling it (or its bid is below 2, so it
+isn't buying it back). Try the other side or another Window.
 
-## The payout address is refused
+## "No price right now"
 
-- **"That isn't a Unified Address"**: copy the shielded `u1…` (or `utest1…`) address from your wallet's Receive
-  screen, not a transparent `t…` one.
-- **"That address is for the other network"**: switch the app or your wallet so both are on the same network.
-- **"No Orchard receiver"**: use a fresh Unified Address from Zodl or Zingo.
-- **"Includes a transparent receiver"**: use a shielded-only address.
-- **"Another of your tickets already pays out to this address"**: each bet needs a fresh address, or the operator
-  could link your bets. Copy a new one from your wallet's Receive screen.
-- **"Your tickets are locked"**: unlock them in Settings → Ticket lock, so the address can be checked against them.
+The house's price stream is catching up after a gap. It quotes again within a few seconds.
 
-## The app shows an error instead of markets
+## "This Window has stopped taking trades"
 
-Each error names its fix:
+A Window stops taking trades 30 seconds before its close, and every position rides to settlement. The next Window
+on that lane is already listed.
 
-- **You're offline / can't reach the data host:** reconnect and retry; your last verified data stays on screen.
-- **Not signed by the Kakure operator:** the files don't match the key built into the app, so nothing is shown.
-  Reload to get the current app.
-- **This build has no operator key:** that network isn't open in this build yet.
-- **No markets published yet:** the operator hasn't published a batch for this network; the page checks again on
-  its own.
+## "Over the limit"
 
-## The QR won't scan
+The trade would take the house past one of its [limits](/rules#limits): the stake per trade, what it pays on one
+Window side, or what one parlay or band can pay.
 
-Turn the screen brightness up and hold steady. If your camera struggles with the dotted code, tap **Trouble scanning? Use a square
-code**. On the same phone, use **Open in Zingo** instead of scanning.
+## My deposit is still waiting
 
-## I switched networks and my tickets disappeared
+The deposit counts once the payment has **2 confirmations on testnet (3 on mainnet)**. If the sheet says it's below
+the smallest chip, the amount paid can't be minted. If you closed the sheet, your deposit is still listed: open
+Deposit again and it picks up where it left off.
 
-Each network keeps its own tickets. Switch back to see them.
+## My withdrawal was refused
+
+Withdrawals start at 0.01, go in steps of 0.001, and need a fresh shielded Unified Address for this network with an
+Orchard receiver and no transparent receiver. See [your wallet](/wallet-and-ironwood#where-withdrawals-go).
+
+## "Chips already spent"
+
+Some chips were spent on another device that holds the same backup. The app drops them and updates your balance.
+
+## The app shows an error instead of prices
+
+- **"Not signed by the Kakure operator":** a file didn't verify against the key built into the app, so nothing is
+  shown rather than unverified prices. Try again in a minute.
+- **"Can't reach the data host":** reload in a moment. Nothing about you was sent.
+- **"The next bundle is late":** the app keeps showing the last signed bundle and says how old it is.
+
+## I switched networks and my chips disappeared
+
+Each network keeps its own chips and positions. Switch back with the network capsule; nothing was deleted.
+
+## The Home Screen app on my iPhone shows no chips
+
+It keeps its own storage, apart from Safari's. Export a backup in Safari and import it in the Home Screen app.
+See [chips and backup](/backup#on-an-iphones-home-screen).

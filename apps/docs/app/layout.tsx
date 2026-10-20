@@ -17,7 +17,7 @@ const display = Roboto_Condensed({
 
 export const metadata: Metadata = {
   title: { default: "Kakure docs", template: "%s · Kakure docs" },
-  description: "How Kakure works: your first bet, the privacy model, the rules, verifying, and the published files.",
+  description: "How Kakure works: your first trade, the privacy model, the rules, verifying, and the published files.",
   referrer: "no-referrer",
 };
 

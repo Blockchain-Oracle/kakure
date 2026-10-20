@@ -1,66 +1,51 @@
 ---
 title: Verify it yourself
-description: Find your ticket, check signatures and rules hashes, and read the resolution evidence.
+description: What the app checks on every load, what Verify recomputes for your positions, and how to check by hand.
 ---
 
-{/* Sources: apps/web/src/features/verify/*, apps/web/src/features/proof/*, packages/query/src/fetch.ts,
-   packages/signing/src/index.ts, packages/domain/scripts/validate.ts. */}
-
-## Find your ticket
-
-Open your ticket in the portfolio and tap **Find my ticket**. Nothing is sent anywhere: the app searches the signed
-list it already downloaded for your ticket's hash. You can also paste a ticket hash (64 hex characters) on
-the app's **Verify** page.
-
-Tickets are listed in groups of at least 3 new ones, so a paid ticket can wait a few batches: until it's listed it
-shows **Waiting for its batch**. If the market's cutoff block is final and it still isn't listed, it was refunded in
-full (or never paid).
+{/* Sources: packages/query/src/realtime.ts (fetchSigned, bundle hash, previousBundleQuery), apps/web/src/features
+   (verify/verify-screen.tsx, proof/realtime-proof.tsx, proof/recompute.ts, wallet/trading.ts certificate check),
+   packages/ecash/src/wallet.ts (DLEQ), packages/signing/src/index.ts, packages/domain/src (settle.ts, fair.ts). */}
 
 ## What the app checks on every load
 
-Before a single number is shown, the app:
+- `latest.json` and the bundle it names carry the operator's **Ed25519** signature, checked against the key built into
+  the app (see [file formats](/file-formats)). Nothing unsigned is ever shown.
+- The bundle's SHA-256 matches the hash `latest.json` names, and its sequence number matches too.
+- Every chip the mint signs comes with a **DLEQ proof** against its published key for that amount, checked on your
+  device before the chip is kept, so the mint can't sign your chips with a key meant to mark you.
+- Every position certificate is checked against the operator key before it's saved.
 
-1. checks `latest.json`'s Ed25519 signature against the operator key built into the app;
-2. checks that the bundle's bytes hash (SHA-256) to the `bundleHash` that `latest.json` names, and that its batch
-   number matches;
-3. checks the bundle's own signature, and the address list's signature and content-addressed name;
-4. validates every file against the published format.
+## Verify: your positions
 
-If any check fails, it shows nothing rather than unverified odds, and says which check failed.
+The **Verify** page checks every position on this device and sends nothing anywhere:
 
-## Check a receipt
+- **The certificate's signature** against the operator key.
+- **Its price:** stake ÷ ask gives the signed payout. A position you partly closed is replayed from its first signed
+  terms through each reduce, which must land on the terms signed last.
+- **Parlays:** the combined price from the legs' asks, and the payout.
+- **Its result,** recomputed from the signed prints: the Line from the opening prints, then two of three closing
+  votes, for Up/Down; two of three closing prints inside or outside the edges, for bands; each leg, for parlays.
+- **What was paid** against what was due.
 
-A receipt link looks like `https://getkakure.xyz/verify#…`; the receipt sits in the fragment, so it never reaches
-the host. A **provable** receipt includes your ticket's nonce: the Verify page recomputes the ticket hash and looks
-for it in the signed list, then shows the result and the payout for that ticket size. An **outcome slip** has no
-nonce, so it shows the result but can't be matched to the list.
+A Window that settled more than 10 minutes ago has left the minute bundle; Verify recomputes it from its hour's
+prints file, which is published 12 minutes after that hour ends, and says so until then.
 
-## Check the rules didn't change
+## Proof: the public record
 
-Each market's `rulesHash` is BLAKE2b-256, personalisation `Kakure_Rules_v01`, over the canonical JSON of its rules.
-The app's **Proof** page recomputes it for every market and shows whether it matches. To do it yourself:
+The **Proof** page shows the signed record anyone can check:
 
-```ts
-import { blake2b } from "@noble/hashes/blake2.js";
-import { canonicalJson } from "@kakure/signing"; // keys sorted, no whitespace
+- the latest bundle's signatures and hash, and **the link to the bundle before it**: that file is fetched, its
+  signature checked, and its SHA-256 compared with this bundle's `previous`, so a dropped or swapped minute shows;
+- the pricing inputs and each asset's σ;
+- the last settled Windows, each recomputed from its prints, and a button that recomputes every settlement in the
+  last day's prints files.
 
-const digest = blake2b(new TextEncoder().encode(canonicalJson(market.rules)), {
-  dkLen: 32,
-  personalization: new TextEncoder().encode("Kakure_Rules_v01"),
-});
-```
+## By hand
 
-## Check signatures yourself
-
-Every published file is the canonical JSON of its document: object keys sorted by UTF-16 code units, no whitespace,
-integers only (amounts are decimal strings of zatoshi). The signature `sig` is Ed25519 over that canonical JSON with
-the `sig` field removed, encoded as unpadded base64url. The repository's `packages/domain/scripts/validate.ts` checks
-a whole folder of published files: signatures, hashes, the chain of `previous` hashes, rules hashes and ticket lists.
-
-## Read the resolution evidence
-
-When a market resolves, the operator publishes a signed `resolution-<market>.json` with each venue's vote and its raw
-response (or the chain read, for events); see [Published file formats](/file-formats). The **Proof** page downloads
-every resolution file the current batch names at once, never just the one you want, so the host can't tell which
-market you're checking. It checks each signature, then shows each market's votes, final counts and raw responses in
-the page. Venue URLs are shown as text, so reading them makes no request.
+1. Fetch `latest.json`, its bundle and an hour's `prints-YYYYMMDDHH.json` from the data host.
+2. Check each `sig`: Ed25519 over the file's canonical JSON with `sig` removed, the signature in base64url.
+3. For a Window: compare each exchange's closing print with its opening print (exact decimals), and take two of
+   three. You can fetch each exchange's own 1-minute candles to check the prints themselves.
+4. For a price: `ask = ⌈P·10⁴⌉ + 250` from the formula on [Rules](/rules), and `payout = ⌊stake·10⁴ / ask⌋` rounded
+   down to 1,000 zatoshi.

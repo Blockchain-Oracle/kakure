@@ -1,31 +1,36 @@
 ---
 title: Kakure
-description: A private prediction market on Zcash. The odds are public; who placed each bet isn't.
+description: A private real-time prediction market on Zcash. The prices are public; you aren't.
 ---
 
-{/* Sources: context/15-plan/kakure-plan.md §1 (promise), context/11-chosen-direction/privacy-design.md (D1). */}
+{/* Sources: plan §00 (the new shape); packages/domain/src/constants.ts (assets, lengths); services/operator/src
+   (trading.rs caps, exits.rs); apps/web/src/features/privacy/words.ts. */}
 
-Kakure lets you call the close on crypto and on Zcash itself with shielded ZEC. You pay from your own Zcash
-wallet by scanning a QR code. There is no account to make, nothing to sign in to, and no claim step: winnings and
-refunds come back on their own to an address you choose.
+Kakure lets you call crypto prices up or down, from one minute to a day, with private chips from a shielded Zcash
+deposit. Prices move live. Your trades don't lead back to you.
 
-The odds are public. Who placed each bet isn't. The precise boundary: **the public sees nothing beyond what any
-shielded Zcash transaction shows, and the operator sees what was bet, never who bet it.**
+You deposit once from your own Zcash wallet by scanning a QR code. The deposit becomes **chips** on your device,
+blind-signed by the mint, so it can't tell which deposit paid for which trade. You trade those chips against **the
+house**, which prices every Window by a public formula from live exchange prices. Close early at the live price, set a
+trailing stop, or let it ride. Winnings come back as fresh chips; withdraw them to any shielded address.
+
+There is no account and no sign-in. **The operator sees trades, never who made them.**
 
 ## Start here
 
 <Cards>
-  <Card title="Your first bet in 30 seconds" href="/first-bet" description="Scan, pay, done: the web QR with Zingo or Zodl." />
-  <Card title="Your wallet and Ironwood" href="/wallet-and-ironwood" description="What your wallet needs before you bet." />
+  <Card title="Your first trade" href="/first-trade" description="Deposit, trade, close and withdraw, step by step." />
+  <Card title="Your wallet and Ironwood" href="/wallet-and-ironwood" description="What to deposit from, and where withdrawals can go." />
   <Card title="The privacy model" href="/privacy" description="Who sees what, and what Kakure can't hide." />
-  <Card title="Rules and formulas" href="/rules" description="Payouts, the fee, the cutoff block and refunds." />
+  <Card title="Rules and formulas" href="/rules" description="Windows, the price formula, settlement and limits." />
 </Cards>
 
 ## What's live
 
-- **Testnet** markets run now, with test coins (TAZ) that have no value. Hourly and daily Up/Down markets on BTC,
-  ETH, SOL and ZEC, daily ones on DOGE and XRP, and a testnet chain-height event.
-- **Mainnet** opens once its operator key is published; until then the app says so instead of showing markets.
-- **US stocks** open once their price feed is connected.
-- The **web app** is live. The Android and iPhone apps are listed on the app's download page as each build is
-  published.
+- **Testnet** runs now, with test coins (TAZ) that have no value: BTC, ETH, SOL, ZEC, XRP and DOGE, in Windows of
+  1, 2, 5 and 15 minutes, 1 and 4 hours, and a day. Up or Down, parlays of two or three Windows, and the Range and
+  Moonshot games on the same Windows.
+- **Mainnet** has its operator key built into the app. Trading opens there when the operator publishes mainnet's
+  trading details; until then the app keeps prices live and says trading isn't published.
+- The **web app** installs from your browser on any phone or computer. The Android app was built for the earlier pool
+  markets and is paused; there is no iPhone app yet.

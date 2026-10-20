@@ -1,82 +1,70 @@
 ---
 title: The privacy model
-description: The promise, who sees what, and what Kakure can't hide.
+description: The promise, who sees what, how the design gets there, and what Kakure can't hide.
 ---
 
-{/* Sources: context/11-chosen-direction/privacy-design.md (promise, "Who learns what", D1–D14, residual risks), plan §2 and §6,
-   context/16-privacy-audit/audit.md (O1 grouped publication, PD28, O5/O8/O11/O18). Same words as apps/web/src/features/privacy/words.ts. */}
+{/* Sources: plan §00 ("The new shape", "Who sees what", "Residual risks"); apps/web/src/features/privacy/words.ts;
+   services/data-worker/src/relay.ts and wrangler.jsonc (observability off); packages/query/src/realtime-hooks.ts
+   (UniformRealtimeLoad); packages/domain/src/bundle-v2.ts (trades, volumeZat, house); packages/chart/src/live/candle-view.ts
+   (candle requests); services/operator/src/payouts.rs (canonical notes, random times). */}
 
 ## The promise
 
-> The public sees nothing beyond what any shielded Zcash transaction shows. The operator sees what was bet, never
-> who bet it.
-
-Two layers make that true:
-
-- **The protocol.** A fully shielded, same-pool payment hides its sender, recipient and amount. Your bet is one.
-- **Kakure's design.** A shielded payment carries no sender address, and the memo carries no identity: only the
-  market, side, ticket size, a random nonce and your payout address.
-
-Kakure does **not** claim anonymity of positions from the operator, cryptographically verifiable odds, or trustless
-custody.
+**The prices are public. You aren't.** One shielded deposit becomes private chips, blind-signed so the mint can't tell
+which deposit they came from. Every request travels through an Oblivious HTTP relay: the relay sees your IP but only
+encrypted bytes, and the operator sees the trade but never your IP. There is no account and no sign-in.
 
 ## Who sees what
 
 | Who | Learns | Never learns |
 | --- | --- | --- |
-| Anyone watching the chain | That shielded transactions happened, with their timing, fee and shape | Who paid whom, how much, the memo, or that a transaction is a bet |
-| The operator | Each bet's amount, side, arrival time and payout address | Who you are or which wallet paid. Clients never contact the operator; it only publishes signed files |
-| Other bettors and the public | Each market's ticket count and ticket hashes, published only in groups of at least 3 new tickets; each side's totals once both sides have 3; the final totals and the result | Any single bet: its side, its size or when it arrived |
-| This website's host | Your IP address, when you visited and which pages you opened | Your bets, sides, payout address, network or the markets you look at. The QR is built in your browser, market ids stay in the `#fragment`, and every visitor downloads the same files for both networks |
-| Kakure's price relay | Your IP, and when a tab showing prices is open | Which prices you watch: it streams every symbol to everyone, and your browser sends it nothing |
-| Your wallet's server | Your IP, when your wallet syncs and broadcasts, and which transactions it fetches (bets and payouts included), unless your wallet uses Tor. With Zodl or Zingo that's your wallet's own server; the Kakure app syncs with zec.rocks and sends over Nym, so zec.rocks sees its IP when it syncs | The memo or the amount |
-| An exchange where you cash out | The amount you deposit | Which bet it came from: every same-size winning ticket pays the same |
+| Anyone watching the chain | That shielded deposits and payouts happened, with their timing, fee and shape | Amounts, memos, who sent them, or which trades they paid for |
+| This site and its relay (one Cloudflare worker) | Your IP, when you visit and trade, which pages you open, and which network you trade on | What's inside a request (sealed to the operator's published key); the asset or Window you look at |
+| The operator | Each deposit's amount; each trade's Window, side, stake and time; each withdrawal's address and amount | Your IP; which deposit paid for which trade; that two trades are the same person's; who you are |
+| Everyone else | The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes each minute; volume per Window in whole groups of three trades | Any single trade |
+| Kakure's price relay | Your IP, when a tab showing prices is open, and which candle interval your chart shows and how far back | Which asset you watch |
+| Your wallet's server | Your IP, when your wallet syncs and broadcasts, and which transactions it fetches, unless your wallet uses Tor | The memo or the amount |
+| An exchange where you cash out | The amounts it receives | Which trades they came from |
 
 ## How the design gets there
 
-- **No accounts, no bet API.** The site is static. The app and site never call the operator; the operator pushes
-  signed files to the site's host, and every visitor downloads the same ones. The host keeps a file only when it
-  carries the operator's signature for that network, never replaces a published file, and only moves `latest.json`
-  forward to a bundle it already holds, so the operator needs no storage password at all.
-- **The same requests for everyone.** Every visit loads the same `latest.json`, bundle and address list, for both
-  networks, on the same clock, whichever one you use; market ids live in the URL fragment, which browsers never
-  send. On its first visit the site's service worker downloads every script and the address checker, the same set
-  for everyone, and asset logos are drawn from the page itself, so opening a market or the bet
-  sheet asks the host for nothing about it. The Proof page downloads all of a batch's resolution evidence at once,
-  never one market's.
-- **A fresh market address per bet**, picked in your browser from the signed list, so bets don't share an address.
-- **Fixed ticket sizes**, so amounts don't fingerprint a bet, and every same-size winner gets the same payout.
-- **Published in groups, never one by one.** A market's ticket count, its list of ticket hashes and its totals
-  change only when at least 3 new tickets have arrived, and the odds stay hidden until each side has 3. If fewer
-  than 3 tickets are still waiting when the market's cutoff block is final, they're refunded in full and never
-  published. A signed batch goes out every 10 minutes whether or not anything changed.
-- **Payouts on a timer, never right after a bet.** Each payout is split into canonical 1, 2 or 5 × 10^k notes, each
-  sent as its own transaction at a random time 2 to 6 hours after resolution, with the outgoing viewing key
-  discarded. Payout transaction ids are never published.
-- **Prices through Kakure's relay.** Your browser never connects to an exchange, so no exchange sees your IP next
-  to Kakure.
+- **Chips, blind-signed.** Your deposit buys chips: bearer tokens the mint signs without seeing them (Chaumian e-cash,
+  Cashu's BDHKE on secp256k1). Each signature comes with a DLEQ proof against the one published set of chip keys, so
+  the mint can't mark a chip to recognise it later. When you trade, you spend chips the mint has never seen
+  unblinded, so it can't tell which deposit paid, or that two trades share an owner.
+- **Oblivious HTTP for every request.** Deposits, trades, closes, redemptions and withdrawals are each sealed to the
+  operator's gateway key (RFC 9458, HPKE with X25519, HKDF-SHA256 and AES-128-GCM; the key is in the signed bundle).
+  The relay builds a fresh request carrying only its content type, so no header of yours, and not your IP, reaches
+  the operator. Its Worker keeps no logs.
+- **The same files for everyone.** Every visit loads the same signed files for both networks, on the same minute
+  clock, whichever one you use. The asset and Window you look at live in the URL fragment (`/trade#BTC/5m`), which
+  browsers never send.
+- **Prices through Kakure's relay.** Your browser never connects to an exchange. The relay streams every symbol to
+  every visitor and serves every symbol's candles in one response, so it can't tell which one you chart.
+- **Volume in groups of three.** A Window's trade count and volume count only whole groups of three trades, never
+  one trade's size.
+- **Withdrawals split and spread.** A withdrawal leaves as standard 1, 2 or 5 × 10^k notes, each its own transaction
+  at its own random time, so an exchange that receives them can't match them to a trade.
+- **The house's books, every minute.** The signed bundle states the chips outstanding and the most the open
+  positions could pay.
 
 ## What Kakure can't hide
 
-1. The operator sees every bet's amount, side and payout address, though not who placed it.
-2. Odds are reports signed by the operator, not cryptographic proofs.
-3. Custody and resolution are trusted: there are no smart contracts on Zcash.
-4. Every published change, the final totals included, covers at least 3 new tickets. If all the tickets in a group
-   took the same side, that group's side and total show (not whose tickets they are), and someone who places most
-   of a group themselves can work out the rest (the n−1 attack).
-5. If fewer than 3 tickets are still waiting to be listed when a market's cutoff block is final, they're refunded in
-   full and never published. A bet that arrives last, alone, doesn't play.
-6. Miners set block timestamps within consensus limits, so the cutoff block has some latitude.
-7. Each signed list holds 1,024 market addresses and your browser picks one at random, so two bets in the same batch
-   can share one: with n bets in a batch the chance is at most n(n−1)/2,048, under 5% for 10 bets. Only the operator
-   can see it. Each batch, used addresses are replaced together with random unused ones, so a new list doesn't show
-   which were paid.
-8. Your own funding history and your wallet's server are outside Kakure's control.
-9. The operator reads the chain from public light-wallet servers (zec.rocks) over Tor, so it relies on them to serve
-   the chain honestly.
-10. While few people use Kakure, the set of bettors you hide among is small.
-11. The published market addresses could be decrypted by a future break of today's cryptography (harvest now,
-    decrypt later).
-12. Stock markets will settle on two keyed sources (Pyth and Alpaca) that you can't re-fetch yourself.
-
-To hide your IP from the website's host, open Kakure in Tor Browser.
+1. **Timing.** A trade placed right after a deposit, or a withdrawal right after a win, can be matched by time.
+   Chips come in standard amounts and withdrawals leave at random times; spreading your own activity out does the
+   rest.
+2. **Kakure runs both the relay and the operator.** Oblivious HTTP is built for two separate parties, so keeping
+   your IP apart from your trades rests on Kakure not combining the two. Using Tor keeps your IP from both.
+3. **Custody and the house's solvency are trusted.** The minute's liability statement is the check.
+4. **Position certificates aren't blinded,** so the operator links a position's open to its close or redemption.
+   That's the same anonymous trade, so it reveals nothing new.
+5. **The n−1 case.** Volume moves in steps of at least three trades; someone who places two trades of a group can
+   work out the third's stake.
+6. **Signed reports.** Prices and outcomes are signed by the operator, but each print is an exchange's public
+   1-minute candle, so anyone can fetch them again and recompute.
+7. **The chain source.** The operator reads the chain from public light-wallet servers over Tor, so it relies on
+   them to serve it honestly.
+8. **A small crowd.** While few people use Kakure, the crowd you hide among is small.
+9. **Harvest now, decrypt later.** Oblivious HTTP and Zcash's note encryption use elliptic-curve key exchange, so
+   traffic and transactions recorded today could be read after a future break of that cryptography.
+10. **Your side.** Your funding history and your wallet's server are outside Kakure's control.

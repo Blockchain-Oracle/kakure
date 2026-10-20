@@ -2,8 +2,9 @@
   "title": "Kakure",
   "pages": [
     "index",
-    "first-bet",
+    "first-trade",
     "wallet-and-ironwood",
+    "backup",
     "networks",
     "---How it works---",
     "privacy",
@@ -12,7 +13,6 @@
     "---Check it yourself---",
     "verify",
     "file-formats",
-    "receipts-and-backup",
     "---Help---",
     "troubleshooting"
   ]

@@ -1,44 +1,47 @@
 ---
 title: System maps
-description: The bet flow, the operator pipeline, the data flow, and who sees what.
+description: A trade end to end, the operator's minute, the data flow, and who sees what.
 ---
 
-{/* Sources: plan §2 (architecture diagram), §3, §13.9; services/data-worker/src/index.ts; packages/feeds/src/protocol.ts;
-   apps/web/public/sw.js; packages/query/src/fetch.ts. */}
+{/* Sources: plan §00 (the new shape, how requests travel); services/data-worker/src (index.ts routes, relay.ts);
+   services/operator/src (api.rs gateway, realtime.rs minute tick, exits.rs, payouts.rs, chain.rs); services/price-relay;
+   packages/ohttp; packages/ecash; apps/web/src/features/wallet. */}
 
-## A bet, end to end
+## A trade, end to end
 
 ```mermaid
 sequenceDiagram
   participant You as Your browser
-  participant Wallet as Your wallet
-  participant Chain as Zcash chain
-  participant Op as Operator
-  participant Host as Data host
-  You->>Host: GET the signed files<br/>(same for everyone)
-  Host-->>You: latest.json, bundle,<br/>address list
-  Note over You: Check signatures, pick an address,<br/>build the QR, save the ticket
-  You->>Wallet: Scan the QR<br/>(ZIP 321, with memo)
-  Wallet->>Chain: Shielded payment,<br/>memo encrypted
-  Op->>Chain: Scan each block,<br/>decrypt its own notes
-  Op->>Host: A batch lists it once<br/>3 new tickets arrive
-  You->>Host: GET latest.json<br/>(on the clock)
-  Host-->>You: Ticket hash in the list:<br/>counted
-  Op->>Chain: After resolution, a payout<br/>at a random time (2 to 6 h)
-  Chain-->>Wallet: Payout arrives
+  participant Site as Site and relay<br/>(one Cloudflare worker)
+  participant Op as Operator<br/>(gateway and mint)
+  participant Prices as Price relay
+  You->>Site: GET latest.json and bundle<br/>(both networks, every minute)
+  You->>Prices: Price stream<br/>(every symbol)
+  Note over You: Quote from the public formula<br/>on the live price
+  You->>Site: POST /ohttp/testnet<br/>sealed: chips, Window, side, max ask
+  Site->>Op: A fresh request: only the sealed bytes
+  Note over Op: Check the chips unspent,<br/>quote, sign a certificate
+  Op-->>Site: Sealed answer: certificate and change
+  Site-->>You: Sealed answer
+  Note over You: Check signatures and DLEQ proofs,<br/>save in the encrypted vault
+  Note over Op: After the close: 2 of 3 exchanges' prints
+  You->>Site: POST /ohttp (sealed): redeem
+  Site->>Op: Sealed bytes
+  Op-->>You: Fresh blind-signed chips (via the relay)
 ```
 
-## The operator pipeline
+## The operator's minute
 
 ```mermaid
 flowchart LR
-  scan[Scan every block] --> ingest[Ingest: memo, amount, cutoff block, Orchard receiver, nonce]
-  ingest --> engine[Engine: pools, sealed and released odds]
-  catalog[Catalog: schedules markets and opening references] --> engine
-  engine --> publish[Publisher: signed bundle every 10 min]
-  publish --> r2[(Public storage)]
-  resolver[Resolver: venue votes or chain read] --> engine
-  engine --> payouts[Payout scheduler: canonical notes, random times]
+  sync[Chain sync over Tor, every 15 s] --> deposits[Deposits: memo id, confirmations]
+  deposits --> mint[Mint: blind signatures, spent set]
+  stream[Price relay stream] --> quotes[Quotes and the exit watcher]
+  venues[Exchanges' 1-minute candles] --> minute[Minute tick, 7 s past the minute]
+  minute --> settle[Lines, settlements, σ]
+  settle --> publish[Signed bundle every minute,<br/>prints file every hour]
+  publish --> host[(The site's storage)]
+  mint --> payouts[Withdrawals: 1-2-5 notes at random times]
   payouts --> tor[Broadcast over Tor]
 ```
 
@@ -47,33 +50,37 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph device[Your device]
-    app[Web app or phone app]
-    sw[Service worker cache]
-    db[(Encrypted ticket store)]
+    app[Web app]
+    vault[(Encrypted vault: chips and positions)]
+    sw[Offline cache]
   end
-  host[Data host: static files only, logs off]
-  relay[Price relay: every symbol to everyone]
-  op[Operator]
-  venues[Coinbase, Kraken, Bitstamp, Gemini]
-  op -- pushes signed files --> host
-  app -- same requests for every visitor --> host
-  app -- one price stream per tab --> relay
-  relay --> venues
+  worker[Site and relay: static files, signed data, /ohttp; logs off]
+  prices[Price relay: every symbol to everyone]
+  op[Operator gateway and mint]
+  ex[Coinbase, Kraken, Bitstamp, Gemini]
+  op -- pushes signed files --> worker
+  app -- same files for every visitor --> worker
+  app -- sealed requests --> worker
+  worker -- sealed bytes only --> op
+  app -- one price stream per tab --> prices
+  prices --> ex
+  op --> ex
+  app --- vault
   app --- sw
-  app --- db
 ```
 
-The app never calls the operator. The only things it fetches are the signed public files and the price stream.
+The app never connects to the operator directly: every request is sealed to the operator's published key and goes
+through the relay, which forwards only the sealed bytes.
 
 ## Who sees what
 
 ```mermaid
 flowchart LR
-  bet((Your bet))
-  bet -->|"amount, side, payout address"| op[Operator]
-  bet -->|"a shielded transaction, nothing else"| chain[Chain observers]
-  bet -->|"your IP, sync and send times, unless you use Tor"| wallet[Your wallet's server]
-  visit((Your visit)) -->|"IP, time, pages"| host[Website host]
-  visit -->|"IP, while prices show"| relay[Price relay]
-  op -->|"counts, hashes and odds in groups of 3+, the result"| public[Everyone]
+  trade((Your trade)) -->|"Window, side, stake, time"| op[Operator]
+  trade -->|"your IP and the network, sealed bytes only"| relay[Site and relay]
+  deposit((Your deposit)) -->|"a shielded transaction, nothing else"| chain[Chain observers]
+  deposit -->|"its amount"| op
+  wallet((Your wallet)) -->|"your IP, sync and send times, unless you use Tor"| server[Your wallet's server]
+  visit((Your visit)) -->|"IP, while prices show; the chart's candle interval"| prices[Price relay]
+  op -->|"prices, outcomes, the house's book, volume in groups of 3"| public[Everyone]
 ```

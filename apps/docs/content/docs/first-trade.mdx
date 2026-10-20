@@ -1,0 +1,73 @@
+---
+title: Your first trade
+description: Deposit once, trade in a tap, close or let it ride, and withdraw, with Zodl or Zingo.
+---
+
+{/* Sources: apps/web/src/features/wallet (deposit-sheet.tsx, deposits.ts, withdraw-sheet.tsx, api.ts), terminal
+   (use-trade.ts, settings.ts), services/operator/src (deposits.rs confirmations, api.rs withdrawals, exits.rs,
+   realtime.rs settlement), packages/domain/src/constants.ts (sizes, slippage). */}
+
+<Steps>
+<Step>
+
+### Deposit once
+
+Open the terminal and tap **Deposit**. Pick an amount (0.01 to 1 TAZ on testnet) and the app shows a QR code with
+the deposit's memo already in it. Scan it with Zodl or Zingo and pay exactly that amount from shielded funds.
+
+The deposit's id is drawn on your device and saved before the code appears, so closing the sheet loses nothing.
+After **2 confirmations on testnet (3 on mainnet)** the mint signs your chips blind, the app checks every signature
+against the mint's published keys, and the chips land in your device's vault (with sound on, a short bell rings).
+
+The code carries your deposit's id: whoever has it could claim the chips. It's built on your device, never sent
+anywhere, and blurs when you look away. Don't share or screenshot it.
+
+</Step>
+<Step>
+
+### Pick a Window and a side
+
+A **Window** is a stretch of time on one asset, from its open to its close. The **Line** is the asset's price at the
+open, taken from the exchanges. Tap **UP** if you think it closes above the Line, **DOWN** if below. Each side shows
+what it **pays** at the house's live price: pays 1.8× means a 0.1 stake returns 0.18 if you're right.
+
+The price moves with every tick. If it moves past your slippage before your order lands (2 % by default, in the
+order settings), the order is refused with **Price moved**, and nothing is spent: tap again to take the new price.
+
+</Step>
+<Step>
+
+### Manage it, or let it ride
+
+While the Window trades, your position is valued live at the house's bid:
+
+- **Close** sells it back now. **Reduce** sells part of it.
+- On an Up or Down position, **Trail** arms a trailing stop and **TP / SL** set a take-profit and a stop-loss. These
+  run at the mint, so they fire even with your tab closed.
+- A parlay can't be sold back: it rides to its last leg's close.
+- In the last 30 seconds a Window stops taking trades and every position rides to the close.
+
+</Step>
+<Step>
+
+### Settlement
+
+About seven seconds into the minute after the Window closes, the operator reads each exchange's closing price. Two
+of three agreeing above the Line means UP won; two below, DOWN won; anything else refunds every position its stake.
+With the app open, winnings and refunds come back as fresh chips shortly after; otherwise the next time you open
+it.
+
+</Step>
+<Step>
+
+### Withdraw
+
+Tap **Withdraw**, paste a fresh shielded address from your wallet's Receive screen, and pick an amount (from 0.01, in
+steps of 0.001). The mint splits it into standard 1, 2 and 5 notes and sends each at its own random time within about
+half an hour, so the payments can't be matched to your trades.
+
+</Step>
+</Steps>
+
+Every step above goes through Kakure's Oblivious HTTP relay: it sees your IP but not what you sent, and the operator
+sees what you sent but not your IP. See [the privacy model](/privacy).

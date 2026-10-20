@@ -1,80 +1,98 @@
 ---
 title: Rules and formulas
-description: Tickets, the cutoff block, the direction vote, payouts, the fee and refunds.
+description: Windows, the house's price formula, limits, settlement, and how each kind of position pays.
 ---
 
-{/* Sources: plan §3 (mechanism spec), §13.1–13.4; packages/domain/src/constants.ts, payout.ts, ticket.ts;
-   the signed rules text in each market's bundle entry (services/operator). */}
+{/* Sources: packages/domain/src (constants.ts:132-207, lanes.ts, fair.ts, settle.ts); services/operator/src (lanes.rs
+   venues, realtime.rs:48-57 timing and grace, sigma.rs, prices.rs, trading.rs caps and refusals, exits.rs). Every number
+   here is a constant in that code; the signed bundle publishes the live ones under `pricing`. */}
 
-Every market's exact wording, sources, cutoff, refund cases and payout formula are fixed and signed **before**
-betting opens, and its rules hash is published so anyone can check they never changed (see [Verify](/verify)).
+## Windows
 
-## Tickets
+| | |
+| --- | --- |
+| Assets | BTC, ETH, SOL, ZEC, XRP, DOGE |
+| Lengths | 1m, 2m, 5m, 15m, 1h, 4h, 1d |
+| Series | 2m and 5m run two series each, one minute and three minutes apart; the rest run one |
+| Entry | Until 30 seconds before the close; after that, positions ride to settlement |
 
-- Sizes: 0.01, 0.02, 0.05, 0.1, 0.2, 0.5 or 1 ZEC. These are ZIP 318's canonical values (1, 2 or 5 × 10^k).
-- One payment is one ticket. The memo names the market, side (`U`/`D`, or `Y`/`N` for events), size, a 16-byte
-  random nonce and your payout address.
-- A ticket's hash is BLAKE2b-256 with personalisation `Kakure_Ticket_v1` over: the network byte (mainnet `0x01`,
-  testnet `0x02`), the market id's length and bytes, the side, the size in zatoshi (8 bytes, little-endian) and the
-  nonce. Side and size sit inside the hash, so the published list of hashes reveals neither.
+A Window **opens** at its start and **closes** at its end. Before it opens, both sides are priced at 0.5 (pays about
+1.90×), since nobody knows the opening price yet. Once it opens, it trades as soon as two of its three exchanges
+have committed their opening minute; the **Line** is the median of those opening prints.
 
-## When betting closes: the cutoff block
+Each asset is printed by three exchanges: Coinbase, Kraken and Bitstamp (for ZEC: Coinbase, Kraken and Gemini). A
+**print** is the close of that exchange's 1-minute candle ending at the moment in question.
 
-Betting closes 10 minutes before the market closes. The **cutoff block H_c** is the first block whose timestamp is
-at or after the cutoff time, taken once it has 10 confirmations. Bets mined from the first block at or after
-betting opened, up to but not including H_c, count. H_c is published in the bundle once final. Miners set block
-timestamps within consensus limits; that latitude is disclosed, not hidden.
+## The price
 
-## How a close market resolves: the direction vote
-
-Three venues vote. For BTC, ETH, SOL, DOGE and XRP they are Coinbase Exchange, Kraken and Bitstamp; for ZEC,
-Coinbase Exchange, Kraken and Gemini. Each venue votes **Up**, **Down** or **Flat** by comparing the close of its
-committed 1-hour candle ending at the window's end with its **opening reference**: the close of its 1-hour candle
-ending at the window's start, recorded and signed before betting opens. Up or Down wins with at least 2 of the 3
-votes. A missing or zero-volume candle is no vote.
-
-Event markets resolve from chain data instead; their rules say exactly how (for example, a block height's
-median-time-past, read from public light-wallet servers, with 10 confirmations).
-
-## Odds
-
-A market's ticket count, its list of ticket hashes and its totals are published only in groups: each change needs at
-least 3 new tickets since the last one, so no single bet shows. Odds stay **sealed** (hidden) until each side has at
-least 3 tickets; until then only the count is published, in the same groups. A signed batch goes out every 10
-minutes regardless.
-
-When the cutoff block is final, any tickets still waiting are published in a last group, but only if there are at
-least 3 of them. **Fewer than 3 are refunded in full and never published**, so a bet that arrives last, alone,
-doesn't play.
-
-## Payouts
-
-A winning ticket of size *s* receives
+The house prices every Window from one public formula, on the same price stream the chart draws:
 
 ```
-s + round( s × L × (10000 − 200) / (W × 10000) )
+P(Up) = Φ( ln(S / O) / (σ · √(max(τ, 5 s) / 1 year)) )
+P(Down) = 1 − P(Up)
 ```
 
-zatoshi, where *W* and *L* are the winning and losing pools at the cutoff, rounded to the nearest 100,000 zatoshi
-(0.001 ZEC, half up). The **2 % fee comes from the losing side only**, and the house absorbs the rounding in either
-direction. Every same-size winning ticket is paid the same amount.
+- **S** is the live price, **O** the Line, **τ** the time to the close, **Φ** the standard normal distribution.
+- **σ** is each asset's annualised volatility from 1-minute log returns over the last 300 minutes (from the first
+  voting exchange), clamped to 20 %–250 % and published signed every minute.
+- **Ask** = P plus a half-spread of 2.5 points; **bid** = P minus 2.5 points. A side is sold only while its ask is
+  at most 98 and bought back only while its bid is at least 2; outside that it's refused, never clamped.
+- **Pays ×** = 1 ÷ ask. There is no fee beyond the spread.
+- A payout is stake ÷ ask, rounded down to the smallest chip (0.00001); a close pays payout × bid, rounded down the
+  same way.
 
-Each payout is split into **canonical notes** (1, 2 or 5 × 10^k zatoshi, largest first), and each note is sent as
-its own transaction at a random time **2 to 6 hours after resolution**. Kakure publishes coarse status only
-("markets resolved before T: all sent by T′"), never payout transaction ids.
+The house refuses to quote when its price stream has been silent for more than 3 seconds, or an asset's last tick is
+older than 30 seconds.
 
-## Refunds
+**Slippage.** Your order carries the most you'll pay: the quote plus your tolerance (2 % by default; 0.5, 1, 2 or
+5 %) plus a cushion of 1 point. A worse ask is refused as **Price moved**.
 
-Every ticket in a market is refunded to its payout address if, at the cutoff:
+## Limits
 
-- either side has fewer than 3 tickets;
-- no direction gets 2 of the 3 venue votes (close markets), or the light-wallet servers disagree on the best chain
-  (event markets);
-- fewer than 2 venues gave an opening reference (close markets).
+| | Testnet | Mainnet |
+| --- | --- | --- |
+| Stake per trade | 0.001 to 1 | 0.001 to 0.05 |
+| Most the house pays on one Window side | 10 | 0.5 |
+| Most one parlay pays | 5 | 0.2 |
+| Most one band pays | 5 | 0.2 |
 
-Single tickets are refunded when they were in a last group of fewer than 3 (see Odds), mined at or after H_c, mined before betting opened, paid with a wrong
-amount of 0.001 ZEC or more (smaller amounts are kept as dust), named a side the market doesn't have, or repeated a
-nonce (the first, by block height and transaction index, counts).
+## Settlement
 
-A missing or malformed memo, a memo for the other network, or a payout address without an Orchard receiver leaves
-**no usable return address**: those funds can't be returned. The bet builder makes all three impossible.
+The operator's minute work runs 7 seconds into each minute. A Window settles at the first one after its close
+once all three exchanges have committed their closing minute, or, if one is late, after a 10-minute grace
+without it.
+
+- Each exchange votes **Up** if its closing print is above its opening print, **Down** if below, and casts no vote if
+  either print is missing or they're equal.
+- **Two votes of three decide.** Anything else refunds every position its stake, as does a Window that never got
+  its Line.
+- Prices are compared as exact decimals, never rounded.
+
+## Positions
+
+**Up / Down.** Pays its payout if its side wins, its stake on a refund, nothing otherwise. Close or reduce it at the
+bid while the Window trades. A reduce sells a share of the payout (rounded down to the chip) for the same share of
+the stake; if less than one chip would remain, it closes the whole position.
+
+**Exits.** An Up or Down position can carry a trailing stop (0.1 % to 10 % behind the best price since you armed it),
+a stop-loss price and a take-profit bid. **The mint watches them, not your device,** at least once a second, so they
+fire with your tab closed; they act only while the Window trades, and a position still armed at the close is redeemed
+for you at settlement.
+
+**Parlays.** Two or three Up/Down legs on different Windows, each with at least 30 seconds of entry left. The
+combined price is the product of the legs' asks (when two legs close at the same moment, at least half the lower
+ask, since they move together), refused under 1 %. Every leg must win; a lost leg loses it all; a refunded leg drops
+out and the rest are re-priced; if every leg is refunded, the stake comes back. A parlay can't be sold back.
+
+**Bands** (the Range and Moonshot games). A band has a lower edge, an upper edge, or both, and a side: **inside** or
+**outside**. P(inside) = P(close above the lower edge) − P(close above the upper edge), priced and limited like
+Up/Down, on the live price before and after the open. It settles on two of three closing prints falling inside
+(edges included) or outside. Bands can be closed and reduced at the bid; they carry no exits. Range's presets are
+±$15, ±$30 and ±$55 on BTC over 5 minutes, scaled by the square root of time and by price; Moonshot solves the edge
+so the ask is 1 ÷ your reach (×2, ×3, ×5, ×10 or ×25).
+
+## Getting paid
+
+A settled position is redeemed for fresh chips, blind-signed like your deposit's. With the app open this happens
+on its own shortly after settlement; a position armed with an exit is redeemed by the mint at settlement and its
+chips wait for your device to collect them.
