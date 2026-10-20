@@ -9,11 +9,7 @@ import { DataErrorState } from "@/features/data/data-states";
 import { useRealtime } from "@/features/data/use-realtime";
 import { useFragment } from "@/features/market/fragment";
 import { switchNetwork } from "@/features/network/network-store";
-import { TradeToasts } from "@/features/terminal/toasts";
-import { useUpkeep } from "@/features/terminal/use-upkeep";
 import { LANE_SYMBOLS, useCommittedSpots } from "@/features/terminal/use-window";
-import { DepositSheet } from "@/features/wallet/deposit-sheet";
-import { useWallet } from "@/features/wallet/wallet-store";
 import { formatClock, useNow } from "@/lib/time";
 import { assetFor } from "./assets";
 import { heroPick, LENGTHS, laneCards, liveCount } from "./live-lanes";
@@ -37,10 +33,8 @@ export function MarketsScreen() {
   const bundle = data.status === "ready" ? data.bundle : null;
   const nowSec = Math.floor(useNow() / MS);
   const spots = useCommittedSpots(LANE_SYMBOLS);
-  const wallet = useWallet(network);
   const fragment = useFragment();
   const [query, setQuery] = useState("");
-  const [depositOpen, setDepositOpen] = useState(false);
   // The hero is chosen once the bundle is in, then held (a 1-minute Window stops trading every half minute).
   const [hero, setHero] = useState<{ asset: LaneAsset; cadenceSec: number } | null>(null);
   useEffect(() => {
@@ -55,10 +49,6 @@ export function MarketsScreen() {
     setPicked(sec);
     history.replaceState(null, "", `#${cadenceLabel(sec)}`);
   };
-  // A position bought from the hero settles and pays out from here too.
-  useUpkeep(network, bundle?.trading ?? null, wallet.positions, wallet.status === "ready");
-  const arriving =
-    wallet.deposits.filter((d) => d.state !== "done").sort((a, b) => b.createdAt - a.createdAt)[0]?.key ?? null;
 
   return (
     <div className="flex w-full flex-col gap-5">
@@ -79,7 +69,6 @@ export function MarketsScreen() {
           cadenceSec={hero.cadenceSec}
           spot={spots.get(`${hero.asset}-USD`) ?? null}
           nowSec={nowSec}
-          onNeedChips={() => setDepositOpen(true)}
         />
       ) : null}
 
@@ -126,17 +115,6 @@ export function MarketsScreen() {
           />
         ) : null}
       </section>
-
-      <TradeToasts />
-      {bundle?.trading ? (
-        <DepositSheet
-          open={depositOpen}
-          onClose={() => setDepositOpen(false)}
-          network={network}
-          trading={bundle.trading}
-          resume={arriving}
-        />
-      ) : null}
     </div>
   );
 }

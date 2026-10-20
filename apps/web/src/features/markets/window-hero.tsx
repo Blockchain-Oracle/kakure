@@ -1,26 +1,28 @@
 "use client";
 
 import { formatUsd, priceDecimals } from "@kakure/chart";
-import { type BundleV2, CHIP_GRID_ZAT, cadenceLabel, type LaneAsset, type Network } from "@kakure/domain";
+import { type BundleV2, cadenceLabel, type LaneAsset, type Network } from "@kakure/domain";
 import { cx, Mark } from "@kakure/ui-web";
 import { ArrowRight } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { LiveWindowChart } from "@/features/chart/live-window-chart";
-import { multipleOf, sideWord, windowStatus } from "@/features/terminal/format";
-import { stakeFor, useTradeSettings } from "@/features/terminal/settings";
-import { TradeButtons } from "@/features/terminal/ui/trade-buttons";
-import { useTerminalTrade } from "@/features/terminal/use-trade";
+import { windowStatus } from "@/features/terminal/format";
 import { pickWindow, useQuote } from "@/features/terminal/use-window";
-import { whyNotTrading } from "@/features/terminal/why";
-import { useWallet } from "@/features/wallet/wallet-store";
 import { assetFor } from "./assets";
 import { tradeHref } from "./live-lanes";
+
+/** The trading half (wallet, relay client, mint crypto) loads after the page; the same height holds its place. */
+const HeroTrade = dynamic(() => import("./hero-trade"), {
+  ssr: false,
+  loading: () => <div aria-hidden className="h-16" />,
+});
 
 /**
  * The Markets hero (Mitoshi's hero, mitoshi-code-study §3.1; plan §00 "the shortest Window open now"): the Window as a
  * live picture (from the open to the close, the Line it has to beat, the price rolling in), where it stands, and UP /
- * DOWN at the house's live price, bought right here with the terminal's own size, slippage and refusals. A position
- * on this Window is managed in the terminal, one tap away.
+ * DOWN at the house's live price, bought right here (`hero-trade.tsx`, loaded after the page). A position on this
+ * Window is managed in the terminal, one tap away.
  */
 const PERCENT = 100;
 const CHANGE_DECIMALS = 2;
@@ -33,7 +35,6 @@ export function WindowHero({
   cadenceSec,
   spot,
   nowSec,
-  onNeedChips,
 }: {
   network: Network;
   bundle: BundleV2 | null;
@@ -41,45 +42,15 @@ export function WindowHero({
   cadenceSec: number;
   spot: number | null;
   nowSec: number;
-  onNeedChips: () => void;
 }) {
   const info = assetFor({ kind: "close", subject: asset });
-  const wallet = useWallet(network);
-  const settings = useTradeSettings();
-  const trading = bundle?.trading ?? null;
-  const held = new Set(wallet.positions.flatMap((p) => (p.certificate?.window ? [p.certificate.window] : [])));
-  const screen = nowSec > 0 ? pickWindow(asset, cadenceSec, bundle, nowSec, held) : null;
+  const screen = nowSec > 0 ? pickWindow(asset, cadenceSec, bundle, nowSec, new Set()) : null;
   const sigmaText = bundle?.pricing.sigma[asset];
   const quote = useQuote(screen, spot, sigmaText ? Number(sigmaText) : null, nowSec);
-  const minStakeZat = Number(bundle?.pricing.caps.minStakeZat ?? CHIP_GRID_ZAT);
-  const maxStakeZat = Number(bundle?.pricing.caps.maxStakeZat ?? Number.MAX_SAFE_INTEGER);
-  const stakeZat = Math.min(maxStakeZat, stakeFor(settings, wallet.balanceZat, minStakeZat, CHIP_GRID_ZAT));
-  const trade = useTerminalTrade({
-    network,
-    trading,
-    screen,
-    quote,
-    stakeZat,
-    availableZat: wallet.balanceZat,
-    slippageBps: settings.slippageBps,
-    spot,
-    onNeedChips,
-  });
 
   const line = screen?.state?.reference ? Number(screen.state.reference) : null;
   const away = spot !== null && line !== null && line > 0 ? ((spot - line) / line) * PERCENT : null;
   const entryBufferSec = bundle?.pricing.entryBufferSec ?? 0;
-  const upAsk = quote?.up.askE4 ?? null;
-  const downAsk = quote?.down.askE4 ?? null;
-  const why = whyNotTrading({
-    phase: screen?.phase ?? null,
-    trading: trading !== null,
-    vault: wallet.status,
-    hasQuote: upAsk !== null || downAsk !== null,
-  });
-  const mine = screen
-    ? wallet.positions.find((p) => p.certificate?.window === screen.window.id && p.state !== "paid")
-    : undefined;
   const href = tradeHref(asset, cadenceSec);
 
   return (
@@ -144,28 +115,15 @@ export function WindowHero({
         <div className="h-56 rounded-row bg-secondary md:h-64" />
       )}
 
-      {mine?.certificate?.side ? (
-        <Link
-          href={href}
-          className="flex h-12 items-center justify-between gap-2 rounded-full bg-secondary px-4 text-row-strong text-foreground hover:bg-row-pressed"
-        >
-          <span>You hold {sideWord(mine.certificate.side)} on this Window</span>
-          <span className="flex items-center gap-1 text-meta text-muted-foreground">
-            Manage <ArrowRight aria-hidden className="size-4" />
-          </span>
-        </Link>
-      ) : (
-        <TradeButtons
-          mode="flat"
-          onUp={() => void trade.open("U")}
-          onDown={() => void trade.open("D")}
-          busy={trade.busy}
-          disabled={why !== null}
-          why={why}
-          upSub={upAsk ? `pays ${multipleOf(upAsk)}` : downAsk ? "not offered" : undefined}
-          downSub={downAsk ? `pays ${multipleOf(downAsk)}` : upAsk ? "not offered" : undefined}
-        />
-      )}
+      <HeroTrade
+        network={network}
+        bundle={bundle}
+        asset={asset}
+        cadenceSec={cadenceSec}
+        screen={screen}
+        quote={quote}
+        spot={spot}
+      />
     </article>
   );
 }
