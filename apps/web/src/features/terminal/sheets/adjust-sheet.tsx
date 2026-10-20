@@ -1,6 +1,6 @@
 "use client";
 
-import { CHIP_GRID_ZAT, sidePayoutZat, ZATOSHI_PER_ZEC } from "@kakure/domain";
+import { CHIP_GRID_ZAT, ladderFloor, sidePayoutZat, ZATOSHI_PER_ZEC } from "@kakure/domain";
 import { fire } from "@kakure/sounds";
 import { cx, Sheet } from "@kakure/ui-web";
 import { useEffect, useState } from "react";
@@ -51,11 +51,13 @@ export function AdjustSheet({
   onReduce: (p: LivePosition, fractionBps: number) => void;
 }) {
   const stake = position?.stakeZat ?? 0;
-  const max = onGrid(kind === "add" ? ADD_MAX_SHARE * availableZat : REDUCE_MAX_SHARE * stake);
+  // An Add is a new trade, so its stake snaps to the chip ladder like any other (re-audit V3); a Reduce sells a share.
+  const snap = (zat: number) => (kind === "add" ? ladderFloor(zat) : onGrid(zat));
+  const max = snap(kind === "add" ? ADD_MAX_SHARE * availableZat : REDUCE_MAX_SHARE * stake);
   const [amount, setAmount] = useState(0);
   // Starts at half of the most each time it opens.
   useEffect(() => {
-    if (open) setAmount(onGrid(max * ADJUST_START_SHARE));
+    if (open) setAmount(snap(max * ADJUST_START_SHARE));
   }, [open, kind]);
 
   if (!position) {
@@ -94,7 +96,7 @@ export function AdjustSheet({
             inputMode="decimal"
             step={zatToNumber(CHIP_GRID_ZAT)}
             value={zatToNumber(amount)}
-            onChange={(e) => setAmount(Math.max(0, Math.min(max, onGrid(Number(e.target.value) * ZAT_PER_ZEC))))}
+            onChange={(e) => setAmount(Math.max(0, Math.min(max, snap(Number(e.target.value) * ZAT_PER_ZEC))))}
             className="numbers w-full bg-transparent font-display text-page-title outline-none"
             aria-label={`Amount, ${coin}`}
           />
@@ -117,11 +119,11 @@ export function AdjustSheet({
               type="button"
               onClick={() => {
                 tap();
-                setAmount(onGrid(max * c));
+                setAmount(snap(max * c));
               }}
               className={cx(
                 "h-9 rounded-full text-chip-label",
-                Math.abs(amount - onGrid(max * c)) < CHIP_GRID_ZAT ? "kk-up-solid" : "bg-secondary",
+                amount === snap(max * c) ? "kk-up-solid" : "bg-secondary",
               )}
             >
               {c === 1 ? "Max" : `${c * PERCENT}%`}

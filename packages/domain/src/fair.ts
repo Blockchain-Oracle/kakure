@@ -8,6 +8,8 @@ import {
   INVERSE_EPSILON,
   INVERSE_ITERATIONS,
   INVERSE_Z_BOUND,
+  LADDER_DECADE,
+  LADDER_STEPS,
   MAX_ASK_E4,
   MIN_BID_E4,
   MIN_TAU_SEC,
@@ -202,6 +204,19 @@ export function quoteWindow(
 
 function floorToGrid(zat: number): number {
   return Math.floor(zat / CHIP_GRID_ZAT) * CHIP_GRID_ZAT;
+}
+
+/**
+ * The largest chip-ladder value (1, 2 or 5 × 10^k zatoshi, from the smallest chip) at or under `zat`, and the smallest
+ * chip below it. Stakes snap to it, so a stake never encodes a balance and can be paid in exact chips without change
+ * (privacy re-audit V3).
+ */
+export function ladderFloor(zat: number): number {
+  let best = CHIP_GRID_ZAT;
+  for (let unit = CHIP_GRID_ZAT; unit <= zat; unit *= LADDER_DECADE) {
+    for (const step of LADDER_STEPS) if (step * unit <= zat) best = step * unit;
+  }
+  return best;
 }
 
 /** What a winning position pays: the stake divided by the ask, floored to the smallest chip. */

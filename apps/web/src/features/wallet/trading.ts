@@ -30,9 +30,6 @@ import { apply, chipRecords, current, exclusive, keysetOf, restore, stillUnspent
  */
 const HEX_PAIR = 2;
 const HEX = 16;
-/** A Window is looked at for redemption this long after it expires (it settles within about 10 s of expiry). */
-const SETTLE_GRACE_SEC = 20;
-const MS = 1000;
 
 async function lockOf(secret: string): Promise<string> {
   const bytes = new Uint8Array(secret.length / HEX_PAIR);
@@ -352,24 +349,17 @@ export function lastExpiry(certificate: PositionCertificate): number {
 }
 
 /**
- * Inside the wallet's queue (`resumeWallet`): resends whatever a closed tab left in flight, collects armed positions
- * that fired, and redeems positions whose Windows have settled, so winnings come back as chips on their own.
+ * Inside the wallet's queue (`resumeWallet`): resends whatever a closed tab left in flight, byte for byte (the mint
+ * answers from its cache, so nothing new is linked). Redeems and exit checks are not done here, together, but by the
+ * upkeep loop, each at its position's own random time (terminal `use-upkeep.ts`, privacy re-audit V3).
  */
 export async function resumePositions(network: Network, trading: Trading): Promise<void> {
-  const nowSec = Date.now() / MS;
   for (const record of (await current(network)).positions) {
+    if (!record.pending) continue;
     try {
-      if (record.pending) await settle(network, trading, record);
-      else if (record.state === "armed") await collectOne(network, trading, record);
-      else if (
-        record.state === "open" &&
-        record.certificate &&
-        lastExpiry(record.certificate) + SETTLE_GRACE_SEC < nowSec
-      ) {
-        await withBlank(network, trading, record.key, "/v1/redeem", {});
-      }
+      await settle(network, trading, record);
     } catch {
-      // Unreachable or not settled yet: tried again next time.
+      // Unreachable: tried again next time.
     }
   }
 }

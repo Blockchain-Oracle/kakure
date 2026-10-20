@@ -179,6 +179,9 @@ export const MIN_BID_E4 = 200;
 export const PRE_OPEN_PROBABILITY = 0.5;
 /** The smallest chip: payouts and close values are floored to it (the house keeps the remainder). */
 export const CHIP_GRID_ZAT = 1_000;
+/** The chip ladder's steps within each decade (ZIP 318 canonical values n × 10^k, n ∈ {1, 2, 5}). */
+export const LADDER_STEPS = [1, 2, 5] as const;
+export const LADDER_DECADE = 10;
 /** Withdrawals go in steps of 0.001 ZEC: each note is its own transaction. */
 export const WITHDRAW_GRID_ZAT = 100_000;
 /**

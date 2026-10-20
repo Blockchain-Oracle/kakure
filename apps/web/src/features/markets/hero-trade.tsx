@@ -47,7 +47,7 @@ export default function HeroTrade({
   useUpkeep(network, trading, wallet.positions, wallet.status === "ready");
   const minStakeZat = Number(bundle?.pricing.caps.minStakeZat ?? CHIP_GRID_ZAT);
   const maxStakeZat = Number(bundle?.pricing.caps.maxStakeZat ?? Number.MAX_SAFE_INTEGER);
-  const stakeZat = Math.min(maxStakeZat, stakeFor(settings, wallet.balanceZat, minStakeZat, CHIP_GRID_ZAT));
+  const stakeZat = Math.min(maxStakeZat, stakeFor(settings, wallet.balanceZat, minStakeZat));
   const trade = useTerminalTrade({
     network,
     trading,

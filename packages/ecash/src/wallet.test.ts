@@ -4,7 +4,7 @@ import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { utf8ToBytes } from "@noble/hashes/utils.js";
 import vectors from "./nut02-v2-vectors.json" with { type: "json" };
-import { checkKeyset, finishOutputs, keysetIdV2, prepareOutputs, split, total } from "./wallet";
+import { checkKeyset, finishOutputs, keysetIdV2, prepareOutputs, type Proof, select, split, total } from "./wallet";
 
 /** NUT-02 v2 keyset IDs from the spec (github.com/cashubtc/nuts tests/02-tests.md, vectors 1 and 3). */
 test("NUT-02 keyset ID v2", () => {
@@ -63,3 +63,21 @@ test("prepare → sign → finish gives chips, and a signature under another key
 function sha(...points: InstanceType<typeof Point>[]) {
   return sha256(utf8ToBytes(points.map((p) => p.toHex(false)).join("")));
 }
+
+test("spends exact chips when it can, then the smallest one chip that covers it", () => {
+  const chip = (amount: number): Proof => ({ amount, id: "01", secret: String(amount) + Math.random(), C: "02" });
+  const wallet = [chip(1_000_000), chip(500_000), chip(200_000), chip(100_000)];
+  assert.deepEqual(
+    select(wallet, 700_000)?.map((p) => p.amount),
+    [500_000, 200_000],
+  );
+  assert.deepEqual(
+    select(wallet, 50_000)?.map((p) => p.amount),
+    [100_000],
+  );
+  assert.deepEqual(
+    select([chip(1_000_000)], 300_000)?.map((p) => p.amount),
+    [1_000_000],
+  );
+  assert.equal(select(wallet, 5_000_000), null);
+});

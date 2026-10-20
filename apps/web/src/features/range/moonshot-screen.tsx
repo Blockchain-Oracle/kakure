@@ -71,7 +71,7 @@ export function MoonshotScreen() {
   const quote =
     trades && band && spot !== null && sigma !== null ? quoteBand(spot, band, "in", sigma, secondsLeft) : null;
   const minStakeZat = Number(bundle?.pricing.caps.minStakeZat ?? CHIP_GRID_ZAT);
-  const stakeZat = ownStake ?? stakeFor(settings, wallet.balanceZat, minStakeZat, CHIP_GRID_ZAT);
+  const stakeZat = ownStake ?? stakeFor(settings, wallet.balanceZat, minStakeZat);
   const payoutZat = quote?.askE4 ? sidePayoutZat(stakeZat, quote.askE4) : null;
   const capZat = bundle?.pricing.caps.maxBandPayoutZat ? Number(bundle.pricing.caps.maxBandPayoutZat) : null;
   const away = level !== null && spot !== null ? ((level - spot) / spot) * PERCENT : null;

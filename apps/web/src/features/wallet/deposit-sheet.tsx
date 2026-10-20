@@ -109,6 +109,10 @@ export function DepositSheet({
             Blind-signed by the mint and checked here against its published keys. They live only on this device: keep a
             backup from Settings.
           </p>
+          <p className="rounded-row bg-secondary px-4 py-3 text-row-detail text-secondary-foreground">
+            Give it a little while before your first trade. A trade right after a deposit can be matched to it by time;
+            spread out, it hides among everyone else's.
+          </p>
           <Button size="lg" className="w-full" onClick={onClose}>
             Start trading
           </Button>

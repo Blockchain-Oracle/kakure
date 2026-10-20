@@ -33,6 +33,19 @@ export const REDUCE_MAX_SHARE = 0.95;
 /** Add uses at most this share of what is available (Owarine 0.98). */
 export const ADD_MAX_SHARE = 0.98;
 
+/* ── Upkeep: each position's own random call times (privacy re-audit V3; use-upkeep.ts) ────────────────────────── */
+
+/** The upkeep loop looks for one due call this often. */
+export const UPKEEP_TICK_MS = 2_000;
+/** A settled position is redeemed at a random time this long after its last Window ends (s). */
+export const REDEEM_AFTER_SEC = [20, 180] as const;
+/** One found late (the tab was closed at settlement) is spread over this much time from now (s). */
+export const LATE_SPREAD_SEC = [2, 120] as const;
+/** An armed position is asked about at a random time this long after the last ask (s). */
+export const ARMED_CHECK_SEC = [15, 45] as const;
+/** A redeem refused as not settled yet is tried again this long after (s). */
+export const RETRY_SEC = [20, 60] as const;
+
 /* ── Toasts (Owarine `terminal/toasts.tsx`, Tradash's toast system) ──────────────────────────────────────────── */
 
 export const TOAST_LIFETIME_MS = { success: 3_500, error: 5_000, info: 3_500 } as const;

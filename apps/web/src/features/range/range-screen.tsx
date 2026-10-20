@@ -95,7 +95,7 @@ export function RangeScreen() {
       ? bandInProbability(spot, { lo, hi }, sigma, secondsLeft)
       : null;
   const minStakeZat = Number(bundle?.pricing.caps.minStakeZat ?? CHIP_GRID_ZAT);
-  const stakeZat = ownStake ?? stakeFor(settings, wallet.balanceZat, minStakeZat, CHIP_GRID_ZAT);
+  const stakeZat = ownStake ?? stakeFor(settings, wallet.balanceZat, minStakeZat);
   const payoutZat = quote?.askE4 ? sidePayoutZat(stakeZat, quote.askE4) : null;
   const capZat = bundle?.pricing.caps.maxBandPayoutZat ? Number(bundle.pricing.caps.maxBandPayoutZat) : null;
   const { busy, buy } = useBandBuy({

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { TICKET_SIZES_ZAT } from "./constants";
+import { ladderFloor } from "./fair";
 import { type BetMemo, decodeBetMemo, encodeBetMemo } from "./memo";
 import { canonicalNotes, payoutZat, quoteTicket, refundZat, settlement } from "./payout";
 import { ticketHashHex } from "./ticket";
@@ -124,4 +125,12 @@ describe("ticket quote", () => {
     assert.equal(quote.payoutZat, 1_000_000n);
     assert.equal(quote.multipleBps, 10_000n);
   });
+});
+
+it("stakes snap down to the chip ladder", () => {
+  assert.equal(ladderFloor(73_100_000), 50_000_000);
+  assert.equal(ladderFloor(5_000_000), 5_000_000);
+  assert.equal(ladderFloor(1_999_999), 1_000_000);
+  assert.equal(ladderFloor(250_000), 200_000);
+  assert.equal(ladderFloor(500), 1_000);
 });

@@ -128,7 +128,7 @@ export function TerminalScreen() {
   const totals = totalsOf(positions);
   const minStakeZat = Number(bundle?.pricing.caps.minStakeZat ?? CHIP_GRID_ZAT);
   const maxStakeZat = Number(bundle?.pricing.caps.maxStakeZat ?? Number.MAX_SAFE_INTEGER);
-  const stakeZat = Math.min(maxStakeZat, stakeFor(settings, wallet.balanceZat, minStakeZat, CHIP_GRID_ZAT));
+  const stakeZat = Math.min(maxStakeZat, stakeFor(settings, wallet.balanceZat, minStakeZat));
   const openValue = positions.reduce((s, p) => s + (p.valueZat ?? 0), 0);
   const equity =
     wallet.status === "ready" && (wallet.balanceZat > 0 || positions.length > 0)

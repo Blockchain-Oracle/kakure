@@ -198,9 +198,25 @@ export function total(proofs: readonly Pick<Proof, "amount">[]): number {
   return proofs.reduce((sum, p) => sum + p.amount, 0);
 }
 
-/** Chips worth at least `zat`, preferring large ones: the first prefix of the largest that covers it. */
+/**
+ * Chips for a spend of `zat` (privacy re-audit V3): exact when the wallet can make it, so no change comes back and the
+ * spend's amounts don't chain it to the next one. First the largest chips that still fit (exact on the 1-2-5 ladder
+ * whenever the pieces are there), then the smallest single chip that covers it, and only then the largest-first set.
+ */
 export function select(proofs: readonly Proof[], zat: number): Proof[] | null {
   const sorted = [...proofs].sort((a, b) => b.amount - a.amount);
+  const exact: Proof[] = [];
+  let left = zat;
+  for (const proof of sorted) {
+    if (left === 0) break;
+    if (proof.amount <= left) {
+      exact.push(proof);
+      left -= proof.amount;
+    }
+  }
+  if (left === 0) return exact;
+  const single = sorted.findLast((proof) => proof.amount >= zat);
+  if (single) return [single];
   const chosen: Proof[] = [];
   let sum = 0;
   for (const proof of sorted) {

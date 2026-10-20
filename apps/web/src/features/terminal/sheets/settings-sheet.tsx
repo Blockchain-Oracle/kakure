@@ -1,7 +1,7 @@
 "use client";
 
 import { formatPrice } from "@kakure/chart";
-import { CHIP_GRID_ZAT, sidePayoutZat, ZATOSHI_PER_ZEC } from "@kakure/domain";
+import { CHIP_GRID_ZAT, ladderFloor, sidePayoutZat, ZATOSHI_PER_ZEC } from "@kakure/domain";
 import { fire } from "@kakure/sounds";
 import { cx, Sheet } from "@kakure/ui-web";
 import { Info } from "lucide-react";
@@ -91,9 +91,9 @@ export function SettingsSheet({
   const settings = useTradeSettings();
   const max = Math.max(minZat, Math.min(availableZat, maxStakeZat));
   const share = availableZat > 0 ? Math.round((stakeZat / availableZat) * PERCENT) : null;
-  const defaultSize = Math.max(minZat, Math.floor((DEFAULT_SIZE_SHARE * availableZat) / CHIP_GRID_ZAT) * CHIP_GRID_ZAT);
-  const setSize = (zat: number) =>
-    setTradeSettings({ sizeZat: Math.max(minZat, Math.min(max, Math.floor(zat / CHIP_GRID_ZAT) * CHIP_GRID_ZAT)) });
+  // Every size snaps down to the chip ladder (1, 2 or 5 × 10^k): a stake never encodes the balance (re-audit V3).
+  const defaultSize = Math.max(minZat, ladderFloor(DEFAULT_SIZE_SHARE * availableZat));
+  const setSize = (zat: number) => setTradeSettings({ sizeZat: Math.max(minZat, ladderFloor(Math.min(max, zat))) });
   const lineText = line === null ? "its opening print" : `$${formatPrice(line)}`;
   const at = closeSec === null ? "the close" : clockText(closeSec);
   const presets: ReadonlyArray<readonly [string, number]> = [
@@ -145,7 +145,7 @@ export function SettingsSheet({
                 }}
                 className={cx(
                   "h-9 rounded-full text-chip-label",
-                  Math.abs(stakeZat - zat) < CHIP_GRID_ZAT ? "kk-up-solid" : "bg-card",
+                  stakeZat === Math.max(minZat, ladderFloor(Math.min(max, zat))) ? "kk-up-solid" : "bg-card",
                 )}
               >
                 {label}

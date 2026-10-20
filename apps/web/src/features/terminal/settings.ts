@@ -1,6 +1,6 @@
 "use client";
 
-import { DEFAULT_SLIPPAGE_BPS, SLIPPAGE_CHOICES_BPS } from "@kakure/domain";
+import { DEFAULT_SLIPPAGE_BPS, ladderFloor, SLIPPAGE_CHOICES_BPS } from "@kakure/domain";
 import { CANDLE_INTERVALS, type CandleInterval } from "@kakure/feeds/protocol";
 import { useSyncExternalStore } from "react";
 import { STORAGE_KEYS } from "@/constants";
@@ -116,16 +116,14 @@ export function useTradeSettings(): TradeSettings {
   return useTradeSettingsState() ?? DEFAULTS;
 }
 
-/** The stake a tap uses: the set size, or 5 % of available, never under `min`, on the chip grid. */
-export function stakeFor(
-  settings: Pick<TradeSettings, "sizeZat">,
-  availableZat: number,
-  minZat: number,
-  gridZat: number,
-): number {
+/**
+ * The stake a tap uses: the set size, or 5 % of available, never under `min`, snapped down to the chip ladder (1, 2 or
+ * 5 × 10^k), so the stake never encodes the balance and is paid in exact chips (privacy re-audit V3).
+ */
+export function stakeFor(settings: Pick<TradeSettings, "sizeZat">, availableZat: number, minZat: number): number {
   const auto = Math.max(minZat, DEFAULT_SIZE_SHARE * availableZat);
   const want = settings.sizeZat ?? auto;
-  return Math.max(minZat, Math.floor(want / gridZat) * gridZat);
+  return Math.max(minZat, ladderFloor(Math.max(minZat, want)));
 }
 
 export { SLIPPAGE_CHOICES_BPS };
