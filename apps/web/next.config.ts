@@ -19,7 +19,7 @@ const WORKSPACE_PACKAGES = [
 
 /**
  * A static export (plan §2, D10): no server, no route handlers, no rewrites in production.
- * In `next dev` only, `/data/*` and `/ohttp/*` are proxied to the tiny server in scripts/dev.mjs, which serves the
+ * In `next dev` only, `/data/*`, `/ohttp/*` and `/arcade/*` are proxied to the tiny server in scripts/dev.mjs, which serves the
  * operator's real signed files from services/operator/operator-data/<network>/public/ and relays trading calls to a
  * local gateway, as the data worker does in production.
  */
@@ -39,6 +39,7 @@ export default function config(phase: string): NextConfig {
         return [
           { source: "/data/:path*", destination: `http://127.0.0.1:${DEV_DATA_PORT}/data/:path*` },
           { source: "/ohttp/:network", destination: `http://127.0.0.1:${DEV_DATA_PORT}/ohttp/:network` },
+          { source: "/arcade/:path*", destination: `http://127.0.0.1:${DEV_DATA_PORT}/arcade/:path*` },
         ];
       },
     };

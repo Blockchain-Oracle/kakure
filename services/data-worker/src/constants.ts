@@ -50,6 +50,10 @@ export const OHTTP_REQUEST_TYPE = "message/ohttp-req";
 export const OHTTP_RESPONSE_TYPE = "message/ohttp-res";
 export const OHTTP_MAX_BYTES = 64 * 1024;
 
+/** The arcade's API (`/arcade/v1/…`, src/arcade.ts), forwarded to the arcade service. A 30-minute run's trace fits. */
+export const ARCADE_PREFIX = "/arcade/v1/";
+export const ARCADE_MAX_BYTES = 64 * 1024;
+
 /**
  * Content Security Policy for the site's HTML (audit O14). `connect-src` is the privacy control: a page can only talk
  * to its own origin and the price relay, so nothing (even an injected script) can send data to a third party.

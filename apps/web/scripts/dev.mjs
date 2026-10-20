@@ -60,8 +60,40 @@ async function relayOhttp(request, response, network) {
   response.end(Buffer.from(await upstream.arrayBuffer()));
 }
 
+/** The arcade's API goes to a local arcade service (services/arcade), as the data worker forwards it in production. */
+const ARCADE = process.env.KAKURE_DEV_ARCADE ?? "http://127.0.0.1:8796";
+
+async function relayArcade(request, response, pathname) {
+  if (request.method !== "GET" && request.method !== "POST") {
+    response.writeHead(405).end();
+    return;
+  }
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  // A fresh request with only the method, the path and the body, like services/data-worker/src/arcade.ts.
+  const upstream = await fetch(`${ARCADE}${pathname}`, {
+    method: request.method,
+    headers: request.method === "POST" ? { "content-type": "application/json" } : {},
+    ...(request.method === "POST" ? { body: Buffer.concat(chunks) } : {}),
+  }).catch(() => null);
+  if (!upstream) {
+    response.writeHead(502).end();
+    return;
+  }
+  response.writeHead(upstream.status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": upstream.headers.get("cache-control") ?? "no-store",
+  });
+  response.end(Buffer.from(await upstream.arrayBuffer()));
+}
+
 const server = createServer(async (request, response) => {
-  const ohttp = OHTTP.exec(new URL(request.url ?? "/", "http://localhost").pathname);
+  const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+  if (pathname.startsWith("/arcade/v1/")) {
+    await relayArcade(request, response, pathname);
+    return;
+  }
+  const ohttp = OHTTP.exec(pathname);
   if (ohttp) {
     await relayOhttp(request, response, ohttp[1]);
     return;

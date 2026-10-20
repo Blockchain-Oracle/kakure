@@ -1,0 +1,48 @@
+# The arcade service's image (services/arcade, plan §0 R4), built from the repository root like
+# `docker build -f services/arcade/Dockerfile .`. Kept apart from services.yml so a change to the shared
+# packages rebuilds this image without rebuilding the operator's.
+name: Arcade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/arcade/**
+      - packages/arcade/**
+      - packages/signing/**
+      - packages/domain/**
+      - pnpm-lock.yaml
+      - .dockerignore
+      - .github/workflows/arcade.yml
+  workflow_dispatch:
+
+concurrency:
+  group: arcade-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  arcade-image:
+    name: Arcade image to GHCR
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/arcade/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/blockchain-oracle/kakure-arcade:${{ github.sha }}
+            ghcr.io/blockchain-oracle/kakure-arcade:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

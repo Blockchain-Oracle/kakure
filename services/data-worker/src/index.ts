@@ -1,5 +1,7 @@
 import type { Network } from "@kakure/domain";
+import { arcade } from "./arcade";
 import {
+  ARCADE_PREFIX,
   BASE_HEADERS,
   CONTENT_SECURITY_POLICY,
   DATA_PREFIX,
@@ -37,6 +39,8 @@ interface Env {
   /** Each network operator's OHTTP gateway (`https://…/gateway`), public URLs set in wrangler.jsonc `vars`. */
   OHTTP_GATEWAY_TESTNET?: string;
   OHTTP_GATEWAY_MAINNET?: string;
+  /** The arcade service's origin (`https://…`), set in the dashboard; unset, the arcade answers 503. */
+  ARCADE_ORIGIN?: string;
 }
 
 /**
@@ -53,6 +57,7 @@ export default {
       if (!(NETWORKS as readonly string[]).includes(network)) return notFound();
       return relay(request, network, network === "testnet" ? env.OHTTP_GATEWAY_TESTNET : env.OHTTP_GATEWAY_MAINNET);
     }
+    if (pathname.startsWith(ARCADE_PREFIX)) return arcade(request, env.ARCADE_ORIGIN);
     if (pathname.startsWith(DATA_PREFIX)) {
       const key = pathname.slice(DATA_PREFIX.length);
       if (!KEY_PATTERN.test(key)) return notFound();

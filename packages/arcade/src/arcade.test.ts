@@ -11,6 +11,7 @@ import { sledCode, sledScoreOf, stepSled } from "./sled";
 import { createSledState } from "./sled-world";
 import { cutTape, TAPE_SPAN_SEC } from "./tape";
 import { envelopeCheck, hopScoreCeiling, recordSledInput, sledScoreCeiling } from "./trace";
+import { leadingZeroBits, powMeets, solvePow } from "./wire";
 
 const SEED = "5eed1234";
 
@@ -88,5 +89,16 @@ describe("the tape", () => {
     assert.deepEqual(tape.points, [0, 500, 1_000]);
     assert.deepEqual(tape.moves, [500, 497]);
     assert.deepEqual(cutTape("ETH", [[to - 60, "5"]], to).points, []);
+  });
+});
+
+describe("a nickname claim's work", () => {
+  it("is found by the browser and checked by the service, and binds the key and the nickname", () => {
+    const claim = { player: "ab".repeat(32), nickname: "Rider_7" };
+    const nonce = solvePow(claim, 12);
+    assert.equal(powMeets(claim, nonce, 12), true);
+    assert.equal(powMeets({ ...claim, nickname: "rider_7" }, nonce, 12), true);
+    assert.equal(leadingZeroBits(new Uint8Array([0, 0x10, 0xff])), 11);
+    assert.equal(leadingZeroBits(new Uint8Array([0x80])), 0);
   });
 });

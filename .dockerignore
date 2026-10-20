@@ -1,0 +1,14 @@
+# Root build context (services/arcade/Dockerfile): an allowlist, so nothing else (operator data with its wallet seeds,
+# environment files, research notes) can ever enter an image. The operator builds from services/operator, not here.
+*
+!package.json
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!tsconfig.base.json
+!apps/*/package.json
+!services/*/package.json
+!packages/
+!services/arcade/
+**/node_modules
+**/dist
+**/.turbo
