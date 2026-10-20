@@ -18,6 +18,7 @@ export const WORDS = {
       { href: "/markets", label: "Markets" },
       { href: START, label: "Trade" },
       { href: "/games", label: "Games" },
+      { href: "/demo", label: "Demo" },
       { href: "#how", label: "How it works" },
       { href: "/privacy", label: "Privacy" },
     ],

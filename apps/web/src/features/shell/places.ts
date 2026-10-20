@@ -13,6 +13,7 @@ export type TileId =
   | "proof"
   | "privacy"
   | "docs"
+  | "demo"
   | "download"
   | "settings"
   | "status";
@@ -152,6 +153,14 @@ export const MORE_SECTIONS: readonly NavSection[] = [
         external: true,
         description: "Step-by-step guides.",
         keywords: "guides documentation help rules",
+      },
+      {
+        id: "demo",
+        name: "Demo",
+        tile: "Demo",
+        href: "/demo",
+        description: "A deposit, a trade and its settlement, recorded from this app.",
+        keywords: "demo video walkthrough recording",
       },
       {
         id: "download",

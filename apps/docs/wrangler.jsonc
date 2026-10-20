@@ -1,0 +1,13 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // The docs' static export, served as its own assets-only Worker until docs.getkakure.xyz is attached to it.
+  "name": "kakure-docs",
+  "compatibility_date": "2026-10-01",
+  // Privacy (D10): no Workers Logs, no request tracing, like the site.
+  "observability": { "enabled": false },
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}

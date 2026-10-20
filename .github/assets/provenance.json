@@ -1,0 +1,29 @@
+{
+  "banner.png": {
+    "made": "2026-10-20",
+    "how": "Composed in HTML (source/banner.html) and rendered with headless Chrome at 1920x900.",
+    "screens": ["apps/web/public/captures/trade.webp", "apps/web/public/captures/positions.webp"],
+    "screensAre": "Unchanged captures of the Kakure web app at 390 px (T5, 2026-10-20), driven against a local testnet operator; balances are test TAZ with no value.",
+    "words": "The landing hero (apps/web/src/features/landing/words.ts)."
+  },
+  "demo-cover.png": {
+    "made": "2026-10-20",
+    "how": "Composed in HTML (source/demo-cover.html) and rendered with headless Chrome at 1920x1080.",
+    "screens": [
+      "apps/web/public/captures/markets.webp",
+      "apps/web/public/captures/trade.webp",
+      "apps/web/public/captures/positions.webp"
+    ],
+    "note": "Editorial artwork with a play button that links to /demo. It is not a recording, and it shows no transaction."
+  },
+  "apps/web/public/demo/still.webp": {
+    "made": "2026-10-20",
+    "how": "demo-cover.html without the play button, rendered at 1920x1080 and resized to 1280x720.",
+    "note": "Shown on /demo until the recording exists, so nothing there looks playable that isn't."
+  },
+  "apps/web/public/demo/cover.webp": {
+    "made": "2026-10-20",
+    "how": "demo-cover.png resized to 1280x720.",
+    "note": "The demo video's poster."
+  }
+}

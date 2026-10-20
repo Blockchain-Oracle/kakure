@@ -1,0 +1,36 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=block" rel="stylesheet">
+<style>html{background:#F4EEE3}
+@font-face{font-family:Stamp,serif;src:url(../../../apps/web/src/fonts/noto-serif-jp/700.woff2) format("woff2");font-weight:700}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1920px;height:900px;background:#F4EEE3;color:#141210;font-family:Inter,sans-serif;overflow:hidden;position:relative}
+.grain{position:absolute;inset:0;background:radial-gradient(1200px 700px at 78% 30%,rgba(224,77,38,.14),transparent 60%),radial-gradient(900px 600px at 10% 100%,rgba(20,18,16,.06),transparent 60%)}
+.kanji{position:absolute;left:-40px;bottom:-140px;font-family:Stamp,serif;font-weight:700;font-size:620px;line-height:1;color:rgba(20,18,16,.045)}
+.left{position:absolute;left:120px;top:96px;width:900px}
+.brand{display:flex;align-items:center;gap:22px;margin-bottom:52px}
+.brand svg{width:84px;height:84px}
+.word{font-family:Sora,sans-serif;font-weight:800;font-size:58px;letter-spacing:-1.5px}
+.word span{font-family:Stamp,serif;font-weight:700;font-size:50px;margin-left:14px;color:#E04D26}
+.kicker{display:inline-flex;align-items:center;gap:12px;font-family:"JetBrains Mono",monospace;font-weight:600;font-size:22px;letter-spacing:2px;text-transform:uppercase;color:#141210;background:#fff8ee;border:2px solid #141210;border-radius:999px;padding:10px 20px;margin-bottom:34px}
+.kicker i{width:12px;height:12px;border-radius:50%;background:#2E9E6A;display:block}
+h1{font-family:Sora,sans-serif;font-weight:800;font-size:86px;line-height:1.02;letter-spacing:-3px;white-space:nowrap}
+h1 em{font-style:normal;color:#E04D26}
+.line{margin-top:34px;font-size:30px;line-height:1.4;color:#3c3631;width:820px}
+.chips{display:flex;gap:12px;margin-top:44px;flex-wrap:nowrap;width:880px}
+.chips b{font-family:"JetBrains Mono",monospace;font-weight:500;font-size:18px;background:#141210;color:#F4EEE3;border-radius:999px;padding:11px 18px}
+.phones{position:absolute;right:110px;top:70px;display:flex;gap:44px;align-items:flex-start}
+.phone{width:380px;height:822px;border-radius:58px;background:#141210;padding:12px;box-shadow:0 40px 90px rgba(20,18,16,.32),0 0 0 2px rgba(20,18,16,.9)}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;border-radius:47px;display:block}
+.phone.b{margin-top:70px;transform:rotate(3deg)}
+.phone.a{transform:rotate(-3deg)}
+</style></head><body>
+<div class="grain"></div><div class="kanji">隠</div>
+<div class="left">
+  <div class="brand"><svg viewBox="0 0 28 28"><title>Kakure</title><rect width="28" height="28" rx="8" fill="#141210"/><path d="M8.25 16.25a5.75 5.75 0 0 1 11.5 0Z" fill="#E04D26"/><rect x="5.5" y="17.6" width="17" height="2" rx="1" fill="#F4EEE3"/><rect x="9.5" y="20.9" width="9" height="1.6" rx="0.8" fill="#F4EEE3" opacity="0.55"/></svg><div class="word">Kakure<span>隠れ</span></div></div>
+  <div class="kicker"><i></i>Live on Zcash testnet</div>
+  <h1>Trade every minute.<br>Stay <em>hidden.</em></h1>
+  <p class="line">Call Bitcoin, Ether, Solana and Zcash up or down, from one minute to a day, with private chips from a shielded deposit.</p>
+  <div class="chips"><b>Shielded ZEC</b><b>Blind-signed chips</b><b>Oblivious HTTP</b><b>Signed every minute</b></div>
+</div>
+<div class="phones"><div class="phone a"><img src="../../../apps/web/public/captures/trade.webp" alt="The Kakure terminal on BTC"></div><div class="phone b"><img src="../../../apps/web/public/captures/positions.webp" alt="Open positions"></div></div>
+</body></html>
