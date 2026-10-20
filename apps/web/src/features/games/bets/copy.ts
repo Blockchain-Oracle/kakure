@@ -26,8 +26,8 @@ export const BETS = {
     byline: (right: number, calls: number) => `${Math.round((right / calls) * PERCENT)}% right · ${calls} calls`,
     empty: {
       why: "No one on the Bets board yet",
-      detail: `A nickname appears once ${BETS_MIN_RECEIPTS} of its published calls count, from the Monday after.`,
-      action: "Trade a Window",
+      detail: `Publish a paid call from its Share sheet (Portfolio, History). A nickname appears once ${BETS_MIN_RECEIPTS} of its published calls count, from the Monday after.`,
+      action: "Your history",
     },
     foot: "Published calls only, counted from the week after they go up; the board changes each Monday (UTC). Never a market, side, size or return.",
   },

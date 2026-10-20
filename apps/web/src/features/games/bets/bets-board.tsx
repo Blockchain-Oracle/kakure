@@ -66,7 +66,7 @@ export function BetsBoard({ loading }: { loading: React.ReactNode }) {
           title={B.empty.why}
           reason={B.empty.detail}
           action={
-            <Link href="/trade" className={buttonClass("secondary", "sm")}>
+            <Link href="/portfolio" className={buttonClass("secondary", "sm")}>
               {B.empty.action}
             </Link>
           }
