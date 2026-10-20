@@ -188,7 +188,9 @@ export function TerminalSheets(props: SheetsProps) {
           slippageBps={props.slippageBps}
         />
       ) : null}
-      {was("share") ? <ShareSheet open={open === "share"} onClose={onClose} row={shareRow} /> : null}
+      {was("share") ? (
+        <ShareSheet open={open === "share"} onClose={onClose} row={shareRow} network={props.network} />
+      ) : null}
       {was("replay") ? (
         <ReplaySheet
           open={open === "replay"}

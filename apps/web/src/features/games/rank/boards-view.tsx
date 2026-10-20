@@ -6,6 +6,7 @@ import { RefreshCw, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ARCADE } from "../arcade/copy";
+import { BetsBoard } from "../bets/bets-board";
 import { GAMES } from "../copy";
 import { useDuelBoard } from "../duel/use-duel";
 import { Podium } from "../kit/podium";
@@ -110,8 +111,8 @@ function Board({ game, period }: { game: ArcadeGame; period: BoardPeriod }) {
  * time, each on the podium and the ranked list, 50 deep, with your own row. Before its rows a board is one of four
  * states: bones, a failed read with Retry, or an empty board with its game. Names are nicknames only.
  */
-type BoardTab = "duel" | ArcadeGame;
-const TABS: readonly BoardTab[] = ["duel", ...ARCADE_GAMES];
+type BoardTab = "duel" | ArcadeGame | "bets";
+const TABS: readonly BoardTab[] = ["duel", ...ARCADE_GAMES, "bets"];
 
 /** The Duel's Elo ladder (Mitoshi's DuelBoard): rating, then wins of duels played. */
 function DuelLadder() {
@@ -173,7 +174,7 @@ export function BoardsView({ initialTab = "duel" }: { initialTab?: BoardTab }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs label={R.title} value={tab} onChange={setTab} items={TABS.map((t) => ({ value: t, label: R.tabs[t] }))} />
-        {tab === "duel" ? null : (
+        {tab === "duel" || tab === "bets" ? null : (
           <SegmentedControl
             label={R.periodLabel}
             size="sm"
@@ -183,8 +184,14 @@ export function BoardsView({ initialTab = "duel" }: { initialTab?: BoardTab }) {
           />
         )}
       </div>
-      {tab === "duel" ? <DuelLadder /> : <Board game={tab} period={period} />}
-      <p className="text-meta text-muted-foreground">{R.foot}</p>
+      {tab === "duel" ? (
+        <DuelLadder />
+      ) : tab === "bets" ? (
+        <BetsBoard loading={<Bones />} />
+      ) : (
+        <Board game={tab} period={period} />
+      )}
+      {tab === "bets" ? null : <p className="text-meta text-muted-foreground">{R.foot}</p>}
     </div>
   );
 }

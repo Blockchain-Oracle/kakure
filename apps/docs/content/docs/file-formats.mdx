@@ -58,5 +58,5 @@ One per hour that saw trading, written 12 minutes after the hour ends; the bundl
 | --- | --- |
 | `hour` | The hour it covers |
 | `closes` | Each asset's 1-minute closes from each exchange, as `[minute start, close]` pairs |
-| `windows` | Every Window settled in that hour, with its prints and outcome |
+| `windows` | Every Window that closed in that hour, with its prints, outcome and activity in whole groups of three trades (`trades`, `volumeZat`; absent under three) |
 | `sig` | The signature |

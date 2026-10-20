@@ -103,7 +103,7 @@ export function TradingSection({ network }: { network: Network }) {
           canReplay={(row) => replayOf(row) !== null}
         />
       )}
-      <ShareSheet open={share !== null} onClose={() => setShare(null)} row={share} />
+      <ShareSheet open={share !== null} onClose={() => setShare(null)} row={share} network={network} />
       <ReplaySheet
         open={replay !== null}
         onClose={() => setReplay(null)}

@@ -1,11 +1,12 @@
 "use client";
 
-import { cadenceLabel } from "@kakure/domain";
+import { cadenceLabel, type Network } from "@kakure/domain";
 import { fire } from "@kakure/sounds";
 import { Sheet } from "@kakure/ui-web";
 import { Download, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SITE_ORIGIN } from "@/constants";
+import { PublishSection } from "@/features/games/bets/publish-section";
 import { PERCENT } from "../constants";
 import { sideWord } from "../format";
 import type { HistoryRow } from "../sheets/wallet-sheet";
@@ -14,8 +15,19 @@ import { postText, renderShareCard, saveCard } from "./card";
 /**
  * Share a result (Owarine `PositionSheets.tsx` `ShareSheet`, made private): only once it's paid, ROI only (no stake,
  * no payout, no time to the minute), as a PNG card drawn here and an X post. Nothing is sent unless you share it.
+ * Below it, a paid position's opt-in switch for the Bets board (plan §0 R7); a partial close has none.
  */
-export function ShareSheet({ open, onClose, row }: { open: boolean; onClose: () => void; row: HistoryRow | null }) {
+export function ShareSheet({
+  open,
+  onClose,
+  row,
+  network,
+}: {
+  open: boolean;
+  onClose: () => void;
+  row: HistoryRow | null;
+  network: Network;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
   const roi = row && row.stakeZat > 0 ? (row.pnlZat / row.stakeZat) * PERCENT : null;
@@ -93,6 +105,7 @@ export function ShareSheet({ open, onClose, row }: { open: boolean; onClose: () 
               <Share2 aria-hidden className="size-4" /> Post on X
             </a>
           </div>
+          {row.tag !== "REDUCE" ? <PublishSection network={network} positionKey={row.id} /> : null}
         </div>
       )}
     </Sheet>

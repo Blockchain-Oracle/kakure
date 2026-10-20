@@ -2,26 +2,16 @@ import { DUEL_DECK_SIZE, SIGNED_SKEW_SEC } from "@kakure/arcade";
 import { verifyDocument } from "@kakure/signing";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { z } from "zod";
-import type { Verdict } from "./handlers";
+import { BAD_REQUEST, nowSec, UNAUTHORIZED } from "./verdicts";
 
 /**
  * The Duel's signed requests: each names the call it's for (`action`) and its time (`at`), and is signed by the key it
  * names, so it can't be replayed later or sent as another call. Checked cheapest first: the shape and the action, the
  * signature, then the time.
  */
-const MS = 1000;
 const HEX_KEY = /^[0-9a-f]{64}$/;
 const HEX_COMMIT = /^[0-9a-f]{64}$/;
 const SALT = /^[0-9a-f]{32,128}$/;
-export const nowSec = () => Math.floor(Date.now() / MS);
-export const BAD_REQUEST = 400;
-export const UNAUTHORIZED = 401;
-export const NOT_FOUND = 404;
-export const CONFLICT = 409;
-export const UNPROCESSABLE = 422;
-export const UNAVAILABLE = 503;
-
-export const refuse = <T>(status: number, error: string): Verdict<T> => ({ ok: false, status, error });
 
 const signedFields = { player: z.string().regex(HEX_KEY), at: z.number().int(), sig: z.string() };
 export const keySchema = z.object({ action: z.enum(["state", "history", "queue", "leave"]), ...signedFields });

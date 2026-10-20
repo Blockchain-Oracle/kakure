@@ -15,6 +15,7 @@ import {
   SEED_LIFE_SEC,
   type Verdict,
 } from "./handlers";
+import { betsBoard, isBetsPeriod, publishReceipt, readProfile, retractReceipt } from "./receipts";
 import { ArcadeStore } from "./store";
 
 /**
@@ -33,6 +34,9 @@ import { ArcadeStore } from "./store";
  *   GET  /arcade/v1/duel/match/<id>         a match; picks show once both are revealed
  *   POST /arcade/v1/duel/commit | reveal    a commitment to the picks, then the picks (signed)
  *   GET  /arcade/v1/duel/board | recent     the Elo ladder; the last decided duels
+ *   POST /arcade/v1/receipt | receipt/retract   publish a paid position's certificate, or take it back (signed)
+ *   GET  /arcade/v1/bets/<week|all>         right calls per nickname with five receipts or more
+ *   POST /arcade/v1/profile                 a nickname's public play and badges ({ nickname })
  *
  * A device key travels only in request bodies, never in a path.
  */
@@ -95,6 +99,18 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   }
   if (request.method === "POST" && what === "score" && parts.length === ONE) {
     return answer(response, acceptScore(store, await body(request)));
+  }
+  if (request.method === "POST" && what === "receipt" && parts.length === ONE) {
+    return answer(response, await publishReceipt(store, await body(request)));
+  }
+  if (request.method === "POST" && what === "receipt" && a === "retract" && parts.length === TWO) {
+    return answer(response, retractReceipt(store, await body(request)));
+  }
+  if (request.method === "GET" && what === "bets" && a && isBetsPeriod(a) && parts.length === TWO) {
+    return send(response, HTTP_OK, betsBoard(store, a));
+  }
+  if (request.method === "POST" && what === "profile" && parts.length === ONE) {
+    return answer(response, readProfile(store, await body(request)));
   }
   if (what === "duel") return duelRoute(request, response, parts.slice(ONE));
   return send(response, HTTP_NOT_FOUND, { error: "not found" });

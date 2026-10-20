@@ -6,6 +6,7 @@ import {
   OPERATOR_PUBLIC_KEYS,
   type Prints,
   printsSchema,
+  type WindowState,
 } from "@kakure/domain";
 import { verifyDocument } from "@kakure/signing";
 import { hexToBytes } from "@noble/hashes/utils.js";
@@ -30,7 +31,7 @@ const files = new Map<string, Prints>();
 let latest: { at: number; bundle: BundleV2 } | null = null;
 const HOUR_DIGITS = "yyyymmddhh".length;
 
-function operatorKey(): Uint8Array {
+export function operatorKey(): Uint8Array {
   const hex = DEV_KEYS[TAPE_NETWORK] ?? OPERATOR_PUBLIC_KEYS[TAPE_NETWORK];
   if (!hex) throw new Error(`no operator key for ${TAPE_NETWORK}`);
   return hexToBytes(hex);
@@ -63,22 +64,24 @@ function printsName(hourSec: number): string {
 }
 
 /**
- * The signed outcomes of Windows that have left the bundle's ten-minute list, from the prints file of the hour each
- * settled in (its close's hour or the next, as settling waits for the venues). Windows not found yet are left out.
+ * A settled Window as its hour's signed prints file states it (the file of the hour it expires in), or null when that
+ * file isn't published yet or doesn't list it.
  */
+export async function printedWindow(bundle: BundleV2, id: string, expirySec: number): Promise<WindowState | null> {
+  const name = printsName(Math.floor(expirySec / HOUR_SEC) * HOUR_SEC);
+  if (!bundle.prints.includes(name)) return null;
+  return (await prints(name).catch(() => null))?.windows.find((w) => w.id === id) ?? null;
+}
+
+/** The signed outcomes of Windows that have left the bundle's ten-minute list; ones not printed yet are left out. */
 export async function printedOutcomes(
   bundle: BundleV2,
   windows: readonly { id: string; expirySec: number }[],
 ): Promise<Map<string, "U" | "D" | "refund">> {
-  const listed = new Set(bundle.prints);
   const found = new Map<string, "U" | "D" | "refund">();
   for (const window of windows) {
-    const hour = Math.floor(window.expirySec / HOUR_SEC) * HOUR_SEC;
-    for (const name of [printsName(hour), printsName(hour + HOUR_SEC)]) {
-      if (!listed.has(name) || found.has(window.id)) continue;
-      const outcome = (await prints(name).catch(() => null))?.windows.find((w) => w.id === window.id)?.outcome;
-      if (outcome) found.set(window.id, outcome);
-    }
+    const outcome = (await printedWindow(bundle, window.id, window.expirySec))?.outcome;
+    if (outcome) found.set(window.id, outcome);
   }
   return found;
 }

@@ -1,10 +1,12 @@
 import { Crown } from "lucide-react";
+import Link from "next/link";
 import { PODIUM_PLACES } from "./constants";
 import { Marble } from "./marble";
 
 /**
  * The top three (Mitoshi `components/ui/leaderboard-podium.tsx`, from 21st.dev trophyso/leaderboard-podium): the
- * 2 · 1 · 3 order, a crown over each place, the marble ring and stepped plinths. Every name is a nickname.
+ * 2 · 1 · 3 order, a crown over each place, the marble ring and stepped plinths. Every name is a nickname, linking to
+ * its profile.
  */
 export interface PodiumPlace {
   rank: number;
@@ -35,7 +37,9 @@ export function Podium({ places, label }: { places: readonly PodiumPlace[]; labe
           >
             <Marble seed={p.name} size={AVATAR_PX} />
           </span>
-          <span className="max-w-full truncate text-meta text-foreground">{p.name}</span>
+          <Link href={`/u#${p.name}`} className="max-w-full truncate text-meta text-foreground hover:underline">
+            {p.name}
+          </Link>
           <span className="numbers text-body-strong text-foreground">{p.figure}</span>
           <span
             aria-hidden

@@ -19,25 +19,14 @@ import {
 } from "@kakure/arcade";
 import { type BundleV2, currentAndNext, LANES, windowPhase } from "@kakure/domain";
 import { DUEL_OUTCOME_GRACE_SEC } from "./constants";
-import {
-  CONFLICT,
-  commitSchema,
-  keySchema,
-  NOT_FOUND,
-  nowSec,
-  refuse,
-  revealSchema,
-  signedRequest,
-  UNAUTHORIZED,
-  UNAVAILABLE,
-  UNPROCESSABLE,
-} from "./duel-requests";
+import { commitSchema, keySchema, revealSchema, signedRequest } from "./duel-requests";
 import type { MatchRow, MatchStatus, Outcome } from "./duel-store";
 import { pairKey } from "./duel-store";
 import { view } from "./duel-views";
 import { dayOf, type Verdict } from "./handlers";
 import type { ArcadeStore } from "./store";
 import { latestBundle, printedOutcomes } from "./tapes";
+import { CONFLICT, NOT_FOUND, nowSec, refuse, UNAUTHORIZED, UNAVAILABLE, UNPROCESSABLE } from "./verdicts";
 
 /**
  * The free Duel on the arcade service (plan §0 R5; Mitoshi's duel server, without the chain arena and its pots).

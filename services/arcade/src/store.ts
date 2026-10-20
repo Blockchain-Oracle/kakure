@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type { ArcadeGame, BoardRow, Tape } from "@kakure/arcade";
 import { DuelStore } from "./duel-store";
+import { ReceiptStore } from "./receipts-store";
 
 /**
  * The arcade's book (Mitoshi `@cwf/db` arcade store, in one SQLite file): players (a device key and its nickname),
@@ -64,6 +65,8 @@ export class ArcadeStore {
   private readonly db: DatabaseSync;
   /** The Duel's queue, matches and ladder, in the same file. */
   readonly duels: DuelStore;
+  /** Published receipts for the Bets board, in the same file. */
+  readonly receipts: ReceiptStore;
 
   constructor(path: string) {
     this.db = new DatabaseSync(path);
@@ -74,6 +77,7 @@ export class ArcadeStore {
     if (columns.some((c) => c.name === "tape")) this.db.exec("DROP TABLE seeds;");
     this.db.exec(SCHEMA);
     this.duels = new DuelStore(this.db);
+    this.receipts = new ReceiptStore(this.db);
   }
 
   nicknameOf(player: string): string | null {
@@ -81,6 +85,14 @@ export class ArcadeStore {
       | { nickname: string }
       | undefined;
     return row?.nickname ?? null;
+  }
+
+  /** The key holding a nickname (case folded, as uniqueness is), and the nickname as it was claimed. */
+  playerByNickname(nickname: string): { player: string; nickname: string } | null {
+    const row = this.db
+      .prepare("SELECT player, nickname FROM players WHERE nickname_key = ?")
+      .get(nickname.toLowerCase()) as { player: string; nickname: string } | undefined;
+    return row ? { player: row.player, nickname: row.nickname } : null;
   }
 
   /** Claims `nickname` for `player` (a rename keeps the key); false when another key holds it, case folded. */

@@ -4,13 +4,11 @@ import { buttonClass } from "@kakure/ui-web";
 import Link from "next/link";
 import { BoardsView } from "@/features/games/rank/boards-view";
 
-/** The boards that open later (plan §0 Leaderboard), named so nobody mistakes their absence for a bug. */
-const LATER = [{ name: "Bets", when: "opens with published receipts" }] as const;
-
 /**
- * `/leaderboard` (Mitoshi's LeaderboardScreen, Masayume's order: the podium, the board, your own row): the Duel's
- * Elo ladder and the arcade's nickname boards, today, this week and all time. Mitoshi ranked wallets by P&L; Kakure's trades are private, so the
- * trading board waits for receipts their owners choose to publish, and every name here is an opt-in nickname.
+ * `/leaderboard` (Mitoshi's LeaderboardScreen, Masayume's order: the podium, the board, your own row): the Duel's Elo
+ * ladder, the arcade's nickname boards and the Bets board. Mitoshi ranked wallets by P&L; Kakure's trades are private,
+ * so the Bets board counts only calls their owners chose to publish, as right calls over calls, and every name here is
+ * an opt-in nickname linking to its profile.
  */
 export function LeaderboardScreen() {
   return (
@@ -18,17 +16,11 @@ export function LeaderboardScreen() {
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-page-title text-foreground">Leaderboard</h1>
         <p className="text-body text-muted-foreground">
-          The Duel's Elo ladder and the arcade's server-checked runs, by nickname. No address, no IP, no time of day.
+          The Duel's Elo ladder, the arcade's server-checked runs and published calls, by nickname. No address, no IP,
+          no time of day.
         </p>
       </header>
       <BoardsView />
-      <section aria-label="Boards opening later" className="flex flex-wrap gap-2">
-        {LATER.map((board) => (
-          <span key={board.name} className="rounded-full bg-secondary px-3 py-1.5 text-meta text-muted-foreground">
-            <span className="text-foreground">{board.name}</span> · {board.when}
-          </span>
-        ))}
-      </section>
       <div className="flex flex-wrap gap-3">
         <Link href="/games" className={buttonClass("secondary", "sm")}>
           See the games

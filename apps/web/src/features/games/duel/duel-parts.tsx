@@ -2,9 +2,11 @@
 
 import type { DuelMatchView, DuelState } from "@kakure/arcade";
 import { Mark } from "@kakure/ui-web";
-import { Lock } from "lucide-react";
+import { Lock, Share2 } from "lucide-react";
 import type { CSSProperties } from "react";
+import { SITE_ORIGIN } from "@/constants";
 import { assetFor } from "@/features/markets/assets";
+import { renderShareCard, saveCard } from "@/features/terminal/share/card";
 import { SearchingBanner } from "../art/pixel-art";
 import { ConfettiBurst } from "../kit/confetti";
 import { formatLeft } from "../kit/countdown-ring";
@@ -188,10 +190,37 @@ export function DuelResult({
         })}
       </ol>
       {done ? (
-        <button type="button" className="gm-cta du-cta" onClick={onAgain}>
-          {DUEL.result.again}
-        </button>
+        <div className="du-actions">
+          <button type="button" className="gm-cta du-cta" onClick={onAgain}>
+            {DUEL.result.again}
+          </button>
+          {match.status === "void" ? null : (
+            <button
+              type="button"
+              className="gm-cta gm-cta--quiet du-cta"
+              onClick={() => shareDuel(match, seat, verdict)}
+            >
+              <Share2 aria-hidden className="du-share-icon" /> {DUEL.share.label}
+            </button>
+          )}
+        </div>
       ) : null}
     </section>
   );
+}
+
+/**
+ * The verdict as a share card (plan §0 R7): the opponent's nickname, the right calls each and the day, with a link to
+ * the Duel. A duel's result is public by nickname already; the card adds nothing about anyone's money.
+ */
+function shareDuel(match: DuelMatchView, seat: 0 | 1, verdict: string) {
+  const me = match.seats[seat];
+  const other = match.seats[seat === 0 ? 1 : 0];
+  void renderShareCard({
+    call: DUEL.share.call(other.nickname),
+    score: DUEL.share.score(me.right, other.right),
+    when: new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }),
+    url: `${SITE_ORIGIN}/games/duel`,
+    foot: DUEL.share.foot(verdict),
+  }).then((blob) => saveCard(blob, `kakure-duel-${other.nickname}.png`));
 }

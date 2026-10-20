@@ -110,7 +110,7 @@ export const GAMES = {
 
   rank: {
     title: "Rank",
-    tabs: { duel: "Duel", "line-rider": "Line Rider", "candle-hop": "Candle Hop" },
+    tabs: { duel: "Duel", "line-rider": "Line Rider", "candle-hop": "Candle Hop", bets: "Bets" },
     duelRecord: (won: number, played: number) => `${won} won · ${played} played`,
     duelEmpty: { why: "No duel decided yet", detail: "The ladder fills as duels finish.", action: "Find a duel" },
     periodLabel: "Period",

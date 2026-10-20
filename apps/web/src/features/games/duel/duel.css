@@ -377,3 +377,14 @@
     opacity: 0.3;
   }
 }
+
+/* The decided duel's two actions: again, and share the verdict. */
+.du-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.du-share-icon {
+  width: 16px;
+  height: 16px;
+}

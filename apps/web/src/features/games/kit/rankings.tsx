@@ -1,11 +1,12 @@
 import { Crown, EllipsisIcon } from "lucide-react";
+import Link from "next/link";
 import { PODIUM_PLACES } from "./constants";
 import { Marble } from "./marble";
 
 /**
  * The ranked list (Mitoshi `components/ui/leaderboard-rankings.tsx`, from 21st.dev trophyso/leaderboard-rankings):
- * rank · crown for the top three · marble · nickname with its byline · score, your own row highlighted, and your row
- * after an ellipsis when you rank below the list.
+ * rank · crown for the top three · marble · nickname (linking to its profile) with its byline · score, your own row
+ * highlighted, and your row after an ellipsis when you rank below the list.
  */
 export interface RankingRow {
   rank: number;
@@ -32,7 +33,9 @@ function Row({ row, mine, youLabel }: { row: RankingRow; mine: boolean; youLabel
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-body text-foreground">
-          {row.name}
+          <Link href={`/u#${row.name}`} className="hover:underline">
+            {row.name}
+          </Link>
           {mine ? (
             <span className="ml-2 rounded-full bg-vermilion px-2 py-0.5 text-label-micro text-accent-foreground">
               {youLabel}

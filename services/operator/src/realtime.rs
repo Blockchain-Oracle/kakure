@@ -280,11 +280,13 @@ impl Realtime {
             }
             closes.insert(asset.ticker.to_string(), Value::Object(by_venue));
         }
+        // Each settled Window with its grouped activity, so the trade count a published receipt is gated on stays
+        // checkable once the minute bundle has dropped the Window (plan §0 R7 under v2).
         let windows: Vec<Value> = rt_store::expiring_between(conn, hour, hour + HOUR_SECS)?
             .iter()
             .filter(|w| w.outcome.is_some())
-            .map(window_json)
-            .collect();
+            .map(|w| with_volume(conn, w))
+            .collect::<Result<_>>()?;
         if !any && windows.is_empty() {
             return Ok(None);
         }

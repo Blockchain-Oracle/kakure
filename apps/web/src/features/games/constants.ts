@@ -162,3 +162,6 @@ export const MARQUEE_HOVER_SEC = 120;
 export const MARQUEE_GAP_REM = 1.5;
 /** Practice's cabinet asks for a Window with at least the deal's life left (the deck's rule). */
 export const CABINET_REFRESH_MS = 30_000;
+
+/** A profile's badge stickers lean a little each way, like the hall's. */
+export const BADGE_TILTS = [-3, 2, -2, 3] as const;

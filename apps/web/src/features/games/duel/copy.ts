@@ -51,6 +51,12 @@ export const DUEL = {
     delta: (n: number) => `${n >= 0 ? "+" : ""}${n} Elo`,
     again: "Duel again",
   },
+  share: {
+    label: "Share",
+    call: (opponent: string) => `Duel vs ${opponent}`,
+    score: (mine: number, theirs: number) => `${mine}–${theirs}`,
+    foot: (verdict: string) => `${verdict.split(" · ")[0]} · free, on live Windows`,
+  },
   tile: { title: "Your duel is live", vs: (who: string) => `vs ${who}`, resume: "Resume →" },
   floor: {
     label: "Duel floor",

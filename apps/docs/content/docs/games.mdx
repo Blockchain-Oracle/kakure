@@ -1,11 +1,12 @@
 ---
 title: Games
-description: Practice, Line Rider and Candle Hop, how a score is checked, and what a nickname is.
+description: Practice, Lucky, Duel, Line Rider and Candle Hop, the boards and profiles, and what a nickname is.
 ---
 
 {/* Sources: apps/web/src/features/games (catalog.ts, practice/, arcade/, lucky/, player/, hall/device-facts.ts);
    packages/arcade/src (practice.ts, lucky.ts, duel.ts, duel-wire.ts, tape.ts, replay.ts, trace.ts, wire.ts, field.ts); services/arcade/src (handlers.ts,
-   store.ts, tapes.ts, constants.ts, duel.ts, duel-store.ts); services/data-worker/src/arcade.ts. Every number is a constant in that code. */}
+   store.ts, tapes.ts, constants.ts, duel.ts, duel-store.ts, receipts.ts, receipts-store.ts); packages/arcade/src/receipts.ts;
+   services/data-worker/src/arcade.ts. Every number is a constant in that code. */}
 
 The games hall is at **/games**. Range and Moonshot are trades priced by the house (see
 [Rules and formulas](/rules)); the three below cost nothing and never touch your chips.
@@ -106,11 +107,34 @@ claim is signed and dated, so an old one can't be sent again to undo a rename.
 - The key and nickname live in this browser. **Forget this device** clears them; the nickname then can't be posted to
   from here again.
 
+## Bets board and profiles
+
+The Leaderboard's **Bets** tab counts calls their owners chose to publish. A paid position's Share sheet has the
+switch: **On the Bets board**.
+
+- **What can be published:** a single Up or Down call, once paid, on a Window that decided Up or Down and whose signed
+  figures show at least three trades, so it was one of a crowd.
+- **What's sent:** the operator's signed certificate for that position, under your nickname, signed by your arcade
+  key. The arcade service checks the operator's signature, the Window's signed outcome and its trade count (from the
+  bundle, or the hour's prints file once the bundle has dropped it), then keeps only a receipt id (a hash of the
+  position's lock), right or wrong, and the day. A position reduced along the way counts once.
+- **What the board shows:** right calls over calls for each nickname with five published calls or more, this week or
+  all time, counting calls published before today. Never a market, side, size or return.
+- **Who can match it:** Kakure's operator can map a published certificate to its trade. Nobody else sees it.
+- **Taking it back:** turn the switch off and the call leaves the board.
+
+A nickname's **profile** (`/u#name`, from any board) shows its Duel rating and record, its arcade bests and ranks, its
+Bets record from five calls, and the badges those earn. The name stays in the page's fragment and travels to the
+arcade in a request body.
+
+A decided duel can be shared as a card: the opponent's nickname, the right calls each and the day, with a link to the
+Duel.
+
 ## What's kept where
 
 | | Kept by |
 | --- | --- |
-| Nicknames, device public keys, runs (game, score, inputs' hash, day), duels (the deck, both calls once revealed, the result, ratings, the day) | The arcade service |
+| Nicknames, device public keys, runs (game, score, inputs' hash, day), duels (the deck, both calls once revealed, the result, ratings, the day), published calls (receipt id, right or wrong, day) | The arcade service |
 | Your arcade key, your runs list, Practice's tally, your streaks and achievements | This browser |
 | Lucky's draws | This browser's vault, encrypted with your chips |
 | Your IP | Nobody on the arcade's side: the site forwards only the request's method, path and body |

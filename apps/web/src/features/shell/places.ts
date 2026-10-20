@@ -74,8 +74,9 @@ export const PLACES: readonly NavEntry[] = [
     name: "Leaderboard",
     tile: "Ranks",
     href: "/leaderboard",
-    description: "The arcade's nickname boards.",
-    keywords: "rank ranking board nickname",
+    description: "Duel, arcade and Bets boards by nickname, and their profiles.",
+    keywords: "rank ranking board nickname bets profile",
+    paths: ["/leaderboard", "/u"],
   },
 ];
 
@@ -219,8 +220,11 @@ export function homeOf(pathname: string): string | null {
   return tile ? `More: ${tile.tile}` : null;
 }
 
-/** Detail pages whose parent is not their path's parent: a market (`/m#<network>/<id>`) sits under Markets. */
-export const DETAIL_PARENTS: Readonly<Record<string, string>> = { "/m": "/markets" };
+/**
+ * Detail pages whose parent is not their path's parent: a market (`/m#<network>/<id>`) sits under Markets, a profile
+ * (`/u#<nickname>`) under the Leaderboard.
+ */
+export const DETAIL_PARENTS: Readonly<Record<string, string>> = { "/m": "/markets", "/u": "/leaderboard" };
 
 /** The top level: one segment or none, except a detail page. Below it, the top line shows a back chevron. */
 export function isTopLevel(pathname: string | null): boolean {
