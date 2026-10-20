@@ -1,0 +1,379 @@
+/* Duel, the versus (Mitoshi `duel/duel.css`, from Owarine: the searching plate's breath and bouncing dots, the seats,
+ * the result rows) on Kakure's tokens; the 72 px marbles, the 700 ms versus entrance and the 600 ms result unfold. */
+
+.du-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  margin-inline: auto;
+  width: 100%;
+}
+.du-entry,
+.du-queue,
+.du-lobby,
+.du-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.du-entry-art,
+.du-searching {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--vermilion) 30%, var(--border));
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    color-mix(in srgb, var(--vermilion) 10%, var(--card)),
+    var(--card) 70%
+  );
+}
+.du-searching-art {
+  width: min(100%, 320px);
+  height: auto;
+}
+.du-queue-me {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.du-chip--stake {
+  display: inline-grid;
+  place-items: center;
+  min-height: 32px;
+  padding: 0 14px;
+}
+.du-breathe {
+  animation: du-breathe 2.4s ease-in-out infinite;
+}
+@keyframes du-breathe {
+  50% {
+    border-color: color-mix(in srgb, var(--vermilion) 70%, transparent);
+    box-shadow: 0 0 24px color-mix(in srgb, var(--vermilion) 22%, transparent);
+  }
+}
+.du-dots {
+  display: inline-flex;
+  gap: 8px;
+}
+.du-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--foreground);
+  animation: du-bounce 1s ease-in-out infinite;
+}
+.du-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.du-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes du-bounce {
+  30% {
+    transform: translateY(-6px);
+  }
+  60% {
+    transform: none;
+  }
+}
+
+.du-title {
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  text-align: center;
+  color: var(--foreground);
+}
+.du-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.du-note--wait {
+  padding: 24px 0;
+}
+.du-fail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+  color: var(--down);
+}
+
+.du-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.du-chip {
+  min-height: 44px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.du-chip[data-on] {
+  border-color: var(--vermilion);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--vermilion) 14%, var(--card));
+}
+/* The commit button is games.css's `.du-cta` (Owarine's grammar); on the duel's own stage it wears the arcade's pixel face. */
+.du-stage .du-cta.gm-cta {
+  width: 100%;
+  min-height: 56px;
+  font-family: var(--font-pixel);
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.du-stage .du-cta.gm-cta--sm {
+  min-height: 44px;
+  font-size: 16px;
+}
+.du-ghost {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.du-ghost:hover {
+  border-color: color-mix(in srgb, var(--vermilion) 45%, transparent);
+  color: var(--foreground);
+}
+
+/* ── The versus: two marble portraits, entering from their sides ── */
+.du-versus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+.du-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  animation: du-in-left 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.du-seat:last-child {
+  animation-name: du-in-right;
+}
+.du-portrait {
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 2px var(--card),
+    0 0 0 3px color-mix(in srgb, var(--vermilion) 60%, transparent);
+}
+.du-seat-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.du-seat-addr {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+.du-seat-note {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-muted);
+}
+.du-vs {
+  font-family: var(--font-pixel);
+  font-size: 28px;
+  color: var(--vermilion);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--vermilion) 50%, transparent);
+  animation: du-vs 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes du-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+@keyframes du-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes du-vs {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+.du-deck {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.du-deck-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--foreground);
+}
+.du-deck-disc {
+  width: 18px;
+  height: 18px;
+}
+.du-deck-card--sealed {
+  color: var(--muted-foreground);
+}
+.du-deck-lock {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── The result: both P&Ls, then each card, 600 ms apart ── */
+.du-totals {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.du-total {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.du-total-figure {
+  font-family: var(--font-pixel);
+  font-size: 28px;
+  line-height: 1;
+}
+.du-verdict {
+  font-family: var(--font-pixel);
+  font-size: 18px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.du-verdict[data-final] {
+  color: var(--foreground);
+}
+.du-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.du-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  animation: gm-enter 360ms var(--ease-default) both;
+  animation-delay: calc(var(--i, 0) * 600ms);
+}
+.du-row-asset {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--foreground);
+}
+.du-row-side {
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.du-row-side[data-side="up"] {
+  color: var(--up);
+}
+.du-row-side[data-side="down"] {
+  color: var(--down);
+}
+.du-row-money {
+  grid-column: 2 / -1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.du-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Kakure: the free duel's names, sealed wait, outcomes and Elo deltas. */
+.du-queue-name,
+.du-seat-name {
+  font: 600 13px / 1.2 var(--font-mono);
+  color: var(--foreground);
+}
+.du-sealed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.du-note--quiet {
+  color: var(--ink-muted);
+}
+.du-total-delta {
+  font: 500 11px / 1.2 var(--font-mono);
+  color: var(--muted-foreground);
+}
+.du-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+}
+.du-row-side[data-right="true"] {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.du-row-outcome {
+  font: 500 11px / 1.2 var(--font-mono);
+  color: var(--muted-foreground);
+  text-align: right;
+}
+.du-row-outcome[data-outcome="U"] {
+  color: var(--up);
+}
+.du-row-outcome[data-outcome="D"] {
+  color: var(--down);
+}
+.du-floor-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@keyframes du-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}

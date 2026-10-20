@@ -8,7 +8,7 @@
 export const START = "/trade#BTC";
 
 /** Surfaces that ship in later stages (plan §0 R4–R5): flip each to true when its stage lands. */
-export const SHIPPED = { arcade: true, duel: false } as const;
+export const SHIPPED = { arcade: true, duel: true } as const;
 
 export const WORDS = {
   nav: {

@@ -47,7 +47,7 @@ export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: stri
   {
     party: "Kakure's arcade service",
     learns:
-      "Your nickname, the public key your device made for it, and your runs: the game, the score, the inputs and the day you played. Nicknames and scores are public on the boards.",
+      "Your nickname, the public key your device made for it, your runs (the game, the score, the inputs and the day) and your duels (the deck, both players' calls once both are locked in, the result and the day). Nicknames, scores and duel results are public on the boards.",
     never:
       "Your IP or any header of yours (the site forwards only the request itself), your wallet, your chips or your trades. Practice and your streaks never leave your device.",
   },

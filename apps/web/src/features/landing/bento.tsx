@@ -7,7 +7,7 @@ import { SHIPPED, START, WORDS } from "./words";
 /**
  * "Six assets. Seven Window lengths. Two buttons." (Mitoshi's bento, mitoshi-code-study §7; 21st.dev manuarora700/
  * bento-grid #1197's grid, reskinned): one idea a tile, a live fragment where there is one. Range and parlays trade
- * today; the arcade and Duel carry "Soon" until their stage flips `SHIPPED`.
+ * today, and so do the arcade and the Duel (each wore "Soon" until its stage flipped `SHIPPED`).
  */
 export function Bento() {
   const { bento } = WORDS;
@@ -43,7 +43,7 @@ export function Bento() {
           <Tile href="/games" icon={<Gamepad2 />} title={bento.games.title} line={bento.games.line}>
             {SHIPPED.arcade ? null : <span className="lp-sticker">{bento.soon}</span>}
           </Tile>
-          <Tile href="/games" icon={<Swords />} title={bento.duel.title} line={bento.duel.line}>
+          <Tile href="/games/duel" icon={<Swords />} title={bento.duel.title} line={bento.duel.line}>
             {SHIPPED.duel ? null : <span className="lp-sticker">{bento.soon}</span>}
           </Tile>
           <Link href="/privacy" className="lp-tile lp-tile--wide">

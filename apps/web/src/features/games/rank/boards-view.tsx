@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ARCADE } from "../arcade/copy";
 import { GAMES } from "../copy";
+import { useDuelBoard } from "../duel/use-duel";
 import { Podium } from "../kit/podium";
 import { type RankingRow, Rankings } from "../kit/rankings";
 import { dayLabel, useNickname } from "../player/player-store";
@@ -109,27 +110,80 @@ function Board({ game, period }: { game: ArcadeGame; period: BoardPeriod }) {
  * time, each on the podium and the ranked list, 50 deep, with your own row. Before its rows a board is one of four
  * states: bones, a failed read with Retry, or an empty board with its game. Names are nicknames only.
  */
-export function BoardsView({ initialGame = "line-rider" }: { initialGame?: ArcadeGame }) {
-  const [game, setGame] = useState<ArcadeGame>(initialGame);
+type BoardTab = "duel" | ArcadeGame;
+const TABS: readonly BoardTab[] = ["duel", ...ARCADE_GAMES];
+
+/** The Duel's Elo ladder (Mitoshi's DuelBoard): rating, then wins of duels played. */
+function DuelLadder() {
+  const board = useDuelBoard();
+  const nickname = useNickname();
+  if (!board.data) {
+    if (!board.isError) return <Bones />;
+    return (
+      <EmptyState
+        icon={<RefreshCw />}
+        tone="warn"
+        title={R.failed}
+        reason={ARCADE.board.unreachable}
+        action={
+          <button type="button" className={buttonClass("secondary", "sm")} onClick={() => void board.refetch()}>
+            {R.retry}
+          </button>
+        }
+      />
+    );
+  }
+  const rows: RankingRow[] = board.data.map((r, i) => ({
+    rank: i + 1,
+    name: r.nickname,
+    byline: R.duelRecord(r.won, r.finished),
+    figure: String(r.rating),
+  }));
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        icon={<Trophy />}
+        title={R.duelEmpty.why}
+        reason={R.duelEmpty.detail}
+        action={
+          <Link href="/games/duel" className={buttonClass("secondary", "sm")}>
+            {R.duelEmpty.action}
+          </Link>
+        }
+      />
+    );
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      <Podium
+        label={R.tabs.duel}
+        places={rows.slice(0, PODIUM).map((r) => ({ rank: r.rank, name: r.name, figure: r.figure }))}
+      />
+      {rows.length > PODIUM ? (
+        <Rankings rows={rows.slice(PODIUM)} you={null} youName={nickname} label={R.tabs.duel} youLabel={R.you} />
+      ) : null}
+    </div>
+  );
+}
+
+export function BoardsView({ initialTab = "duel" }: { initialTab?: BoardTab }) {
+  const [tab, setTab] = useState<BoardTab>(initialTab);
   const [period, setPeriod] = useState<BoardPeriod>("all");
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          label={R.title}
-          value={game}
-          onChange={setGame}
-          items={ARCADE_GAMES.map((g) => ({ value: g, label: R.tabs[g] }))}
-        />
-        <SegmentedControl
-          label={R.periodLabel}
-          size="sm"
-          value={period}
-          onChange={setPeriod}
-          options={BOARD_PERIODS.map((p) => ({ value: p, label: R.periods[p] }))}
-        />
+        <Tabs label={R.title} value={tab} onChange={setTab} items={TABS.map((t) => ({ value: t, label: R.tabs[t] }))} />
+        {tab === "duel" ? null : (
+          <SegmentedControl
+            label={R.periodLabel}
+            size="sm"
+            value={period}
+            onChange={setPeriod}
+            options={BOARD_PERIODS.map((p) => ({ value: p, label: R.periods[p] }))}
+          />
+        )}
       </div>
-      <Board game={game} period={period} />
+      {tab === "duel" ? <DuelLadder /> : <Board game={tab} period={period} />}
       <p className="text-meta text-muted-foreground">{R.foot}</p>
     </div>
   );

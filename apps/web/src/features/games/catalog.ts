@@ -75,7 +75,7 @@ const ENTRIES: Readonly<Record<GameId, GameEntry>> = {
     href: "/games/duel",
     economicKind: "none",
     economicLabel: "Head to head · no stake",
-    open: false,
+    open: true,
   },
 };
 

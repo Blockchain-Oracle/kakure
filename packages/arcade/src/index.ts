@@ -3,6 +3,9 @@
  * canyon as pure, seeded, fixed-step simulations on a real-price tape, with the trace a browser records and the replay
  * the arcade worker runs over it. Nothing here draws, sounds or touches money.
  */
+
+export * from "./duel";
+export * from "./duel-wire";
 export * from "./field";
 export * from "./hop";
 export * from "./lucky";

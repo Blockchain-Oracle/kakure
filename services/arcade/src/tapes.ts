@@ -36,7 +36,7 @@ async function signed<T extends { network: string }>(file: string, schema: { par
   return parsed;
 }
 
-async function bundle(nowMs: number): Promise<BundleV2> {
+export async function latestBundle(nowMs: number): Promise<BundleV2> {
   if (latest && nowMs - latest.at < LATEST_TTL_MS) return latest.bundle;
   const pointer = await signed("latest.json", latestV2Schema);
   latest = { at: nowMs, bundle: await signed(pointer.bundle, bundleV2Schema) };
@@ -58,7 +58,7 @@ async function prints(name: string): Promise<Prints> {
  */
 export async function tapeFor(seed: string, nowMs: number): Promise<Tape | null> {
   try {
-    const current = await bundle(nowMs);
+    const current = await latestBundle(nowMs);
     const names = current.prints.slice(-PRINTS_HOURS);
     const last = names.at(-1);
     if (!last) return null;

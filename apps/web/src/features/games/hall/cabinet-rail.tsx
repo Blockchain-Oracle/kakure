@@ -11,6 +11,7 @@ import { ARCADE } from "../arcade/copy";
 import { GameScene } from "../art/scenes";
 import { CABINET_ORDER, type GameId, gameEntry } from "../catalog";
 import { GAMES } from "../copy";
+import { useDuelState } from "../duel/use-duel";
 import { useGames } from "../games-provider";
 import { ECON_TONE } from "../games-rail";
 import { Sticker } from "../kit/sticker";
@@ -45,6 +46,12 @@ function LuckyFact() {
       {record.best > 0 ? LUCKY.streak(record.streak, record.best) : GAMES.card.luckyLine}
     </span>
   );
+}
+
+/** Who waits in the Duel's queue right now, else its pitch. Asked only once this device has a nickname. */
+function DuelFact() {
+  const state = useDuelState(useNickname() !== null).state;
+  return <span className="cab-fact">{GAMES.card.duelLine(state?.waiting ?? 0)}</span>;
 }
 
 function Cabinet({ id, fact }: { id: GameId; fact: ReactNode }) {
@@ -118,7 +125,7 @@ export function CabinetRail({ bundle, nowMs }: { bundle: BundleV2 | null; nowMs:
   const factOf = (id: GameId): ReactNode => {
     if (isArcade(id)) return <ArcadeFact game={id} />;
     if (id === "lucky") return <LuckyFact />;
-    if (id === "duel") return <span className="cab-fact">{GAMES.card.soonLine.duel}</span>;
+    if (id === "duel") return <DuelFact />;
     return windowsFact;
   };
 

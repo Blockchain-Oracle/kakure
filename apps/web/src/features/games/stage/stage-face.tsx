@@ -26,7 +26,7 @@ export function clockUrgency(remainingSec: number): { level: "calm" | "near" | "
 export interface StagePill {
   label: string;
   value: ReactNode;
-  tone?: "up" | "down" | "live";
+  tone?: "up" | "down" | "live" | undefined;
 }
 
 /**

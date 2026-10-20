@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import type { ArcadeGame, BoardRow, Tape } from "@kakure/arcade";
+import { DuelStore } from "./duel-store";
 
 /**
  * The arcade's book (Mitoshi `@cwf/db` arcade store, in one SQLite file): players (a device key and its nickname),
@@ -54,11 +55,14 @@ export interface NewRun {
 
 export class ArcadeStore {
   private readonly db: DatabaseSync;
+  /** The Duel's queue, matches and ladder, in the same file. */
+  readonly duels: DuelStore;
 
   constructor(path: string) {
     this.db = new DatabaseSync(path);
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec(SCHEMA);
+    this.duels = new DuelStore(this.db);
   }
 
   nicknameOf(player: string): string | null {

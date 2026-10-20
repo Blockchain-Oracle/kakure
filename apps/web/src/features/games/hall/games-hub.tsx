@@ -3,6 +3,7 @@
 import { useRealtime } from "@/features/data/use-realtime";
 import { useNow } from "@/lib/time";
 import { GAMES } from "../copy";
+import { MatchTile } from "../duel/match-tile";
 import { SettingsButton } from "../games-rail";
 import { AchievementsShelf } from "./achievements-shelf";
 import { CabinetRail } from "./cabinet-rail";
@@ -29,6 +30,7 @@ export function GamesHub() {
         <NowPlaying bundle={bundle} nowMs={nowMs} />
         <SettingsButton />
       </header>
+      <MatchTile />
       <FeaturedCabinet bundle={bundle} status={data.status} nowMs={nowMs} />
       <CabinetRail bundle={bundle} nowMs={nowMs} />
       <StreakStrip />

@@ -2,6 +2,21 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { ARCADE_PATH, BOARD_LIMIT } from "@kakure/arcade";
 import { BODY_MAX_BYTES, DB_PATH, PORT } from "./constants";
 import {
+  commitPicks,
+  duelBoard,
+  duelHistory,
+  duelRecent,
+  duelState,
+  isMatchId,
+  isPlayer,
+  joinQueue,
+  leaveQueue,
+  matchView,
+  pairQueue,
+  revealPicks,
+  settleDuels,
+} from "./duel";
+import {
   acceptScore,
   attractTape,
   isGame,
@@ -26,8 +41,16 @@ import { ArcadeStore } from "./store";
  *   POST /arcade/v1/player                  claim a nickname for a device key (signed, with proof of work)
  *   POST /arcade/v1/score                   a signed run, replayed before it ranks
  *   GET  /arcade/v1/tape                    a tape for the cabinets' attract loops
+ *   GET  /arcade/v1/duel/state/<player>     the Duel: queue or match for a key, and how many wait
+ *   POST /arcade/v1/duel/queue | leave      join or leave the queue (signed)
+ *   GET  /arcade/v1/duel/match/<id>         a match; picks show once both are revealed
+ *   POST /arcade/v1/duel/commit | reveal    a commitment to the picks, then the picks (signed)
+ *   GET  /arcade/v1/duel/board | recent     the Elo ladder; the last decided duels
+ *   GET  /arcade/v1/duel/history/<player>   a key's duels
  */
 const store = new ArcadeStore(DB_PATH);
+/** Duels read their cards' outcomes from the signed bundle this often. */
+const SETTLE_EVERY_MS = 20_000;
 const ATTRACT_CACHE = "public, max-age=300, stale-while-revalidate=900";
 const HTTP_OK = 200;
 const HTTP_BAD_REQUEST = 400;
@@ -84,8 +107,33 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   if (request.method === "POST" && what === "score" && parts.length === ONE) {
     return answer(response, acceptScore(store, await body(request)));
   }
+  if (what === "duel") return duelRoute(request, response, parts.slice(ONE));
   return send(response, HTTP_NOT_FOUND, { error: "not found" });
 }
+
+async function duelRoute(request: IncomingMessage, response: ServerResponse, rest: string[]): Promise<void> {
+  const [what, id] = rest;
+  const get = request.method === "GET";
+  const post = request.method === "POST";
+  if (get && what === "state" && id && isPlayer(id)) return send(response, HTTP_OK, duelState(store, id));
+  if (get && what === "board" && !id) return send(response, HTTP_OK, duelBoard(store));
+  if (get && what === "recent" && !id) return send(response, HTTP_OK, duelRecent(store));
+  if (get && what === "history" && id && isPlayer(id)) return send(response, HTTP_OK, duelHistory(store, id));
+  if (get && what === "match" && id && isMatchId(id)) {
+    const match = matchView(store, id);
+    return match ? send(response, HTTP_OK, match) : send(response, HTTP_NOT_FOUND, { error: "no such duel" });
+  }
+  if (post && what === "queue" && !id) return answer(response, await joinQueue(store, await body(request)));
+  if (post && what === "leave" && !id) return answer(response, leaveQueue(store, await body(request)));
+  if (post && what === "commit" && !id) return answer(response, commitPicks(store, await body(request)));
+  if (post && what === "reveal" && !id) return answer(response, revealPicks(store, await body(request)));
+  return send(response, HTTP_NOT_FOUND, { error: "not found" });
+}
+
+setInterval(() => {
+  void settleDuels(store).catch(() => undefined);
+  void pairQueue(store).catch(() => undefined);
+}, SETTLE_EVERY_MS);
 
 createServer((request, response) => {
   route(request, response).catch(() => {

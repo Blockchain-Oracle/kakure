@@ -23,7 +23,7 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
 | This site and its relay (one Cloudflare worker) | Your IP, when you visit and trade, which pages you open, and which network you trade on | What's inside a request (sealed to the operator's published key); the asset or Window you look at |
 | The operator | Each deposit's amount; each trade's Window, side, stake and time; each withdrawal's address and amount | Your IP; which deposit paid for which trade; who you are |
 | Everyone else | The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes, hourly and rounded up; volume per Window in whole groups of three trades | Any single trade |
-| Kakure's arcade service | Your nickname, the key your device made for it, and your runs (game, score, inputs, the day) | Your IP or any header of yours, your wallet, chips or trades; Practice never reaches it |
+| Kakure's arcade service | Your nickname, the key your device made for it, your runs (game, score, inputs, the day) and your duels (calls once both are locked in, result, the day) | Your IP or any header of yours, your wallet, chips or trades; Practice and Lucky never reach it |
 | Kakure's price relay | Your IP, when a tab showing prices is open, and which candle interval your chart shows and how far back | Which asset you watch |
 | Your wallet's server | Your IP, when your wallet syncs and broadcasts, and which transactions it fetches, unless your wallet uses Tor | The memo or the amount |
 | An exchange where you cash out | The amounts it receives | Which trades they came from |

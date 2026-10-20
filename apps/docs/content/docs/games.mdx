@@ -4,8 +4,8 @@ description: Practice, Line Rider and Candle Hop, how a score is checked, and wh
 ---
 
 {/* Sources: apps/web/src/features/games (catalog.ts, practice/, arcade/, lucky/, player/, hall/device-facts.ts);
-   packages/arcade/src (practice.ts, lucky.ts, tape.ts, replay.ts, trace.ts, wire.ts, field.ts); services/arcade/src (handlers.ts,
-   store.ts, tapes.ts, constants.ts); services/data-worker/src/arcade.ts. Every number is a constant in that code. */}
+   packages/arcade/src (practice.ts, lucky.ts, duel.ts, duel-wire.ts, tape.ts, replay.ts, trace.ts, wire.ts, field.ts); services/arcade/src (handlers.ts,
+   store.ts, tapes.ts, constants.ts, duel.ts, duel-store.ts); services/data-worker/src/arcade.ts. Every number is a constant in that code. */}
 
 The games hall is at **/games**. Range and Moonshot are trades priced by the house (see
 [Rules and formulas](/rules)); the three below cost nothing and never touch your chips.
@@ -16,6 +16,7 @@ The games hall is at **/games**. Range and Moonshot are trades priced by the hou
 | Line Rider | Free | The arcade service's replay of your run |
 | Candle Hop | Free | The arcade service's replay of your run |
 | Lucky | Your stake | One ordinary trade, settled like any other |
+| Duel | Free | Three live Windows' signed outcomes, head to head |
 
 ## Practice: Beat the coin
 
@@ -43,6 +44,25 @@ chips, through the same sealed path as the terminal, settled at the Window's clo
 - **Nothing is sent until you place it.** A server-dealt draw would learn your bet before it's a bet, so there is no
   draw server. Your draws, placed or not, are listed on your device only, each with what its Window decided.
 - A Window needs a minute and a half left to be drawn, so there's time to slide before entry closes 30 seconds out.
+
+## Duel
+
+Find a duel and the arcade service pairs you with another nickname near your rating (±100 Elo at first, widening by
+50 every 15 seconds to ±400; whoever has waited longest goes first). You both get the same deck: three live Windows,
+on different assets where it can, each with at least three minutes before entry closes and closing within half an
+hour. Call each one Up or Down at its close.
+
+1. **Sealed calls.** When your third call is in, your browser sends only a commitment: SHA-256 of the duel, your key,
+   your calls and a random salt kept on your device. You have 75 seconds from the pairing.
+2. **Reveal.** Once both of you have committed, each browser sends its calls and salt, and the service checks them
+   against the commitment. Neither your opponent nor the service can read a call before both are locked in, and nobody
+   can change one after.
+3. **Scoring.** Each card is decided by its Window's signed outcome. More right calls wins; a tie is a draw; a refunded
+   Window counts for nobody, and if every card refunds the duel is void.
+4. **Deadlines.** Miss the call or the reveal deadline and the duel counts as a loss for you; if both miss, it's void.
+5. **Elo.** Everyone starts at 1,000. Your first ten finished duels move at K = 48, then K = 24. A void moves nothing.
+
+The ladder, the last duels and your history show nicknames, results and days only. Nothing is staked.
 
 ## The arcade: Line Rider and Candle Hop
 
@@ -79,7 +99,7 @@ makes for the arcade; claiming one takes a small proof of work instead of a capt
 
 | | Kept by |
 | --- | --- |
-| Nicknames, device public keys, runs (game, score, inputs' hash, day) | The arcade service |
+| Nicknames, device public keys, runs (game, score, inputs' hash, day), duels (the deck, both calls once revealed, the result, ratings, the day) | The arcade service |
 | Your arcade key, your runs list, Practice's tally, Lucky's draws, your streaks and achievements | This browser |
 | Your IP | Nobody on the arcade's side: the site forwards only the request's method, path and body |
 

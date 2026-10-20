@@ -20,7 +20,7 @@ export const GAMES = {
     noRuns: "No runs yet",
     boardOffline: "Board offline · play on",
     goTo: (n: number, total: number) => `${n} of ${total}`,
-    soonLine: { duel: "Opens next: three calls, head to head" },
+    duelLine: (waiting: number) => (waiting > 0 ? `${waiting} waiting now` : "Three calls, head to head"),
     luckyLine: "Drawn on your device · one real trade",
   },
 
@@ -86,7 +86,11 @@ export const GAMES = {
       "You see the live quote first; slide to place it as one ordinary trade.",
       "Drawn on this device from the signed bundle and your seed · nothing is sent until you place it.",
     ],
-    duel: ["Three calls against another player.", "Picks stay sealed until lock."],
+    duel: [
+      "Three live Windows, the same for both of you: Up or Down at each close.",
+      "More right calls wins; a refunded Window counts for nobody; Elo moves, nothing is staked.",
+      "Only a hash of your calls leaves your device until both of you are locked in.",
+    ],
   } satisfies Record<GameId, readonly string[]>,
 
   settings: {
@@ -106,7 +110,9 @@ export const GAMES = {
 
   rank: {
     title: "Rank",
-    tabs: { "line-rider": "Line Rider", "candle-hop": "Candle Hop" },
+    tabs: { duel: "Duel", "line-rider": "Line Rider", "candle-hop": "Candle Hop" },
+    duelRecord: (won: number, played: number) => `${won} won · ${played} played`,
+    duelEmpty: { why: "No duel decided yet", detail: "The ladder fills as duels finish.", action: "Find a duel" },
     periodLabel: "Period",
     periods: { day: "Today", week: "This week", all: "All time" } satisfies Record<BoardPeriod, string>,
     reading: "Reading the board",
@@ -117,7 +123,7 @@ export const GAMES = {
     you: "you",
     calm: "calm",
     played: (day: string) => `played ${day}`,
-    foot: "Nicknames only: no address, no IP and no time of day is kept, only the day a run was played.",
+    foot: "Nicknames only: no address, no IP and no time of day is kept, only the day a run or duel was played.",
   },
 
   history: {
@@ -129,5 +135,9 @@ export const GAMES = {
     calm: "calm",
     best: "best",
     clear: "Clear this list",
+    duels: "Your duels",
+    vs: (who: string) => `vs ${who}`,
+    duelResult: { won: "Won", lost: "Lost", draw: "Draw", void: "Void", live: "Live" },
+    delta: (n: number) => `${n >= 0 ? "+" : ""}${n} Elo`,
   },
 } as const;
