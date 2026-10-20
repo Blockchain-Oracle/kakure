@@ -163,6 +163,25 @@ export function closeValueZat(payout: number, bidE4: number): number {
   return floorToGrid(Math.floor((payout * bidE4) / PRICE_SCALE_E4));
 }
 
+/**
+ * A partial close (Reduce): the share of a position sold back, by the mint's rule (operator `fair.rs` reduce_share).
+ * The payout sold is floored to the smallest chip and the stake sold floored to the zatoshi; a remainder under one
+ * chip goes with it, so the whole position is sold. The rest keeps its ask: the mint signs it again on what's left.
+ */
+export function reduceShare(
+  stakeZat: number,
+  payoutZat: number,
+  fractionBps: number,
+): { soldStakeZat: number; soldPayoutZat: number; full: boolean } {
+  const share = floorToGrid(Math.floor((payoutZat * fractionBps) / BPS_SCALE));
+  const full = fractionBps >= BPS_SCALE || payoutZat - share < CHIP_GRID_ZAT;
+  return {
+    soldStakeZat: full ? stakeZat : Math.floor((stakeZat * fractionBps) / BPS_SCALE),
+    soldPayoutZat: full ? payoutZat : share,
+    full,
+  };
+}
+
 /** "Pays 1.90×": what each chip staked returns if the side wins. */
 export function paysMultiple(priceE4: number): number {
   return PRICE_SCALE_E4 / priceE4;

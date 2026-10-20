@@ -123,6 +123,30 @@ pub fn close_value_zat(payout: u64, bid_e4: u64) -> u64 {
     floor_to_grid(payout * bid_e4 / PRICE_SCALE_E4)
 }
 
+/// A partial close: the stake and payout sold, and whether that's the whole position. The payout
+/// sold is floored to the smallest chip and the stake sold floored to the zatoshi; a remainder
+/// under one chip goes with it. The rest keeps its ask and is signed again on what's left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Share {
+    pub sold_stake: u64,
+    pub sold_payout: u64,
+    pub full: bool,
+}
+
+pub fn reduce_share(stake: u64, payout: u64, fraction_bps: u64) -> Share {
+    let share = floor_to_grid(payout * fraction_bps / BPS_SCALE);
+    let full = fraction_bps >= BPS_SCALE || payout - share < CHIP_GRID_ZAT;
+    Share {
+        sold_stake: if full {
+            stake
+        } else {
+            stake * fraction_bps / BPS_SCALE
+        },
+        sold_payout: if full { payout } else { share },
+        full,
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct LegPrice {
     pub ask_e4: u64,
@@ -252,6 +276,24 @@ mod tests {
                     c["value"].as_u64().unwrap()
                 );
             }
+        }
+    }
+
+    #[test]
+    fn matches_the_typescript_reductions() {
+        let v: Value = serde_json::from_str(VECTORS).unwrap();
+        for case in v["reductions"].as_array().unwrap() {
+            let n = |k: &str| case[k].as_u64().unwrap();
+            let share = reduce_share(n("stake"), n("payout"), n("fractionBps"));
+            assert_eq!(
+                share,
+                Share {
+                    sold_stake: n("soldStakeZat"),
+                    sold_payout: n("soldPayoutZat"),
+                    full: case["full"].as_bool().unwrap(),
+                },
+                "{case}"
+            );
         }
     }
 

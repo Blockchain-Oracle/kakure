@@ -943,5 +943,63 @@
       ],
       "value": 10000000
     }
+  ],
+  "reductions": [
+    {
+      "stake": 4764000,
+      "payout": 5734000,
+      "fractionBps": 4750,
+      "soldStakeZat": 2262900,
+      "soldPayoutZat": 2723000,
+      "full": false
+    },
+    {
+      "stake": 4764000,
+      "payout": 5734000,
+      "fractionBps": 5000,
+      "soldStakeZat": 2382000,
+      "soldPayoutZat": 2867000,
+      "full": false
+    },
+    {
+      "stake": 4764000,
+      "payout": 5734000,
+      "fractionBps": 9999,
+      "soldStakeZat": 4763523,
+      "soldPayoutZat": 5733000,
+      "full": false
+    },
+    {
+      "stake": 4764000,
+      "payout": 5734000,
+      "fractionBps": 10000,
+      "soldStakeZat": 4764000,
+      "soldPayoutZat": 5734000,
+      "full": true
+    },
+    {
+      "stake": 2378106,
+      "payout": 2867000,
+      "fractionBps": 2500,
+      "soldStakeZat": 594526,
+      "soldPayoutZat": 716000,
+      "full": false
+    },
+    {
+      "stake": 100000,
+      "payout": 1001000,
+      "fractionBps": 9990,
+      "soldStakeZat": 99900,
+      "soldPayoutZat": 999000,
+      "full": false
+    },
+    {
+      "stake": 100000000,
+      "payout": 123456000,
+      "fractionBps": 1,
+      "soldStakeZat": 10000,
+      "soldPayoutZat": 12000,
+      "full": false
+    }
   ]
 }

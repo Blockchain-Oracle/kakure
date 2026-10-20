@@ -480,23 +480,24 @@ pub fn close(api: &Api, request: CloseRequest, cache: Option<&str>) -> Answer {
     }
     let fraction = request.fraction_bps.unwrap_or(fair::BPS_SCALE);
     if fraction == 0 || fraction > fair::BPS_SCALE {
-        return Err(refuse(KAKURE_BAD_REQUEST, "a share is 1 to 10,000 basis points"));
+        return Err(refuse(
+            KAKURE_BAD_REQUEST,
+            "a share is 1 to 10,000 basis points",
+        ));
     }
-    // The share sold, on the chip grid; a remainder under one chip goes with it (a full close).
-    let sold_payout = position.payout_zat * fraction / fair::BPS_SCALE / CHIP_GRID_ZAT * CHIP_GRID_ZAT;
-    let full = fraction == fair::BPS_SCALE || position.payout_zat - sold_payout < CHIP_GRID_ZAT;
-    let sold_payout = if full { position.payout_zat } else { sold_payout };
-    let sold_stake = if full {
-        position.stake_zat
-    } else {
-        position.stake_zat * fraction / fair::BPS_SCALE
-    };
+    // The share sold (`fair::reduce_share`, mirrored in the web's verifier).
+    let fair::Share {
+        sold_stake,
+        sold_payout,
+        full,
+    } = fair::reduce_share(position.stake_zat, position.payout_zat, fraction);
     let value = fair::close_value_zat(sold_payout, bid);
     let signatures = api
         .mint
         .sign_value(&request.outputs, value)
         .map_err(|e| refuse(KAKURE_BAD_REQUEST, e.to_string()))?;
-    let mut answer = json!({ "valueZat": value.to_string(), "bidE4": bid, "signatures": signatures });
+    let mut answer =
+        json!({ "valueZat": value.to_string(), "bidE4": bid, "signatures": signatures });
     let rest = (!full).then(|| Position {
         stake_zat: position.stake_zat - sold_stake,
         payout_zat: position.payout_zat - sold_payout,

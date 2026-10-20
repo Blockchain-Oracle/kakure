@@ -13,6 +13,7 @@ import {
   parlaySettledZat,
   quoteSide,
   quoteWindow,
+  reduceShare,
   sidePayoutZat,
   withSlippage,
 } from "../src/fair";
@@ -116,9 +117,24 @@ const settled = (
   ),
 }));
 
+const reductions = [
+  [4_764_000, 5_734_000, 4_750],
+  [4_764_000, 5_734_000, 5_000],
+  [4_764_000, 5_734_000, 9_999],
+  [4_764_000, 5_734_000, 10_000],
+  [2_378_106, 2_867_000, 2_500],
+  [100_000, 1_001_000, 9_990],
+  [100_000_000, 123_456_000, 1],
+].map(([stake = 0, payout = 0, fractionBps = 0]) => ({
+  stake,
+  payout,
+  fractionBps,
+  ...reduceShare(stake, payout, fractionBps),
+}));
+
 writeFileSync(
   new URL("../fixtures/fair.json", import.meta.url),
-  `${JSON.stringify({ cdf, fair, sides, window, windows, payouts, slippage, parlays, settled }, null, 2)}\n`,
+  `${JSON.stringify({ cdf, fair, sides, window, windows, payouts, slippage, parlays, settled, reductions }, null, 2)}\n`,
 );
 console.log(
   `fair.json: ${cdf.length} Φ, ${fair.length} fair, ${sides.length} sides, ${windows.length} windows, ${payouts.length} payouts, ${parlays.length + settled.length} parlays`,
