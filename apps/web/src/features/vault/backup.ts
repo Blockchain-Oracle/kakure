@@ -5,7 +5,7 @@ import type { Ticket } from "@kakure/query";
 import { EXPORT_FILE_EXTENSION } from "@/constants";
 import { type ChipRecord, importedChip } from "@/features/wallet/records";
 import { IV_BYTES, KDF_ITERATIONS, passphraseKey, SALT_BYTES } from "./passphrase";
-import { commit, type Entry, loadEntries, vaultReset } from "./vault-db";
+import { commit, type Entry, type EntryType, loadEntries, vaultReset } from "./vault-db";
 
 /**
  * Encrypted backup (R6, plan §00): one network's whole vault (tickets, chips, deposits and spends in flight) sealed
@@ -25,7 +25,8 @@ interface BackupFile {
   data: string;
 }
 
-const ALL = ["ticket", "chip", "deposit", "spend", "position"] as const;
+/** What a backup carries: money and positions. Replays stay on the device that recorded them. */
+const ALL: readonly EntryType[] = ["ticket", "chip", "deposit", "spend", "position"];
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 

@@ -13,6 +13,7 @@ import {
   History,
   Layers,
   type LucideIcon,
+  Play,
   Settings,
   Share2,
   Wallet,
@@ -198,6 +199,8 @@ export function WalletSheet({
   onWithdraw,
   onTour,
   onShare,
+  onReplay,
+  canReplay,
 }: {
   open: boolean;
   onClose: () => void;
@@ -212,6 +215,8 @@ export function WalletSheet({
   onWithdraw: () => void;
   onTour: () => void;
   onShare: (row: HistoryRow) => void;
+  onReplay?: (row: HistoryRow) => void;
+  canReplay?: (row: HistoryRow) => boolean;
 }) {
   const [view, setView] = useState<WalletView>(initialView);
   const [viewFor, setViewFor] = useState(initialView);
@@ -366,7 +371,7 @@ export function WalletSheet({
           </Group>
         </div>
       ) : (
-        <HistoryList rows={rows} coin={coin} onShare={onShare} />
+        <HistoryList rows={rows} coin={coin} onShare={onShare} onReplay={onReplay} canReplay={canReplay} />
       )}
     </Sheet>
   );
@@ -376,10 +381,15 @@ export function HistoryList({
   rows,
   coin,
   onShare,
+  onReplay,
+  canReplay,
 }: {
   rows: readonly HistoryRow[];
   coin: string;
   onShare: (row: HistoryRow) => void;
+  /** Plays a row's recording; rows without a replayable one get no button. */
+  onReplay?: ((row: HistoryRow) => void) | null | undefined;
+  canReplay?: ((row: HistoryRow) => boolean) | undefined;
 }) {
   if (rows.length === 0) {
     return (
@@ -436,6 +446,16 @@ export function HistoryList({
             <span className={cx("numbers text-row-strong", r.pnlZat >= 0 ? "text-up" : "text-down")}>
               {livePnlText(zatToNumber(r.pnlZat))} {coin}
             </span>
+            {onReplay && canReplay?.(r) ? (
+              <button
+                type="button"
+                aria-label="Replay"
+                onClick={() => onReplay(r)}
+                className="grid size-7 place-items-center rounded-full text-muted-foreground hover:text-foreground"
+              >
+                <Play aria-hidden className="size-4" />
+              </button>
+            ) : null}
             <button
               type="button"
               aria-label="Share"

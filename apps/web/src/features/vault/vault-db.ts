@@ -27,7 +27,7 @@ import { IV_BYTES, KDF_ITERATIONS, KEY_BITS, passphraseKey, SALT_BYTES } from ".
  *   non-extractable key, when you unlock; closing the tab or "Lock now" forgets it. Someone with this browser's
  *   files then sees only ciphertext.
  */
-export type EntryType = "ticket" | "chip" | "deposit" | "spend" | "position";
+export type EntryType = "ticket" | "chip" | "deposit" | "spend" | "position" | "episode";
 
 export interface Entry<T = unknown> {
   type: EntryType;

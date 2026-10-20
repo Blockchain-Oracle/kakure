@@ -6,12 +6,15 @@ import { useState } from "react";
 import { DepositSheet } from "@/features/wallet/deposit-sheet";
 import type { PositionRecord } from "@/features/wallet/records";
 import { WithdrawSheet } from "@/features/wallet/withdraw-sheet";
+import { zatToNumber } from "./format";
 import type { LivePosition, Totals } from "./positions";
+import { episodeFor, replayable, useEpisodes } from "./replay";
 import { setTradeSettings } from "./settings";
 import { ShareSheet } from "./share/share-sheet";
 import { AdjustSheet } from "./sheets/adjust-sheet";
 import { ExitSheet } from "./sheets/exit-sheet";
 import { MarketsSheet } from "./sheets/markets-sheet";
+import { ReplaySheet } from "./sheets/replay-sheet";
 import { SettingsSheet } from "./sheets/settings-sheet";
 import { Tutorial } from "./sheets/tutorial";
 import { type HistoryRow, WalletSheet } from "./sheets/wallet-sheet";
@@ -35,7 +38,8 @@ export type SheetName =
   | "tutorial"
   | "deposit"
   | "withdraw"
-  | "parlay";
+  | "parlay"
+  | "replay";
 
 export interface SheetsProps {
   open: SheetName | null;
@@ -79,6 +83,12 @@ export function TerminalSheets(props: SheetsProps) {
   if (open && !seen.has(open)) setSeen(new Set([...seen, open]));
   const was = (...names: SheetName[]) => names.some((n) => seen.has(n));
   const [shareRow, setShareRow] = useState<HistoryRow | null>(null);
+  const [replayRow, setReplayRow] = useState<HistoryRow | null>(null);
+  const episodes = useEpisodes(props.network);
+  const replayOf = (row: HistoryRow) => {
+    const e = episodeFor(episodes, row.id);
+    return e && replayable(e) ? e : null;
+  };
   const fresh = target ? (props.positions.find((p) => p.key === target.key) ?? null) : null;
   const walletView = open === "history" ? "history" : open === "wallet-settings" ? "settings" : "menu";
   const openValueZat = props.positions.reduce((s, p) => s + (p.valueZat ?? 0), 0);
@@ -122,6 +132,11 @@ export function TerminalSheets(props: SheetsProps) {
             setShareRow(row);
             onOpen("share");
           }}
+          onReplay={(row) => {
+            setReplayRow(row);
+            onOpen("replay");
+          }}
+          canReplay={(row) => replayOf(row) !== null}
         />
       ) : null}
       {was("positions") ? (
@@ -171,6 +186,19 @@ export function TerminalSheets(props: SheetsProps) {
         />
       ) : null}
       {was("share") ? <ShareSheet open={open === "share"} onClose={onClose} row={shareRow} /> : null}
+      {was("replay") ? (
+        <ReplaySheet
+          open={open === "replay"}
+          onClose={onClose}
+          episode={replayRow ? replayOf(replayRow) : null}
+          finalPnl={replayRow ? zatToNumber(replayRow.pnlZat) : null}
+          coin={props.coin}
+          onShare={() => {
+            setShareRow(replayRow);
+            onOpen("share");
+          }}
+        />
+      ) : null}
       {was("tutorial") ? (
         <Tutorial
           open={open === "tutorial"}

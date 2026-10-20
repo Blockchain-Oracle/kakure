@@ -16,6 +16,7 @@ import { BPS, DESKTOP_QUERY, PERCENT } from "./constants";
 import { clockText, equityText, multipleOf, zecText } from "./format";
 import { useTerminalParlay } from "./parlay/use-parlay";
 import { type LivePosition, totalsOf, valuePositions } from "./positions";
+import { useReplayRecorder } from "./replay";
 import { stakeFor, useTradeSettings, useTradeSettingsState } from "./settings";
 import { type SheetName, TerminalSheets } from "./terminal-sheets";
 import { TradeToasts, toast } from "./toasts";
@@ -166,6 +167,7 @@ export function TerminalScreen() {
     onNeedChips: () => openSheet("deposit"),
   });
   useUpkeep(network, trading, wallet.positions, wallet.status === "ready");
+  useReplayRecorder(network, positions, references);
 
   const closeAll = useCallback(async () => {
     setClosingAll(true);

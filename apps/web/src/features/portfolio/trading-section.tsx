@@ -7,8 +7,11 @@ import { useMemo, useState } from "react";
 import { NETWORK_COIN } from "@/constants";
 import { useRealtime } from "@/features/data/use-realtime";
 import { tradeHref } from "@/features/markets/live-lanes";
+import { zatToNumber } from "@/features/terminal/format";
 import { type LivePosition, totalsOf, valuePositions } from "@/features/terminal/positions";
+import { episodeFor, replayable, useEpisodes } from "@/features/terminal/replay";
 import { ShareSheet } from "@/features/terminal/share/share-sheet";
+import { ReplaySheet } from "@/features/terminal/sheets/replay-sheet";
 import { HistoryList, type HistoryRow, historyOf } from "@/features/terminal/sheets/wallet-sheet";
 import { TradeToasts } from "@/features/terminal/toasts";
 import { PositionsList, UnrealizedCard } from "@/features/terminal/ui/positions-panel";
@@ -36,6 +39,12 @@ export function TradingSection({ network }: { network: Network }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("open");
   const [share, setShare] = useState<HistoryRow | null>(null);
+  const [replay, setReplay] = useState<HistoryRow | null>(null);
+  const episodes = useEpisodes(network);
+  const replayOf = (row: HistoryRow) => {
+    const e = episodeFor(episodes, row.id);
+    return e && replayable(e) ? e : null;
+  };
   const coin = NETWORK_COIN[network];
   useUpkeep(network, bundle?.trading ?? null, wallet.positions, wallet.status === "ready");
 
@@ -86,9 +95,26 @@ export function TradingSection({ network }: { network: Network }) {
           />
         </div>
       ) : (
-        <HistoryList rows={history} coin={coin} onShare={setShare} />
+        <HistoryList
+          rows={history}
+          coin={coin}
+          onShare={setShare}
+          onReplay={setReplay}
+          canReplay={(row) => replayOf(row) !== null}
+        />
       )}
       <ShareSheet open={share !== null} onClose={() => setShare(null)} row={share} />
+      <ReplaySheet
+        open={replay !== null}
+        onClose={() => setReplay(null)}
+        episode={replay ? replayOf(replay) : null}
+        finalPnl={replay ? zatToNumber(replay.pnlZat) : null}
+        coin={coin}
+        onShare={() => {
+          setShare(replay);
+          setReplay(null);
+        }}
+      />
       <TradeToasts />
     </section>
   );

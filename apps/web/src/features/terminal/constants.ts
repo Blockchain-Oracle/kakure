@@ -73,3 +73,7 @@ export const TOUR_STEP = { buttons: 1, pnl: 2, trail: 3, close: 4 } as const;
 
 /** The parlay slip's stake chips in zatoshi: 0.01, 0.05, 0.1 and 0.5 of the coin (Owarine's four chips). */
 export const PARLAY_STAKE_CHIPS_ZAT = [1_000_000, 5_000_000, 10_000_000, 50_000_000] as const;
+
+/** The replay chart's level dashes (Owarine's: entry 4·4, the Line 2·3), and the half-pixel that keeps a 1 px line crisp. */
+export const REPLAY_DASH = { entry: [4, 4], line: [2, 3] } as const;
+export const HALF_PIXEL = 0.5;
