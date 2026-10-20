@@ -129,12 +129,8 @@ impl Realtime {
     }
 
     pub async fn tick(&mut self, now: i64) -> Result<TickReport> {
-        // The first read after a start reaches back over σ's whole window.
-        let lookback = if self.sigma_at.is_none() {
-            minutes::STARTUP_LOOKBACK_SECS
-        } else {
-            minutes::LOOKBACK_SECS
-        };
+        // The first read after a start reaches back over σ's whole window; later ones over any gap.
+        let lookback = minutes::lookback_since(self.sigma_at, now);
         let reads = minutes::read_all(&self.http, now, lookback).await;
         let minutes = rt_store::put_minutes(&mut self.store.conn, &reads)?;
         let (opened, settled) = self.advance_windows(now)?;

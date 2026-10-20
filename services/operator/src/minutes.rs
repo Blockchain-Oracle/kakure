@@ -31,6 +31,17 @@ pub const LOOKBACK_SECS: i64 = 15 * MINUTE_SECS;
 /// The first read after a start reaches back far enough for σ's whole window (Coinbase serves
 /// at most 300 candles a request, so a few minutes short of it).
 pub const STARTUP_LOOKBACK_SECS: i64 = 290 * MINUTE_SECS;
+
+/// How far a tick reads back: over the whole gap since the last tick (an outage, a slow
+/// redeploy, a sleeping host) plus the usual margin, so a Window that opened inside the gap still
+/// finds its opening minute before its grace runs out; the first read after a start, and any gap
+/// past it, reach back the start-up lookback.
+pub fn lookback_since(last_tick: Option<i64>, now: i64) -> i64 {
+    match last_tick {
+        None => STARTUP_LOOKBACK_SECS,
+        Some(at) => (now - at + LOOKBACK_SECS).clamp(LOOKBACK_SECS, STARTUP_LOOKBACK_SECS),
+    }
+}
 /// Coinbase may still revise a minute for a few seconds after it ends.
 const SETTLE_LAG_SECS: i64 = 5;
 /// The most candles Bitstamp serves per request.
@@ -167,6 +178,17 @@ pub fn parse(venue: Venue, body: &Value, from: i64, now: i64) -> Result<BTreeMap
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn lookback_covers_a_gap() {
+        let now = 1_000_000;
+        assert_eq!(super::lookback_since(None, now), super::STARTUP_LOOKBACK_SECS);
+        assert_eq!(super::lookback_since(Some(now - 60), now), super::LOOKBACK_SECS + 60);
+        // A two-hour outage reads the two hours back, plus the margin.
+        assert_eq!(super::lookback_since(Some(now - 7_200), now), 7_200 + super::LOOKBACK_SECS);
+        // A gap past the start-up lookback is capped at it.
+        assert_eq!(super::lookback_since(Some(now - 86_400), now), super::STARTUP_LOOKBACK_SECS);
+    }
+
     use super::*;
     use serde_json::json;
 
