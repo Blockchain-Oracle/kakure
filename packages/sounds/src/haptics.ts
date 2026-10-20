@@ -3,7 +3,7 @@ import { type HapticWord, VIBRATION } from "./constants";
 /**
  * Haptic words on the web: `navigator.vibrate` where a device has it (Android). iOS Safari has no vibration API,
  * so there the words are silent (the Kakure app plays them with expo-haptics). Browsers refuse vibration before
- * the first tap (and log it), so a cue that arrives on its own before then, like a batch landing, stays silent.
+ * the first tap (and log it), so a cue that arrives on its own before then, like a deposit landing, stays silent.
  */
 export function vibrate(word: HapticWord): void {
   try {

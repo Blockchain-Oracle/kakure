@@ -54,7 +54,7 @@ export const CUES = {
     mix: 0.5,
     haptic: "snap",
   },
-  /** A ticket was built and its QR shown (Kawase's `send`: the chord as money leaves). */
+  /** A trade, parlay or band bought: chips leave for a position (Kawase's `send`: the chord as money leaves). */
   send: {
     voices: [
       { wave: "triangle", hz: C5, ms: 420, attackMs: 4, gain: 0.5 },
@@ -64,7 +64,7 @@ export const CUES = {
     mix: 0.4,
     haptic: "press",
   },
-  /** Money arrived: a payout or refund seen (Kawase's `received`: a high C bell). */
+  /** Money arrived: a deposit minted into chips (Kawase's `received`: a high C bell). */
   received: {
     voices: [
       { wave: "sine", hz: C6, ms: 1100, attackMs: 3, gain: 0.6 },
@@ -73,20 +73,11 @@ export const CUES = {
     mix: 0.4,
     haptic: "filled",
   },
-  /** A result confirmed: a ticket counted, a market resolved (Kawase's `confirmed`: a C). */
+  /** Done: a trail or TP/SL armed at the mint, or the sound check (Kawase's `confirmed`: a C). */
   confirmed: {
     voices: [{ wave: "triangle", hz: C5, ms: 360, attackMs: 4, gain: 0.6 }],
     mix: 0.3,
     haptic: "confirm",
-  },
-  /** Odds released in a batch (the sealed panel flips). */
-  batch: {
-    voices: [
-      { wave: "sine", hz: G5, ms: 140, attackMs: 3, gain: 0.5 },
-      { wave: "sine", hz: C6, atMs: 90, ms: 260, attackMs: 3, gain: 0.5 },
-    ],
-    mix: 0.33,
-    haptic: "tick",
   },
   error: {
     voices: [

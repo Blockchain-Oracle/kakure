@@ -1,6 +1,7 @@
 "use client";
 
-import { type Network, TICKET_SIZES_ZAT, type Trading, zatToZec } from "@kakure/domain";
+import { CHIP_GRID_ZAT, type Network, TICKET_SIZES_ZAT, type Trading, zatToZec } from "@kakure/domain";
+import { fire } from "@kakure/sounds";
 import { Button, Chip, ChipGroup, Sheet } from "@kakure/ui-web";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -20,8 +21,6 @@ import { useWallet } from "./wallet-store";
  */
 const POLL_MS = 8_000;
 const DEFAULT_SIZE = 10_000_000n;
-/** The smallest chip, 0.001 ZEC (wallet-store CHIP_GRID_ZAT). */
-const SMALLEST_CHIP_ZAT = 100_000;
 
 export function DepositSheet({
   open,
@@ -56,6 +55,17 @@ export function DepositSheet({
   }
 
   const record = key ? wallet.deposits.find((deposit) => deposit.key === key) : undefined;
+
+  // Kawase's `received` bell when this deposit's chips land while the sheet watches it (open or polling behind),
+  // never for one that had already landed when it was opened.
+  const seenState = useRef<string | null>(null);
+  useEffect(() => {
+    const state = record?.state ?? null;
+    if (record && state === "done" && seenState.current !== null && seenState.current !== "done") {
+      fire("received", { identity: `deposit:${record.key}` });
+    }
+    seenState.current = state;
+  }, [record]);
 
   const begin = async () => {
     setBusy(true);
@@ -176,8 +186,8 @@ function PayStep({
         ? "Waiting for your payment…"
         : step.state === "confirming"
           ? `Seen on chain · ${Math.min(step.confirmations, step.needed)} of ${step.needed} confirmations`
-          : Number(step.mintableZat) < SMALLEST_CHIP_ZAT
-            ? `Received ${zatToZec(BigInt(step.receivedZat))} ${coin}, below the smallest chip (0.001 ${coin}), so nothing can be minted from it.`
+          : Number(step.mintableZat) < CHIP_GRID_ZAT
+            ? `Received ${zatToZec(BigInt(step.receivedZat))} ${coin}, below the smallest chip (${zatToZec(BigInt(CHIP_GRID_ZAT))} ${coin}), so nothing can be minted from it.`
             : "Confirmed · minting your chips…";
 
   return (
