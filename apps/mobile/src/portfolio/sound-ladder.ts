@@ -1,5 +1,5 @@
 import type { StreamSymbol } from "@kakure/feeds/protocol";
-import { createReactionEngine, createThrottle } from "@kakure/sounds";
+import { createThrottle, cueFor, ReactionEngine } from "@kakure/sounds";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { prices } from "@/data/price-history-source";
@@ -21,17 +21,31 @@ export function useSoundLadder(voices: readonly Voice[], active: boolean): void 
   const signature = voices.map((voice) => `${voice.key}:${voice.stream}:${voice.direction}`).join("|");
   useEffect(() => {
     if (!active || voices.length === 0) return;
-    const play = createThrottle((reaction) => {
-      if (AppState.currentState === "active")
-        fire(reaction.cue, { ...(reaction.step === undefined ? {} : { step: reaction.step }) });
+    const play = createThrottle((cue) => {
+      if (AppState.currentState === "active") fire(cue.cue, { ...(cue.step === undefined ? {} : { step: cue.step }) });
     });
     const unsubscribes = voices.map((voice) => {
-      const engine = createReactionEngine(voice.direction);
+      // The shared reaction engine (packages/sounds, Owarine's model). A pool ticket has no live value, so only the
+      // moves are heard: steps and surges, no callouts, as on the web's Portfolio.
+      const engine = new ReactionEngine();
+      let entry: number | null = null;
       return prices.subscribe(voice.stream, () => {
         const state = prices.get(voice.stream);
         if (state.status !== "live") return;
-        const reaction = engine.tick(Number(state.price), state.ts ?? Date.now());
-        if (reaction) play(reaction);
+        const price = Number(state.price);
+        entry ??= price;
+        const position = {
+          key: voice.key,
+          side: voice.direction === "up" ? 1 : -1,
+          pnl: 0,
+          margin: 0,
+          entry,
+          line: null,
+        } as const;
+        for (const reaction of engine.feed({ t: state.ts ?? Date.now(), price, position })) {
+          const cue = cueFor(reaction);
+          if (cue) play(cue);
+        }
       });
     });
     return () => {

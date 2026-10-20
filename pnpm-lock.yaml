@@ -691,6 +691,9 @@ importers:
 
   packages/sounds:
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
