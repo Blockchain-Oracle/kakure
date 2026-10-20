@@ -27,6 +27,7 @@ import { verifyDocument } from "@kakure/signing";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { z } from "zod";
 import { DAY_SEC, HOUR_SEC, PER_PLAYER_PER_HOUR, SEED_GRACE_SEC, SEEDS_MAX, WEEK_DAYS } from "./constants";
+import { firstUse } from "./replays";
 import type { ArcadeStore } from "./store";
 import { tapeFor } from "./tapes";
 
@@ -101,17 +102,27 @@ export const SEED_LIFE_SEC = MAX_RUN_SEC + SEED_GRACE_SEC;
  * A seed for the next run, with the tape it rides, both kept so the score check replays the same terrain. Past
  * `SEEDS_MAX` outstanding seeds a run is refused until some are posted or expire, so issuing can't fill the disk.
  */
+/** Runs being issued right now (their tape still loading): they count against the cap before they're stored. */
+let issuing = 0;
+
 export async function issueRun(store: ArcadeStore, game: ArcadeGame): Promise<Verdict<RunIssued>> {
-  if (store.outstanding() >= SEEDS_MAX) return { ok: false, status: 503, error: "the arcade is busy; try again soon" };
-  for (let i = 0; i < ISSUE_TRIES; i++) {
-    const seed = seedFromBytes(randomBytes(SEED_BYTES));
-    const now = nowSec();
-    const tape = await tapeFor(seed, now * MS);
-    if (store.issue(seed, game, tape, now)) {
-      return { ok: true, body: { seed, tape, engineVersion: ENGINE_VERSION[game] } };
-    }
+  if (store.outstanding() + issuing >= SEEDS_MAX) {
+    return { ok: false, status: 503, error: "the arcade is busy; try again soon" };
   }
-  throw new Error("couldn't issue a seed");
+  issuing += 1;
+  try {
+    for (let i = 0; i < ISSUE_TRIES; i++) {
+      const seed = seedFromBytes(randomBytes(SEED_BYTES));
+      const now = nowSec();
+      const tape = await tapeFor(seed, now * MS);
+      if (store.issue(seed, game, tape, now)) {
+        return { ok: true, body: { seed, tape, engineVersion: ENGINE_VERSION[game] } };
+      }
+    }
+    throw new Error("couldn't issue a seed");
+  } finally {
+    issuing -= 1;
+  }
 }
 
 /** A tape for the cabinets' attract loops: a fresh cut, never stored and never rankable. */
@@ -145,6 +156,7 @@ export function register(store: ArcadeStore, raw: unknown): Verdict<{ nickname: 
     return { ok: false, status: 400, error: "the claim is stale; try again" };
   }
   if (!powMeets(claim, claim.nonce)) return { ok: false, status: 422, error: "the claim's work falls short" };
+  if (!firstUse(claim.sig, nowSec())) return { ok: false, status: 409, error: "that claim was already sent" };
   const handle = store.x.handleOf(claim.player);
   if (handle !== null && handle.toLowerCase() !== claim.nickname.toLowerCase()) {
     return { ok: false, status: 409, error: `this device signed in with X: its name is ${handle}` };

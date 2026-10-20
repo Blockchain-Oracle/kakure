@@ -2,7 +2,8 @@ import { DUEL_DECK_SIZE, SIGNED_SKEW_SEC } from "@kakure/arcade";
 import { verifyDocument } from "@kakure/signing";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { z } from "zod";
-import { BAD_REQUEST, nowSec, UNAUTHORIZED } from "./verdicts";
+import { firstUse } from "./replays";
+import { BAD_REQUEST, CONFLICT, nowSec, UNAUTHORIZED } from "./verdicts";
 
 /**
  * The Duel's signed requests: each names the call it's for (`action`) and its time (`at`), and is signed by the key it
@@ -29,8 +30,14 @@ export const revealSchema = z.object({
   ...signedFields,
 });
 
-/** Parses a signed Duel request for `action`: the shape, the call it was signed for, the key's signature, the time. */
-export function signedRequest<T extends { action: string; player: string; at: number }>(
+/** The calls that change something; a copy of one is refused (reads may repeat). */
+const MOVES = new Set(["queue", "leave", "commit", "reveal"]);
+
+/**
+ * Parses a signed Duel request for `action`: the shape, the call it was signed for, the key's signature, the time,
+ * and, for a move, that this exact request hasn't been seen before.
+ */
+export function signedRequest<T extends { action: string; player: string; at: number; sig: string }>(
   schema: z.ZodType<T>,
   raw: unknown,
   action: T["action"],
@@ -43,6 +50,9 @@ export function signedRequest<T extends { action: string; player: string; at: nu
   }
   if (Math.abs(nowSec() - req.at) > SIGNED_SKEW_SEC) {
     return { ok: false, status: BAD_REQUEST, error: "the request is stale; try again" };
+  }
+  if (MOVES.has(action) && !firstUse(req.sig, nowSec())) {
+    return { ok: false, status: CONFLICT, error: "that request was already sent" };
   }
   return { ok: true, req };
 }

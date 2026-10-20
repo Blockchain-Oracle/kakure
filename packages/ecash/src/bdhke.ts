@@ -82,3 +82,24 @@ export function verifyDleq(dleq: { e: string; s: string }, B_: string, C_: strin
     return false;
   }
 }
+
+/**
+ * NUT-12 verification by a third party ("Carol"): from a token's secret, its unblinded signature `C` and the DLEQ proof
+ * with its blinding factor `r`, anyone holding the signer's public key `K` can check the signature without the signer's
+ * help: rebuild `B_ = Y + rG` and `C_ = C + rK`, then check the DLEQ. The Bets board's arcade checks the operator's
+ * blind receipts this way (plan §0 R7), so it never needs the operator, and the operator never sees the token.
+ */
+export function verifyUnblinded(
+  token: { secret: Uint8Array; C: string; dleq: { e: string; s: string; r: string } },
+  K: string,
+): boolean {
+  try {
+    const r = scalar(hexToBytes(token.dleq.r));
+    const key = Point.fromHex(K);
+    const B_ = hashToCurve(token.secret).add(Point.BASE.multiply(r));
+    const C_ = Point.fromHex(token.C).add(key.multiply(r));
+    return verifyDleq({ e: token.dleq.e, s: token.dleq.s }, B_.toHex(true), C_.toHex(true), K);
+  } catch {
+    return false;
+  }
+}

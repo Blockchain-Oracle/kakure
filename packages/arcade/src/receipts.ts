@@ -3,46 +3,43 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 import type { ArcadeGame } from "./field";
 
 /**
- * Bets and profiles (plan §0 R7 under v2, reworked after its privacy review): the opt-in board of published calls,
+ * Bets and profiles (plan §0 R7 under v2, reworked after its privacy reviews): the opt-in board of published calls,
  * and a nickname's public profile.
  *
  * A paid single Up or Down call can be published while its position is in the operator's book (two days after it's
- * paid). The device asks the operator over Oblivious HTTP, with the position's secret and its arcade key; the
- * operator checks the call, its Window's outcome and that at least `RECEIPT_MIN_TRADES` singles were opened on that
- * Window, and signs only a receipt token `{type, network, receipt, right, player}`. Only that token goes to the
- * arcade, so the trade never travels beside an IP. The board shows right calls and calls per nickname with at least
- * `BETS_MIN_RECEIPTS` receipts, and changes once a week (Monday 00:00 UTC): never a market, a side, a size or a
- * return. Kakure's operator can still tell which trade a receipt was; the sheet says so.
+ * paid). The device asks the operator over Oblivious HTTP to vouch for it, sending the position's secret and a blinded
+ * random point; the operator checks the call, its Window's outcome and that at least `RECEIPT_MIN_TRADES` singles were
+ * opened on that Window, and blind-signs the point under its "right" or its "wrong" key (once per position). The device
+ * unblinds it into a receipt only it has seen, and hands that to the arcade, which checks it against the operator's
+ * published keys. The operator never sees the receipt or the nickname; the arcade never sees the trade. The board shows
+ * right calls and calls per nickname with at least `BETS_MIN_RECEIPTS` receipts and changes once a week (Monday 00:00
+ * UTC): never a market, a side, a size or a return.
  */
 export const RECEIPT_MIN_TRADES = 3;
 export const BETS_MIN_RECEIPTS = 5;
 export const BETS_PERIODS = ["week", "all"] as const;
 export type BetsPeriod = (typeof BETS_PERIODS)[number];
 
-/** What the operator signs for a published call (`POST /v1/receipt` over Oblivious HTTP), and the arcade keeps. */
+/**
+ * A blind receipt (NUT-00/NUT-12): a random `secret` the device chose, the operator's unblinded signature `C` on it
+ * under its `right` or its `wrong` receipt key, and the DLEQ proof with the blinding factor `r`, so anyone holding the
+ * operator's published keys can check it, and the operator, who only ever saw the blinded point, can't tell which
+ * call it was for.
+ */
 export interface ReceiptToken {
-  v: 1;
-  type: "kakure-receipt";
+  v: 2;
   network: string;
-  receipt: string;
   right: boolean;
-  player: string;
-  sig: string;
+  secret: string;
+  C: string;
+  dleq: { e: string; s: string; r: string };
 }
 
-/** `POST /arcade/v1/receipt`: the operator's token, carried and signed by the arcade key it names. */
+/** `POST /arcade/v1/receipt`: a blind receipt, carried and signed by the arcade key it goes up under. */
 export interface ReceiptPublish {
   action: "publish";
   player: string;
   token: ReceiptToken;
-  at: number;
-}
-
-/** `POST /arcade/v1/receipt/retract`: takes a published receipt off the board. */
-export interface ReceiptRetract {
-  action: "retract";
-  player: string;
-  receipt: string;
   at: number;
 }
 
@@ -86,9 +83,9 @@ export function weekStartDay(week: number): number {
   );
 }
 
-/** A receipt's id: the same for every certificate a position's lock was issued (a reduced position counts once). */
-export function receiptId(lock: string): string {
-  return bytesToHex(sha256(new TextEncoder().encode(`kakure-receipt:${lock}`)));
+/** A receipt's id on the board: a hash of its secret (one receipt per call: the operator vouches for a position once). */
+export function receiptId(secret: string): string {
+  return bytesToHex(sha256(new TextEncoder().encode(`kakure-receipt:${secret}`)));
 }
 
 /** `POST /arcade/v1/profile` with `{ nickname }`: what a nickname has done in public, and the badges it earns. */

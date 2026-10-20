@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
-import { blind, hashE, hashToCurve, unblind, verifyDleq } from "./bdhke";
+import { blind, hashE, hashToCurve, unblind, verifyDleq, verifyUnblinded } from "./bdhke";
 
 /** Every vector here is copied from the Cashu specs: github.com/cashubtc/nuts tests/00-tests.md and tests/12-tests.md. */
 const { Point } = secp256k1;
@@ -92,4 +92,28 @@ test("NUT-12 DLEQ on a proof, rebuilt from its blinding factor", () => {
     s: "8fbae004c59e754d71df67e392b6ae4e29293113ddc2ec86592a0431d16306d8",
   };
   assert.equal(verifyDleq(dleq, B_, C_, A.toHex(true)), true);
+});
+
+test("NUT-12 third-party check of an unblinded token (a different key or a changed secret fails)", () => {
+  const { Point } = secp256k1;
+  const N = Point.CURVE().n;
+  const rand = () => BigInt(`0x${bytesToHex(crypto.getRandomValues(new Uint8Array(32)))}`) % N;
+  const k = rand();
+  const K = Point.BASE.multiply(k).toHex(true);
+  const other = Point.BASE.multiply(rand()).toHex(true);
+  const secret = utf8ToBytes(bytesToHex(crypto.getRandomValues(new Uint8Array(32))));
+  const { B_, r } = blind(secret);
+  // The signer: C_ = k·B_, with a DLEQ proof (R1 = pG, R2 = pB_, e = hash(R1, R2, K, C_), s = p + ek).
+  const C_ = Point.fromHex(B_).multiply(k);
+  const p = rand();
+  const e = BigInt(
+    `0x${bytesToHex(hashE([Point.BASE.multiply(p), Point.fromHex(B_).multiply(p), Point.fromHex(K), C_]))}`,
+  );
+  const s = (p + (((e % N) * k) % N)) % N;
+  const hex = (n: bigint) => n.toString(16).padStart(64, "0");
+  const dleq = { e: hex(e), s: hex(s), r: hex(r) };
+  const C = unblind(C_.toHex(true), r, K);
+  assert.equal(verifyUnblinded({ secret, C, dleq }, K), true);
+  assert.equal(verifyUnblinded({ secret, C, dleq }, other), false);
+  assert.equal(verifyUnblinded({ secret: utf8ToBytes("changed"), C, dleq }, K), false);
 });

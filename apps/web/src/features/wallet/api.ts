@@ -44,17 +44,21 @@ export const MINT_CODES = {
 
 type Send = (gatewayKeys: string) => Promise<Response>;
 
+/** The gateway's answer to a request it couldn't read (RFC 9458 §5.2), with or without §5.3's key problem. */
+const HTTP_BAD_REQUEST = 400;
+
 /**
- * Sends a call; if the gateway says it no longer holds the key the bundle on screen named (the hour turned while this
- * device slept), fetches the current signed bundle and, when it names a different key, sends the same bytes to it once.
- * That's safe: the gateway couldn't read the first request, every spending call is answered from the mint's cache when
- * repeated (NUT-19), and every other call only reads. A forged rejection with no new key behind it is just a failure.
+ * Sends a call; if the gateway couldn't read it (its key rotated while this device slept, or, after 255 hours, the key
+ * id came round again to a key it doesn't match), fetches the current signed bundle and, when it names a different
+ * key, sends the same bytes to it once. That's safe: a request the gateway couldn't read did nothing, every spending
+ * call is answered from the mint's cache when repeated (NUT-19), and every other call only reads. A forged rejection
+ * with no new key behind it is just a failure.
  */
 async function sendToCurrentKey(network: Network, trading: Trading, send: Send): Promise<Response> {
   try {
     return await send(trading.gatewayKeys);
   } catch (error) {
-    if (!(error instanceof ObliviousError && error.keyRejected)) throw error;
+    if (!(error instanceof ObliviousError && (error.keyRejected || error.status === HTTP_BAD_REQUEST))) throw error;
     const current = (await loadBundleV2(DATA_SOURCE, network).catch(() => null))?.trading;
     if (!current || current.gatewayKeys === trading.gatewayKeys) throw error;
     return send(current.gatewayKeys);

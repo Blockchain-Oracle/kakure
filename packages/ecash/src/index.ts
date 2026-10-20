@@ -1,4 +1,4 @@
-export { blind, hashToCurve, unblind, verifyDleq } from "./bdhke";
+export { blind, hashToCurve, randomScalar, unblind, verifyDleq, verifyUnblinded } from "./bdhke";
 export {
   type BlindedMessage,
   type BlindSignature,

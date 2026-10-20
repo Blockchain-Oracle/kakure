@@ -23,6 +23,8 @@ const PRINTS_FILE = /^prints-\d{10}\.json$/;
 const BUNDLE_FILE = /^bundle-\d+\.json$/;
 
 const network = z.enum(NETWORKS);
+/** A compressed secp256k1 point, hex. */
+const POINT_HEX = /^0[23][0-9a-f]{64}$/;
 const isoTime = z.iso.datetime({ offset: false });
 const decimal = z.string().regex(DECIMAL);
 const venue = z.enum(VENUE_KEYS);
@@ -135,6 +137,11 @@ export const tradingSchema = z.object({
   depositConfirmations: z.number().int().positive(),
   minWithdrawZat: z.string().regex(/^\d+$/),
   withdrawWithinSecs: z.number().int().positive(),
+  /**
+   * The Bets board's blind-receipt keys (plan §0 R7): a NUT-12-checkable signature under `right` or `wrong` says a call
+   * was right or wrong, and nothing else. Absent from bundles before they existed.
+   */
+  receiptKeys: z.object({ right: z.string().regex(POINT_HEX), wrong: z.string().regex(POINT_HEX) }).optional(),
 });
 
 export const bundleV2Schema = z.object({

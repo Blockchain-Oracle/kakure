@@ -5,6 +5,7 @@ import { hexToBytes } from "@noble/hashes/utils.js";
 import { z } from "zod";
 import { FETCH_TIMEOUT_MS, X_CLIENT_ID, X_CLIENT_SECRET, X_REDIRECT_URI } from "./constants";
 import type { Verdict } from "./handlers";
+import { firstUse } from "./replays";
 import type { ArcadeStore } from "./store";
 import { BAD_REQUEST, CONFLICT, nowSec, refuse, UNAUTHORIZED, UNAVAILABLE, UNPROCESSABLE } from "./verdicts";
 
@@ -90,6 +91,7 @@ export async function linkX(store: ArcadeStore, raw: unknown): Promise<Verdict<X
     return refuse(UNAUTHORIZED, "the request isn't signed by its key");
   }
   if (Math.abs(nowSec() - req.at) > SIGNED_SKEW_SEC) return refuse(BAD_REQUEST, "the request is stale; try again");
+  if (!firstUse(req.sig, nowSec())) return refuse(CONFLICT, "that request was already sent");
   const account = await accountOf(req.code, req.verifier).catch(() => null);
   if (!account) return refuse(UNAUTHORIZED, "X didn't confirm the sign-in; try again");
   if (!NICKNAME_PATTERN.test(account.handle)) {

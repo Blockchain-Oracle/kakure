@@ -17,7 +17,7 @@ import { UnlockForm } from "@/features/vault/unlock-form";
 import { useLockState } from "@/features/vault/use-lock";
 import { lockNow, removeLock, setLock, VaultLockedError } from "@/features/vault/vault-db";
 import { useWallet } from "@/features/wallet/wallet-store";
-import { forgetThisDevice } from "./forget";
+import { forgetThisDevice, type TakeDown, takeDownPublished } from "./forget";
 import { setPrefs, usePrefs } from "./prefs-store";
 
 /** Settings (surfaces.md): sound, haptics, motion, privacy eye, network, Tor guidance, backup, Forget this device. */
@@ -399,7 +399,14 @@ function VaultLock() {
 function Forget({ network }: { network: "mainnet" | "testnet" }) {
   const [open, setOpen] = useState(false);
   const wallet = useWallet(network);
-  const confirm = useCallback(() => void forgetThisDevice(), []);
+  // Published Bets calls come down first; when any couldn't, or the vault is locked, the sheet asks again.
+  const [left, setLeft] = useState<TakeDown | null>(null);
+  const confirm = useCallback(async () => {
+    const takeDown = await takeDownPublished();
+    if (takeDown.stranded > 0 || takeDown.locked) setLeft(takeDown);
+    else await forgetThisDevice();
+  }, []);
+  const forgetAnyway = useCallback(() => void forgetThisDevice(), []);
   const coin = NETWORK_COIN[network];
   return (
     <Group title="This device">
@@ -423,12 +430,28 @@ function Forget({ network }: { network: "mainnet" | "testnet" }) {
           arrive; only this browser's records are erased. Calls you published to the Bets board are taken down first,
           and come off at the week's turn.
         </p>
-        <SlideToConfirm
-          className="mt-6"
-          label="Slide to forget"
-          hint="Erases Kakure's data in this browser"
-          onConfirm={confirm}
-        />
+        {left ? (
+          <>
+            <p role="alert" className="mt-4 rounded-row bg-warn-surface p-3 text-body text-foreground">
+              {left.locked
+                ? "Your vault is locked, so this device can't take its published Bets calls down. Unlock it and try again, or forget anyway: any calls it published stay on the board for good."
+                : `${left.stranded} published Bets call${left.stranded === 1 ? "" : "s"} couldn't be taken down (the arcade didn't answer). Try again later, or forget anyway: they stay on the board for good.`}
+            </p>
+            <SlideToConfirm
+              className="mt-6"
+              label="Slide to forget anyway"
+              hint="Erases Kakure's data in this browser"
+              onConfirm={forgetAnyway}
+            />
+          </>
+        ) : (
+          <SlideToConfirm
+            className="mt-6"
+            label="Slide to forget"
+            hint="Takes your Bets calls down, then erases Kakure's data in this browser"
+            onConfirm={() => void confirm()}
+          />
+        )}
       </Sheet>
     </Group>
   );

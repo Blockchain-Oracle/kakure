@@ -41,14 +41,14 @@ describe("the Duel service", () => {
     return m;
   }
 
-  const commit = (secret: Uint8Array, player: string, matchId: string) =>
+  const commit = (secret: Uint8Array, player: string, matchId: string, skew = 0) =>
     signDocument(
       {
         action: "commit",
         player,
         matchId,
         commitment: duelCommitment({ matchId, player, picks: PICKS, salt: SALT }),
-        at: now(),
+        at: now() - skew,
       },
       secret,
     );
@@ -60,7 +60,8 @@ describe("the Duel service", () => {
       commits: [duelCommitment({ matchId: "x", player: a, picks: PICKS, salt: SALT }), null],
     });
     for (let i = 0; i < 3; i++) {
-      const late = commitPicks(store, commit(secretB, b, m.id));
+      // Each a fresh request (a byte-identical copy would be refused as a replay first).
+      const late = commitPicks(store, commit(secretB, b, m.id, i + 10));
       assert.deepEqual(late, { ok: false, status: 409, error: "the picks are closed" });
     }
     matchView(store, m.id);

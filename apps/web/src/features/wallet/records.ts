@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReceiptToken } from "@kakure/arcade";
 import type { Network } from "@kakure/domain";
 import type { PendingOutputs, Proof } from "@kakure/ecash";
 import { commit, type EntryRef, loadEntries } from "@/features/vault/vault-db";
@@ -134,6 +135,11 @@ export interface PositionRecord {
    * and the arcade key it was published under (only that key can take it back). Kept here, in the vault.
    */
   published?: { receipt: string; right: boolean; at: number; player: string };
+  /**
+   * The Bets board's blind receipt (plan §0 R7): the secret and blinding factor kept before asking the operator (so a
+   * lost answer is asked again with the same bytes), then the unblinded token. Only this device ever sees the token.
+   */
+  receipt?: { pending?: { secret: string; r: string }; token?: ReceiptToken };
   /**
    * Partial closes (Reduce), oldest first: what each paid and the stake it took off (this device's history), and, so
    * Verify can replay the mint's rule from the first signed terms to the last, the share sold and the certificate it

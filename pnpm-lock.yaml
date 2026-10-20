@@ -760,6 +760,9 @@ importers:
       '@kakure/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@kakure/ecash':
+        specifier: workspace:*
+        version: link:../../packages/ecash
       '@kakure/signing':
         specifier: workspace:*
         version: link:../../packages/signing
@@ -770,6 +773,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@noble/curves':
+        specifier: 2.4.0
+        version: 2.4.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2

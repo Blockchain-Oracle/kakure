@@ -47,7 +47,7 @@ export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: stri
   {
     party: "Kakure's arcade service",
     learns:
-      "Your nickname, the public key your device made for it, your runs (the game, the score, the inputs and the day) and your duels (the deck, both players' calls once both are locked in, the result and the day). For a call you publish to the Bets board: the operator's receipt, right or wrong for your key, and the week. Nicknames, scores, duel results and Bets records are public on the boards.",
+      "Your nickname, the public key your device made for it, your runs (the game, the score, the inputs and the day) and your duels (the deck, both players' calls once both are locked in, the result and the day). For a call you publish to the Bets board: a blind receipt saying right or wrong, which the operator can't trace, and the week. Nicknames, scores, duel results and Bets records are public on the boards.",
     never:
       "Your IP or any header of yours (the site forwards only the request itself), your wallet, your chips or your trades: a published call reaches it as right or wrong only. Practice, Lucky and your streaks never leave your device.",
   },
@@ -91,7 +91,7 @@ export const RESIDUALS = [
   "The operator keeps deposit records and the fingerprints of spent chips for good: they are what stop a deposit minting twice or a chip spending twice. A withdrawal's address and amount are deleted a week after it is paid, and an address already paid can't be used again.",
   "The arcade isn't sealed like trades: the site sees your arcade calls (your nickname and scores) along with your IP, though it keeps no logs, and the arcade service never sees the IP. A nickname is public, so pick one that doesn't name you.",
   "Signing in with X is optional: it names you on the boards with your X handle, so your runs, duels and published calls sit under a name the world can tie to you. Kakure's arcade keeps the handle and a salted hash of your X id, never a token.",
-  'Publishing a call to the Bets board is your choice, one paid call at a time. The operator vouches for it over the sealed path and only "right" or "wrong" reaches the arcade, but Kakure\'s operator can tell which trade it was, and the board\'s weekly changes, read against the public outcomes, can narrow down which Windows a nickname called, more so while few people trade. Turning it off takes the call down at the week\'s turn; anyone who saw the board may remember it.',
+  "Publishing a call to the Bets board is your choice, one paid call at a time. The operator blind-signs a receipt it can't recognise later, so neither it nor the arcade can lead the board back to your trade, and the operator never learns your nickname. If you publish the moment the receipt is signed, Kakure could match the two by time, as it could any sealed request to the visit that sent it. The board's weekly changes, read against the public outcomes, can narrow down which Windows a nickname called while few people trade. Turning it off takes the call down at the week's turn; anyone who saw the board may remember it.",
   "This browser keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and runs and Practice's tally, and its history keeps the pages you opened. Lucky's draws, like your chips and positions, are kept encrypted in its vault. Forget this device clears the app's part, nickname included.",
   "Your own funding history and your wallet's server are outside Kakure's control.",
 ];

@@ -164,7 +164,7 @@ fn cache_key(inner: &Inner) -> String {
 }
 
 /// Requests whose success is cached (NUT-19): resending one returns the first answer.
-const CACHED: [&str; 9] = [
+const CACHED: [&str; 10] = [
     "/v1/mint/zcash",
     "/v1/swap",
     "/v1/melt/zcash",
@@ -174,6 +174,7 @@ const CACHED: [&str; 9] = [
     "/v1/close",
     "/v1/redeem",
     "/v1/exit",
+    "/v1/receipt",
 ];
 
 fn route(api: &Api, inner: Inner) -> Reply {
@@ -205,7 +206,9 @@ fn route(api: &Api, inner: Inner) -> Reply {
         ("POST", "/v1/redeem") => body(&inner.body).and_then(|r| trading::redeem(api, r, key)),
         ("POST", "/v1/exit") => body(&inner.body).and_then(|r| trading::exit(api, r, key)),
         ("POST", "/v1/position") => body(&inner.body).and_then(|r| trading::position(api, r)),
-        ("POST", "/v1/receipt") => body(&inner.body).and_then(|r| crate::receipts::receipt(api, r)),
+        ("POST", "/v1/receipt") => {
+            body(&inner.body).and_then(|r| crate::receipts::receipt(api, r, key))
+        }
         _ => {
             return Reply {
                 status: 404,

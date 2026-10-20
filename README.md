@@ -58,7 +58,7 @@ position certificate. Close early at the live bid, or let it settle; winnings co
 There is no account, no sign-in and no cookie. Everything you own lives in an encrypted vault on your device, with an
 optional passphrase lock and an encrypted backup file.
 
-## Demo video
+## Demo
 
 <p align="center">
   <a href="https://kakure-web.kakure-price-relay.workers.dev/demo">
@@ -66,9 +66,10 @@ optional passphrase lock and an encrypted backup file.
   </a>
 </p>
 
-The play button opens the site's [demo page](https://kakure-web.kakure-price-relay.workers.dev/demo). The cover is
-artwork composed from unchanged screens of the app ([provenance](.github/assets/provenance.json)); it is not a
-recording and shows no transaction.
+The play button opens the site's [demo page](https://kakure-web.kakure-price-relay.workers.dev/demo), where the
+recorded walkthrough plays once it's published; until then that page says so and links the app and a step-by-step
+guide. The cover is artwork composed from unchanged screens of the app ([provenance](.github/assets/provenance.json));
+it is not a recording and shows no transaction.
 
 ## Who sees what
 
@@ -96,7 +97,8 @@ How that holds:
 - **Timing and amounts.** Stakes snap to a ladder, chips to a standard split; redeems and withdrawal notes go out at
   random times; a withdrawal address can't be reused.
 - **Opt-in social.** Nicknames are bound to a device key with a small proof of work, never to money. Publishing a call
-  to the Bets board goes through the operator over the sealed path, so only "right" or "wrong" reaches the arcade.
+  to the Bets board uses a blind receipt: the operator signs a point it can't recognise later, so the board never
+  leads back to the trade and the operator never learns the nickname.
 
 Kakure runs both the relay and the operator, so keeping your IP apart from your trades rests on Kakure not combining
 the two; Tor removes that trust. That and the other residuals (timing, a small crowd, harvest-now-decrypt-later) are
@@ -163,7 +165,7 @@ otherwise.
 | **Oblivious HTTP** | Browser ↔ relay ↔ gateway round trips (GET, POST, 404) decrypt; the hourly key rotation was checked live: a request to the old key is refused as rotated through the relay, the new one round-trips. |
 | **Chips** | BDHKE and DLEQ against the NUT vectors on both sides; double spends refused; NUT-19 cached answers for retried calls. |
 | **A real shielded deposit and withdrawal on this design** | **Not yet run.** The deposit and payout code paths exist and scan Orchard and Ironwood, but no real testnet deposit has yet reached the current operator; the local wallet has synced to block 4,522,560 with no notes received. The earlier pool-based design took real shielded testnet bets and paid them on 18 October; that design is retired. |
-| **Games** | Line Rider and Candle Hop runs replayed server-side to rank; Duels played against a scripted second player, sealed picks revealed only after both locked in, Elo applied once; a Lucky draw made on the device and placed as one trade; a call published to the Bets board through the operator's sealed receipt. |
+| **Games** | Line Rider and Candle Hop runs replayed server-side to rank; Duels played against a scripted second player, sealed picks revealed only after both locked in, Elo applied once; a Lucky draw made on the device and placed as one trade; a call published to the Bets board with the operator's blind receipt. |
 | **Hosting** | The live site at kakure-web.kakure-price-relay.workers.dev still serves the previous design until the cut-over in the runbook; the operator, arcade and relay deploys are prepared, not yet rolled out. |
 | **Mobile** | An Expo app exists for the earlier design and is paused; the web app installs to a phone's home screen. |
 

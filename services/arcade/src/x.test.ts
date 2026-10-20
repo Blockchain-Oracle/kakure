@@ -37,11 +37,18 @@ describe("Sign in with X", () => {
     const secret = new Uint8Array(32).fill(n);
     return { secret, player: Buffer.from(publicKeyFor(secret)).toString("hex") };
   };
-  const link = (store: InstanceType<typeof ArcadeStore>, k: ReturnType<typeof key>) =>
-    linkX(
+  // Each sign-in carries its own code (X issues one per consent), so no two requests are copies.
+  let codes = 0;
+  const link = (store: InstanceType<typeof ArcadeStore>, k: ReturnType<typeof key>) => {
+    codes += 1;
+    return linkX(
       store,
-      signDocument({ action: "x-link", player: k.player, code: "code-1", verifier: VERIFIER, at: now() }, k.secret),
+      signDocument(
+        { action: "x-link", player: k.player, code: `code-${codes}`, verifier: VERIFIER, at: now() },
+        k.secret,
+      ),
     );
+  };
 
   it("names the device with the handle, keeps no token, and revokes it", async () => {
     assert.deepEqual(xConfig(), { clientId: "client-test", redirectUri: "https://kakure.example/x" });

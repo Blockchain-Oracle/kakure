@@ -23,7 +23,7 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
 | This site and its relay (one Cloudflare worker) | Your IP, when you visit and trade, which pages you open, and which network you trade on | What's inside a request (sealed to the operator's published key); the asset or Window you look at |
 | The operator | Each deposit's amount; each trade's Window, side, stake and time; each withdrawal's address and amount | Your IP; which deposit paid for which trade; who you are |
 | Everyone else | The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes, hourly and rounded up; volume per Window in whole groups of three trades, while the Window is recent | Any single trade, but for the n−1 case under Residuals |
-| Kakure's arcade service | Your nickname, the key your device made for it, your runs (game, score, inputs, the day), your duels (calls once both are locked in, result, the day) and, for any call you publish to the Bets board, the operator's receipt: right or wrong, for your key, and the week | Your IP or any header of yours, your wallet, chips or trades (a published call reaches it as right or wrong only); Practice and Lucky never reach it |
+| Kakure's arcade service | Your nickname, the key your device made for it, your runs (game, score, inputs, the day), your duels (calls once both are locked in, result, the day) and, for any call you publish to the Bets board, a blind receipt saying right or wrong, which the operator can't trace, and the week | Your IP or any header of yours, your wallet, chips or trades (a published call reaches it as right or wrong only); Practice and Lucky never reach it |
 | Kakure's price relay | Your IP, when a tab showing prices is open, and which candle interval your chart shows and how far back | Which asset you watch |
 | Your wallet's server | Your IP, when your wallet syncs and broadcasts, and which transactions it fetches, unless your wallet uses Tor | The memo or the amount |
 | X, only if you sign in with it | That your X account signed in to Kakure's arcade, and when | Anything you do on Kakure (the arcade reads your handle once and revokes X's token) |
@@ -94,11 +94,12 @@ encrypted bytes, and the operator sees the trade but never your IP. There is no 
 1. **Sign in with X.** Optional. It names you on the boards with your X handle, so your runs, duels and published
    calls sit under a name the world can tie to you. The arcade keeps the handle and a salted hash of your X id, never
    a token.
-1. **Publishing a call.** The Bets board is opt-in, one paid call at a time. The operator vouches for the call over
-   the sealed path and only "right" or "wrong" reaches the arcade, but Kakure's operator can tell which trade it was,
-   and the board's weekly changes, read against the public outcomes, can narrow down which Windows a nickname called,
-   more so while few people trade. Turning it off takes the call down at the week's turn; anyone who saw the board may
-   remember it.
+1. **Publishing a call.** The Bets board is opt-in, one paid call at a time. The operator blind-signs a receipt it
+   can't recognise later (NUT-00 with a NUT-12 proof), so neither it nor the arcade can lead the board back to your
+   trade, and the operator never learns your nickname. If you publish the moment the receipt is signed, Kakure could
+   match the two by time, as it could any sealed request to the visit that sent it. The board's weekly changes, read
+   against the public outcomes, can narrow down which Windows a nickname called while few people trade. Turning it
+   off takes the call down at the week's turn; anyone who saw the board may remember it.
 1. **This browser.** It keeps your trade settings (stake size, trail, starred markets), your arcade key, nickname and
    runs and Practice's tally, and its history keeps the pages you opened. Lucky's draws, like your chips and
    positions, are kept encrypted in its vault. Forget this device clears the app's part.

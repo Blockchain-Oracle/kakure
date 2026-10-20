@@ -83,7 +83,22 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     if !has_collected {
         conn.execute_batch("ALTER TABLE positions ADD COLUMN collected_at INTEGER;")?;
     }
+    // R7: when the operator blind-signed this position's Bets receipt; a position is vouched for once.
+    let has_vouched: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('positions') WHERE name = 'vouched_at'")?
+        .exists([])?;
+    if !has_vouched {
+        conn.execute_batch("ALTER TABLE positions ADD COLUMN vouched_at INTEGER;")?;
+    }
     Ok(())
+}
+
+/// Marks a position vouched for the Bets board; false when it already was.
+pub fn vouch(tx: &Transaction<'_>, id: &str, now: i64) -> Result<bool> {
+    Ok(tx.execute(
+        "UPDATE positions SET vouched_at = ?2 WHERE id = ?1 AND vouched_at IS NULL",
+        params![id, now],
+    )? == 1)
 }
 
 /// Notes that the owner has taken the proceeds signed for it (`/v1/position`); a lost answer can be asked again.

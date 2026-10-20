@@ -821,6 +821,7 @@ async fn start_trading(
     let mut trading = serde_json::json!({
         "keyset": mint.keyset_json(),
         "retiredKeysets": mint.retired_json(),
+        "receiptKeys": mint.receipt_keys_json(),
         "depositMemoPrefix": deposits::DEPOSIT_MEMO_PREFIX,
         "depositConfirmations": confirmations,
         "minWithdrawZat": api::MIN_WITHDRAW_ZAT.to_string(),

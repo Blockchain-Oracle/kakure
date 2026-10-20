@@ -73,6 +73,11 @@ const EPOCH0_AMOUNTS_ZAT: [u64; 12] = [
 ];
 /// The active keyset's derivation path index: `m/<epoch>'`.
 const ACTIVE_EPOCH: u32 = 1;
+/// The Bets board's receipt keys (plan §0 R7): their own path, `m/2'`, never a chip's. Amount 1 signs a right call,
+/// amount 2 a wrong one; neither is money.
+const RECEIPT_PATH: u32 = 2;
+const RECEIPT_RIGHT: u64 = 1;
+const RECEIPT_WRONG: u64 = 2;
 pub const UNIT: &str = "zat";
 const SEED_FILE: &str = "mint.seed";
 const SEED_BYTES: usize = 64;
@@ -84,6 +89,8 @@ pub struct Mint {
     keyset: MintKeySet,
     /// Older keysets: their chips verify (and are spent into the active keyset); they never sign.
     retired: Vec<MintKeySet>,
+    /// The Bets board's two receipt keys: a blind signature from one says a call was right or wrong, and nothing else.
+    receipts: MintKeySet,
 }
 
 /// One spendable chip, as a client sends it (the DLEQ stripped, NUT-12).
@@ -131,9 +138,13 @@ impl Mint {
         let active_path = DerivationPath::from(vec![
             ChildNumber::from_hardened_idx(ACTIVE_EPOCH).expect("a small index"),
         ]);
+        let receipt_path = DerivationPath::from(vec![
+            ChildNumber::from_hardened_idx(RECEIPT_PATH).expect("a small index"),
+        ]);
         Ok(Self {
             keyset: generate(&AMOUNTS_ZAT, active_path),
             retired: vec![generate(&EPOCH0_AMOUNTS_ZAT, DerivationPath::master())],
+            receipts: generate(&[RECEIPT_RIGHT, RECEIPT_WRONG], receipt_path),
         })
     }
 
@@ -151,6 +162,34 @@ impl Mint {
     /// the signed bundle.
     pub fn keyset_json(&self) -> Value {
         keyset_value(&self.keyset)
+    }
+
+    /// The receipt keys clients and the arcade verify against, published in every signed bundle:
+    /// `{ right, wrong }`, compressed public keys in hex.
+    pub fn receipt_keys_json(&self) -> Value {
+        let key = |amount: u64| {
+            self.receipts
+                .keys
+                .get(&Amount::from(amount))
+                .map(|pair| pair.public_key.to_hex())
+                .unwrap_or_default()
+        };
+        json!({ "right": key(RECEIPT_RIGHT), "wrong": key(RECEIPT_WRONG) })
+    }
+
+    /// Blind-signs a receipt (NUT-00, with its NUT-12 DLEQ proof) under the right or the wrong key. The blinded point
+    /// is all the operator sees, so the receipt the arcade later shows can't be traced to the call it vouches for.
+    pub fn sign_receipt(&self, right: bool, blinded: &cashu::PublicKey) -> Result<BlindSignature> {
+        let amount = Amount::from(if right { RECEIPT_RIGHT } else { RECEIPT_WRONG });
+        let pair = self
+            .receipts
+            .keys
+            .get(&amount)
+            .ok_or_else(|| anyhow!("no receipt key"))?;
+        let c =
+            dhke::sign_message(&pair.secret_key, blinded).map_err(|e| anyhow!("signing: {e}"))?;
+        BlindSignature::new(amount, c, self.receipts.id, blinded, &pair.secret_key)
+            .map_err(|e| anyhow!("DLEQ: {e}"))
     }
 
     /// Every keyset whose chips still spend, active first, as `keyset_json`.
@@ -313,6 +352,27 @@ mod tests {
         assert_eq!(
             dhke::hash_to_curve(&one).unwrap().to_hex(),
             "022e7158e11c9506f1aa4248bf531298daa7febd6194f003edcd9b93ade6253acf"
+        );
+    }
+
+    #[test]
+    fn receipts_sign_blind_under_their_own_keys() {
+        let mint = mint("receipts");
+        let secret = Secret::generate();
+        let (b, _) = dhke::blind_message(secret.as_bytes(), None).unwrap();
+        let keys = mint.receipt_keys_json();
+        let right = cashu::PublicKey::from_hex(keys["right"].as_str().unwrap()).unwrap();
+        let wrong = cashu::PublicKey::from_hex(keys["wrong"].as_str().unwrap()).unwrap();
+        assert_ne!(right, wrong);
+        let signature = mint.sign_receipt(true, &b).unwrap();
+        signature.verify_dleq(right, b).unwrap();
+        assert!(signature.verify_dleq(wrong, b).is_err());
+        // Neither receipt key is a chip key.
+        assert!(
+            mint.keyset
+                .keys
+                .values()
+                .all(|pair| pair.public_key != right && pair.public_key != wrong)
         );
     }
 
