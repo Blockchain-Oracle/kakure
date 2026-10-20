@@ -694,8 +694,24 @@ pub fn close(api: &Api, request: CloseRequest, cache: Option<&str>) -> Answer {
     }
     commit_and(api, cache.map(|k| (k, &answer)), |tx, now| {
         match &rest {
-            Some(rest) => positions::reduce(tx, &rest.id, rest.stake_zat, rest.payout_zat, value),
-            None => positions::finish(tx, &position.id, "closed", "close", value, None, now),
+            Some(rest) => positions::reduce(
+                tx,
+                &rest.id,
+                position.terms(),
+                rest.stake_zat,
+                rest.payout_zat,
+                value,
+            ),
+            None => positions::finish(
+                tx,
+                &position.id,
+                position.terms(),
+                "closed",
+                "close",
+                value,
+                None,
+                now,
+            ),
         }
         .map_err(|e| refuse(KAKURE_PAID, e.to_string()))
     })?;
@@ -784,8 +800,17 @@ pub fn redeem(api: &Api, request: RedeemRequest, cache: Option<&str>) -> Answer 
         .map_err(|e| refuse(KAKURE_BAD_REQUEST, e.to_string()))?;
     let answer = json!({ "valueZat": value.to_string(), "signatures": signatures });
     commit_and(api, cache.map(|k| (k, &answer)), |tx, now| {
-        positions::finish(tx, &position.id, "redeemed", "redeem", value, None, now)
-            .map_err(|e| refuse(KAKURE_PAID, e.to_string()))
+        positions::finish(
+            tx,
+            &position.id,
+            position.terms(),
+            "redeemed",
+            "redeem",
+            value,
+            None,
+            now,
+        )
+        .map_err(|e| refuse(KAKURE_PAID, e.to_string()))
     })?;
     Ok(answer)
 }
@@ -925,6 +950,10 @@ pub struct PositionRequest {
 /// or an armed position redeemed at settlement) for the client to collect.
 pub fn position(api: &Api, request: PositionRequest) -> Answer {
     let position = owned(api, &request.position, &request.secret)?;
+    if position.exit_signatures.is_some() {
+        let store = api.store.lock().map_err(internal)?;
+        positions::mark_collected(&store.conn, &position.id, now()).map_err(internal)?;
+    }
     let signatures: Value = position
         .exit_signatures
         .as_deref()

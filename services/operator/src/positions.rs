@@ -75,6 +75,24 @@ pub fn migrate(conn: &Connection) -> Result<()> {
              UPDATE positions SET opened_stake_zat = stake_zat WHERE opened_stake_zat IS NULL;",
         )?;
     }
+    // When the client first took the proceeds an exit or the mint signed for it: until then the row is kept, however
+    // long the owner stays away (Codex review K3).
+    let has_collected: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('positions') WHERE name = 'collected_at'")?
+        .exists([])?;
+    if !has_collected {
+        conn.execute_batch("ALTER TABLE positions ADD COLUMN collected_at INTEGER;")?;
+    }
+    Ok(())
+}
+
+/// Notes that the owner has taken the proceeds signed for it (`/v1/position`); a lost answer can be asked again.
+pub fn mark_collected(conn: &Connection, id: &str, now: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE positions SET collected_at = COALESCE(collected_at, ?2)
+         WHERE id = ?1 AND exit_signatures IS NOT NULL AND state IN ('closed', 'redeemed')",
+        params![id, now],
+    )?;
     Ok(())
 }
 
@@ -285,9 +303,29 @@ pub fn side_payout(conn: &Connection, window: &str, side: &str) -> Result<u64> {
 }
 
 /// Marks a position paid (closed or redeemed) with what it paid; the ledger counts it out.
+/// The terms a payment was computed from: it lands only while the position still has them, so two
+/// requests (two partial closes, or a close and a firing exit) can never both be paid from one
+/// snapshot (Codex review K1).
+#[derive(Clone, Copy, Debug)]
+pub struct Terms {
+    pub stake_zat: u64,
+    pub payout_zat: u64,
+}
+
+impl Position {
+    pub fn terms(&self) -> Terms {
+        Terms {
+            stake_zat: self.stake_zat,
+            payout_zat: self.payout_zat,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn finish(
     tx: &Transaction<'_>,
     id: &str,
+    terms: Terms,
     state: &str,
     how: &str,
     paid_zat: u64,
@@ -297,10 +335,19 @@ pub fn finish(
     let changed = tx.execute(
         "UPDATE positions SET state = ?2, how = ?3, paid_zat = ?4, exit_signatures = ?5,
              finished_at = ?6
-         WHERE id = ?1 AND state IN ('open', 'armed')",
-        params![id, state, how, paid_zat, signatures, now],
+         WHERE id = ?1 AND state IN ('open', 'armed') AND stake_zat = ?7 AND payout_zat = ?8",
+        params![
+            id,
+            state,
+            how,
+            paid_zat,
+            signatures,
+            now,
+            terms.stake_zat,
+            terms.payout_zat
+        ],
     )?;
-    anyhow::ensure!(changed == 1, "the position was already paid");
+    anyhow::ensure!(changed == 1, "the position was already paid or changed");
     add_to_ledger(tx, "paid", paid_zat)?;
     Ok(())
 }
@@ -310,16 +357,23 @@ pub fn finish(
 pub fn reduce(
     tx: &Transaction<'_>,
     id: &str,
+    terms: Terms,
     stake_left: u64,
     payout_left: u64,
     paid_zat: u64,
 ) -> Result<()> {
     let changed = tx.execute(
         "UPDATE positions SET stake_zat = ?2, payout_zat = ?3
-         WHERE id = ?1 AND state IN ('open', 'armed')",
-        params![id, stake_left, payout_left],
+         WHERE id = ?1 AND state IN ('open', 'armed') AND stake_zat = ?4 AND payout_zat = ?5",
+        params![
+            id,
+            stake_left,
+            payout_left,
+            terms.stake_zat,
+            terms.payout_zat
+        ],
     )?;
-    anyhow::ensure!(changed == 1, "the position was already paid");
+    anyhow::ensure!(changed == 1, "the position was already paid or changed");
     add_to_ledger(tx, "paid", paid_zat)?;
     Ok(())
 }
@@ -510,8 +564,11 @@ pub fn window_volume(
 
 /// Drops positions paid more than two days ago (the totals stay in the ledger).
 pub fn prune(conn: &Connection, now: i64) -> Result<()> {
+    // A position paid in its own answer leaves after two days; one whose proceeds wait to be collected stays until two
+    // days after it was collected, never before (Codex review K3).
     conn.execute(
-        "DELETE FROM positions WHERE state IN ('closed', 'redeemed') AND finished_at < ?1",
+        "DELETE FROM positions WHERE state IN ('closed', 'redeemed') AND finished_at < ?1
+           AND (exit_signatures IS NULL OR (collected_at IS NOT NULL AND collected_at < ?1))",
         [now - FINISHED_KEEP_SECS],
     )?;
     Ok(())
@@ -630,12 +687,99 @@ mod tests {
             Some((3, 6_000_000))
         );
         let tx = conn.unchecked_transaction().unwrap();
-        reduce(&tx, "q", 1_000_000, 2_000_000, 1_900_000).unwrap();
+        let terms = Terms {
+            stake_zat: 2_000_000,
+            payout_zat: 4_000_000,
+        };
+        reduce(&tx, "q", terms, 1_000_000, 2_000_000, 1_900_000).unwrap();
         tx.commit().unwrap();
         assert_eq!(
             window_volume(&conn, "btc-5m-3", 3).unwrap(),
             Some((3, 6_000_000))
         );
+    }
+
+    #[test]
+    fn a_stale_snapshot_is_never_paid_twice() {
+        let conn = book();
+        window(&conn, "btc-5m-4", None, None);
+        single(&conn, "s", "btc-5m-4", 2_000_000);
+        let snapshot = Terms {
+            stake_zat: 2_000_000,
+            payout_zat: 4_000_000,
+        };
+        // Two partial closes computed from the same snapshot: the first lands, the second is refused.
+        let tx = conn.unchecked_transaction().unwrap();
+        reduce(&tx, "s", snapshot, 1_000_000, 2_000_000, 1_900_000).unwrap();
+        tx.commit().unwrap();
+        let tx = conn.unchecked_transaction().unwrap();
+        assert!(reduce(&tx, "s", snapshot, 1_000_000, 2_000_000, 1_900_000).is_err());
+        // An exit firing on the old snapshot is refused too; on the current terms it pays.
+        assert!(finish(&tx, "s", snapshot, "closed", "trail", 3_800_000, None, 1).is_err());
+        let now = Terms {
+            stake_zat: 1_000_000,
+            payout_zat: 2_000_000,
+        };
+        finish(&tx, "s", now, "closed", "trail", 1_900_000, None, 1).unwrap();
+    }
+
+    #[test]
+    fn proceeds_and_windows_outlive_the_prune_until_used() {
+        let conn = book();
+        // The pool-era store owns `payouts`; the prune reads its withdrawal rows.
+        conn.execute_batch(
+            "CREATE TABLE payouts (kind TEXT, status TEXT, built_at INTEGER, receipt_txid TEXT, recipient TEXT)",
+        )
+        .unwrap();
+        let old = 1_000;
+        let later = old + 30 * 86_400;
+        conn.execute(
+            "INSERT INTO rt_windows (id, lane, asset, start, expiry, outcome) VALUES ('btc-5m-9', 'btc-5m', 'BTC', 0, ?1, 'U')",
+            [old],
+        )
+        .unwrap();
+        single(&conn, "open", "btc-5m-9", 1_000_000);
+        single(&conn, "fired", "btc-5m-9", 1_000_000);
+        let tx = conn.unchecked_transaction().unwrap();
+        let terms = Terms {
+            stake_zat: 1_000_000,
+            payout_zat: 2_000_000,
+        };
+        finish(
+            &tx,
+            "fired",
+            terms,
+            "closed",
+            "trail",
+            1_500_000,
+            Some("[]"),
+            old,
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        prune(&conn, later).unwrap();
+        rt_store::prune(&conn, later).unwrap();
+        let count = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap();
+        // Uncollected proceeds stay; the Window an open position rides on stays.
+        assert_eq!(
+            count("SELECT COUNT(*) FROM positions WHERE id = 'fired'"),
+            1
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM rt_windows WHERE id = 'btc-5m-9'"),
+            1
+        );
+        // Collected, and two days on, the row goes; redeemed, the Window goes.
+        mark_collected(&conn, "fired", old).unwrap();
+        conn.execute(
+            "UPDATE positions SET state = 'redeemed', finished_at = ?1 WHERE id = 'open'",
+            [old],
+        )
+        .unwrap();
+        prune(&conn, later).unwrap();
+        rt_store::prune(&conn, later).unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM positions"), 0);
+        assert_eq!(count("SELECT COUNT(*) FROM rt_windows"), 0);
     }
 
     #[test]

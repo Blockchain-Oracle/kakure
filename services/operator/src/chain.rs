@@ -62,9 +62,22 @@ impl Chain {
         let tip = BlockTimes::load(&self.wallet)?.tip().unwrap_or(0);
         self.tip.store(tip, Ordering::Relaxed);
         let found = deposits::scan(&self.wallet)?;
-        let new = rt_store::put_deposit_outputs(&mut self.store.conn, &found)?;
-        if new > 0 {
-            eprintln!("chain: {new} new deposit output(s) at tip {tip}");
+        let synced = rt_store::sync_deposit_outputs(&mut self.store.conn, &found)?;
+        if synced.added > 0 {
+            eprintln!("chain: {} new deposit output(s) at tip {tip}", synced.added);
+        }
+        if synced.dropped > 0 {
+            eprintln!(
+                "chain: {} deposit output(s) left the canonical chain (reorg); they no longer count",
+                synced.dropped
+            );
+        }
+        if !synced.short.is_empty() {
+            // Never the ids: a deposit id is a bearer claim on chips.
+            eprintln!(
+                "chain: {} deposit(s) have more minted than they now hold; they can't mint again",
+                synced.short.len()
+            );
         }
         let now = Utc::now().timestamp();
         payouts::track(&self.store, &self.wallet, tip, now)?;

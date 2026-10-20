@@ -155,7 +155,16 @@ fn pay(api: &Api, position: &Position, value: u64, state: &str, how: &str, now: 
     let signatures = serde_json::to_string(&signatures)?;
     let mut store = api.store.lock().map_err(|_| anyhow!("store poisoned"))?;
     let tx = store.conn.transaction()?;
-    positions::finish(&tx, &position.id, state, how, value, Some(&signatures), now)?;
+    positions::finish(
+        &tx,
+        &position.id,
+        position.terms(),
+        state,
+        how,
+        value,
+        Some(&signatures),
+        now,
+    )?;
     tx.commit()?;
     Ok(())
 }

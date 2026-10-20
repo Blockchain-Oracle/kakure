@@ -329,8 +329,14 @@ pub fn prune(conn: &Connection, now: i64) -> Result<()> {
         "DELETE FROM minute_closes WHERE start < ?1",
         [now - MINUTES_KEEP_SECS],
     )?;
+    // A settled Window stays while any open position rides on it (a single, a band or a parlay's leg), so a holder
+    // who comes back late can still redeem (Codex review K3).
     conn.execute(
-        "DELETE FROM rt_windows WHERE expiry < ?1 AND outcome IS NOT NULL",
+        "DELETE FROM rt_windows WHERE expiry < ?1 AND outcome IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM positions p WHERE p.state IN ('open', 'armed')
+               AND (p.window = rt_windows.id OR p.legs LIKE '%\"' || rt_windows.id || '\"%')
+           )",
         [now - WINDOWS_KEEP_SECS],
     )?;
     conn.execute(
@@ -378,16 +384,38 @@ pub struct DepositOutput {
     pub height: u32,
 }
 
-pub fn put_deposit_outputs(conn: &mut Connection, outputs: &[DepositOutput]) -> Result<usize> {
+/// What one reconciliation changed: outputs newly seen, outputs the canonical chain no longer has, and the deposits
+/// that now have more minted than their remaining outputs hold.
+pub struct DepositSync {
+    pub added: usize,
+    pub dropped: usize,
+    pub short: Vec<String>,
+}
+
+/// Makes the mint's deposit outputs match the wallet's canonical scan (Codex review K2): new outputs are added, a
+/// re-mined output takes its new height, and one a reorg removed is dropped, so it can never count as confirmed when
+/// the new chain passes its old height. A deposit left with more minted than it now holds can't mint again (minting
+/// takes confirmed less issued); it is reported.
+pub fn sync_deposit_outputs(
+    conn: &mut Connection,
+    outputs: &[DepositOutput],
+) -> Result<DepositSync> {
     let tx = conn.transaction()?;
-    let mut stored = 0;
+    let mut added = 0;
     {
-        let mut insert = tx.prepare(
-            "INSERT OR IGNORE INTO deposit_outputs (txid, pool, output_index, deposit_id, amount_zat, height)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        let mut upsert = tx.prepare(
+            "INSERT INTO deposit_outputs (txid, pool, output_index, deposit_id, amount_zat, height)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT (txid, pool, output_index) DO UPDATE SET height = excluded.height",
+        )?;
+        let mut exists = tx.prepare(
+            "SELECT 1 FROM deposit_outputs WHERE txid = ?1 AND pool = ?2 AND output_index = ?3",
         )?;
         for o in outputs {
-            stored += insert.execute(params![
+            if !exists.exists(params![o.txid, o.pool, o.output_index])? {
+                added += 1;
+            }
+            upsert.execute(params![
                 o.txid,
                 o.pool,
                 o.output_index,
@@ -397,8 +425,35 @@ pub fn put_deposit_outputs(conn: &mut Connection, outputs: &[DepositOutput]) -> 
             ])?;
         }
     }
+    let canonical: std::collections::HashSet<(String, u8, u32)> = outputs
+        .iter()
+        .map(|o| (o.txid.clone(), o.pool, o.output_index))
+        .collect();
+    let stored: Vec<(String, u8, u32)> = tx
+        .prepare("SELECT txid, pool, output_index FROM deposit_outputs")?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut dropped = 0;
+    for key in stored.into_iter().filter(|k| !canonical.contains(k)) {
+        dropped += tx.execute(
+            "DELETE FROM deposit_outputs WHERE txid = ?1 AND pool = ?2 AND output_index = ?3",
+            params![key.0, key.1, key.2],
+        )?;
+    }
+    let short: Vec<String> = tx
+        .prepare(
+            "SELECT i.deposit_id FROM deposit_issued i
+             WHERE i.issued_zat > (SELECT COALESCE(SUM(amount_zat), 0) FROM deposit_outputs o
+                                   WHERE o.deposit_id = i.deposit_id)",
+        )?
+        .query_map([], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
     tx.commit()?;
-    Ok(stored)
+    Ok(DepositSync {
+        added,
+        dropped,
+        short,
+    })
 }
 
 /// A deposit's state: everything received (confirmed or not), what is confirmed at `tip` with
@@ -502,4 +557,50 @@ pub fn cache_response(
         params![key, body, now],
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod deposit_tests {
+    use super::*;
+
+    fn output(txid: &str, id: &str, zat: u64, height: u32) -> DepositOutput {
+        DepositOutput {
+            txid: txid.into(),
+            pool: 3,
+            output_index: 0,
+            deposit_id: id.into(),
+            amount_zat: zat,
+            height,
+        }
+    }
+
+    #[test]
+    fn a_reorg_drops_orphaned_deposits_and_moves_remined_ones() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        let a = "a".repeat(32);
+        let b = "b".repeat(32);
+        let first = vec![
+            output("t1", &a, 1_000_000, 100),
+            output("t2", &b, 2_000_000, 101),
+        ];
+        assert_eq!(sync_deposit_outputs(&mut conn, &first).unwrap().added, 2);
+        conn.execute(
+            "INSERT INTO deposit_issued (deposit_id, issued_zat) VALUES (?1, 2000000)",
+            [&b],
+        )
+        .unwrap();
+        // The reorg: t2 is gone from the canonical chain, t1 was mined again one block later.
+        let after = vec![output("t1", &a, 1_000_000, 102)];
+        let synced = sync_deposit_outputs(&mut conn, &after).unwrap();
+        assert_eq!((synced.added, synced.dropped), (0, 1));
+        assert_eq!(synced.short, vec![b.clone()]);
+        let state = deposit_state(&conn, &b, 10_000, 2).unwrap();
+        assert_eq!((state.confirmed_zat, state.issued_zat), (0, 2_000_000));
+        assert_eq!(deposit_state(&conn, &a, 102, 2).unwrap().confirmed_zat, 0);
+        assert_eq!(
+            deposit_state(&conn, &a, 103, 2).unwrap().confirmed_zat,
+            1_000_000
+        );
+    }
 }
