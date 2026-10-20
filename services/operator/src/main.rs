@@ -26,6 +26,7 @@ mod prices;
 mod publish;
 mod push;
 mod realtime;
+mod receipts;
 mod release;
 mod remote;
 mod resolve;

@@ -11,6 +11,7 @@ import { SearchingBanner } from "../art/pixel-art";
 import { ConfettiBurst } from "../kit/confetti";
 import { formatLeft } from "../kit/countdown-ring";
 import { Marble } from "../kit/marble";
+import { dayLabel } from "../player/player-store";
 import { DUEL } from "./copy";
 
 /**
@@ -210,8 +211,8 @@ export function DuelResult({
 }
 
 /**
- * The verdict as a share card (plan §0 R7): the opponent's nickname, the right calls each and the day, with a link to
- * the Duel. A duel's result is public by nickname already; the card adds nothing about anyone's money.
+ * The verdict as a share card (plan §0 R7): the opponent's nickname, the right calls each and the match's day, with a
+ * link to the Duel. A duel's result is public by nickname already; the card adds nothing about anyone's money.
  */
 function shareDuel(match: DuelMatchView, seat: 0 | 1, verdict: string) {
   const me = match.seats[seat];
@@ -219,7 +220,7 @@ function shareDuel(match: DuelMatchView, seat: 0 | 1, verdict: string) {
   void renderShareCard({
     call: DUEL.share.call(other.nickname),
     score: DUEL.share.score(me.right, other.right),
-    when: new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }),
+    when: dayLabel(match.day),
     url: `${SITE_ORIGIN}/games/duel`,
     foot: DUEL.share.foot(verdict),
   }).then((blob) => saveCard(blob, `kakure-duel-${other.nickname}.png`));

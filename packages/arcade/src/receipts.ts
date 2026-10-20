@@ -3,25 +3,38 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 import type { ArcadeGame } from "./field";
 
 /**
- * Bets and profiles (plan §0 R7 under v2): the opt-in board of published positions, and a nickname's public profile.
+ * Bets and profiles (plan §0 R7 under v2, reworked after its privacy review): the opt-in board of published calls,
+ * and a nickname's public profile.
  *
- * A position can be published once it's paid, when it was a single Up or Down on a Window that decided Up or Down and
- * whose signed figures show at least `RECEIPT_MIN_TRADES` trades (it was one of a crowd). What's sent is the operator's
- * signed certificate under your nickname; the arcade service checks it and keeps only the receipt id (a hash of the
- * position's lock), whether the call was right, and the day it was published. The board shows right calls and calls
- * per nickname with at least `BETS_MIN_RECEIPTS` receipts, counting those published before today: never a market, a
- * side, a size or a P&L. Kakure's operator can still match a published position to its trade; the sheet says so.
+ * A paid single Up or Down call can be published while its position is in the operator's book (two days after it's
+ * paid). The device asks the operator over Oblivious HTTP, with the position's secret and its arcade key; the
+ * operator checks the call, its Window's outcome and that at least `RECEIPT_MIN_TRADES` singles were opened on that
+ * Window, and signs only a receipt token `{type, network, receipt, right, player}`. Only that token goes to the
+ * arcade, so the trade never travels beside an IP. The board shows right calls and calls per nickname with at least
+ * `BETS_MIN_RECEIPTS` receipts, and changes once a week (Monday 00:00 UTC): never a market, a side, a size or a
+ * return. Kakure's operator can still tell which trade a receipt was; the sheet says so.
  */
 export const RECEIPT_MIN_TRADES = 3;
 export const BETS_MIN_RECEIPTS = 5;
 export const BETS_PERIODS = ["week", "all"] as const;
 export type BetsPeriod = (typeof BETS_PERIODS)[number];
 
-/** `POST /arcade/v1/receipt`: a paid position's certificate (the operator's signed JSON), signed by the arcade key. */
+/** What the operator signs for a published call (`POST /v1/receipt` over Oblivious HTTP), and the arcade keeps. */
+export interface ReceiptToken {
+  v: 1;
+  type: "kakure-receipt";
+  network: string;
+  receipt: string;
+  right: boolean;
+  player: string;
+  sig: string;
+}
+
+/** `POST /arcade/v1/receipt`: the operator's token, carried and signed by the arcade key it names. */
 export interface ReceiptPublish {
   action: "publish";
   player: string;
-  certificate: Record<string, unknown>;
+  token: ReceiptToken;
   at: number;
 }
 
@@ -44,13 +57,33 @@ export interface BetsRow {
   calls: number;
 }
 
-/** `GET /arcade/v1/bets/<period>`: the board on the network whose operator signs the certificates it accepts. */
+/** `GET /arcade/v1/bets/<week|all>`: last week's calls or every week's, on the network whose operator signs. */
 export interface BetsBoard {
   network: string;
   period: BetsPeriod;
-  /** Receipts published before this day (`YYYYMMDD`, UTC) count: the board is recomputed daily. */
+  /** Receipts published before this Monday (`YYYYMMDD`, UTC) count: the board changes once a week. */
   beforeDay: number;
   rows: BetsRow[];
+}
+
+const DAY_SEC = 86_400;
+const WEEK_DAYS = 7;
+/** 1970-01-01 was a Thursday: three days on, weeks start on Monday. */
+const MONDAY_OFFSET_DAYS = 3;
+const MS = 1000;
+const DATE_DIGITS = 8;
+
+/** The week (Monday 00:00 UTC on) a time falls in, counted from 1970. */
+export function weekOf(sec: number): number {
+  return Math.floor((Math.floor(sec / DAY_SEC) + MONDAY_OFFSET_DAYS) / WEEK_DAYS);
+}
+
+/** A week's Monday as `YYYYMMDD`. */
+export function weekStartDay(week: number): number {
+  const day = week * WEEK_DAYS - MONDAY_OFFSET_DAYS;
+  return Number(
+    new Date(day * DAY_SEC * MS).toISOString().slice(0, "YYYY-MM-DD".length).replaceAll("-", "").slice(0, DATE_DIGITS),
+  );
 }
 
 /** A receipt's id: the same for every certificate a position's lock was issued (a reduced position counts once). */

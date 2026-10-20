@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { ARCADE_PATH, BOARD_LIMIT } from "@kakure/arcade";
+import { ARCADE_PATH, BOARD_LIMIT, weekOf } from "@kakure/arcade";
 import { BODY_MAX_BYTES, DB_PATH, HOUR_SEC, PORT } from "./constants";
 import { commitPicks, duelState, joinQueue, leaveQueue, matchView, pairQueue, revealPicks, settleDuels } from "./duel";
 import { duelBoard, duelHistory, duelRecent, isMatchId } from "./duel-views";
@@ -35,8 +35,8 @@ import { linkX, xConfig } from "./x";
  *   GET  /arcade/v1/duel/match/<id>         a match; picks show once both are revealed
  *   POST /arcade/v1/duel/commit | reveal    a commitment to the picks, then the picks (signed)
  *   GET  /arcade/v1/duel/board | recent     the Elo ladder; the last decided duels
- *   POST /arcade/v1/receipt | receipt/retract   publish a paid position's certificate, or take it back (signed)
- *   GET  /arcade/v1/bets/<week|all>         right calls per nickname with five receipts or more
+ *   POST /arcade/v1/receipt | receipt/retract   publish the operator's receipt for a call, or take it back (signed)
+ *   GET  /arcade/v1/bets/<week|all>         right calls per nickname with five receipts or more, weekly
  *   POST /arcade/v1/profile                 a nickname's public play and badges ({ nickname })
  *   GET  /arcade/v1/x/config                whether Sign in with X is on, and its client id and callback
  *   POST /arcade/v1/x/link                  an X sign-in's code and verifier: the handle becomes the name (signed)
@@ -154,6 +154,7 @@ async function tick(): Promise<void> {
   const hour = Math.floor(now / HOUR_SEC);
   if (hour !== sweptHour) {
     store.sweep(now, SEED_LIFE_SEC, hour);
+    store.receipts.sweep(weekOf(now));
     sweptHour = hour;
   }
 }

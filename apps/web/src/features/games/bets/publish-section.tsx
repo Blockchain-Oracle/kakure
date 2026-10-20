@@ -5,6 +5,8 @@ import { fire } from "@kakure/sounds";
 import { Switch } from "@kakure/ui-web";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useRealtime } from "@/features/data/use-realtime";
+import { MintError } from "@/features/wallet/api";
 import { upDownOf } from "@/features/wallet/records";
 import { useWallet } from "@/features/wallet/wallet-store";
 import { ArcadeError } from "../player/api";
@@ -12,18 +14,24 @@ import { NicknameSheet } from "../player/nickname-sheet";
 import { useNickname } from "../player/player-store";
 import { BETS } from "./copy";
 import { publishPosition, retractPosition } from "./publish";
-import { betsKeys, useBetsBoard } from "./queries";
+import { betsKeys, useBetsBoard, useProfile } from "./queries";
 
 const P = BETS.publish;
 
 /**
- * Owarine's opt-in "publish this call", made private (plan §0 R7 under v2): a paid single Up or Down call can go on the
- * Bets board under this device's nickname, and come off it again. The sheet says what's sent and who can match it.
+ * Owarine's opt-in "publish this call", made private (plan §0 R7 under v2, after its privacy review): a paid single Up
+ * or Down call can go on the Bets board under this device's nickname, and come off it again. The operator vouches for
+ * it over the sealed path, so only "right" or "wrong" reaches the arcade. The sheet says what the weekly board can
+ * still give away, and who can tell which trade it was.
  */
 export function PublishSection({ network, positionKey }: { network: Network; positionKey: string }) {
   const wallet = useWallet(network);
   const nickname = useNickname();
   const board = useBetsBoard("week");
+  const profile = useProfile(nickname);
+  const realtime = useRealtime();
+  const trading =
+    realtime.status === "ready" && realtime.network === network ? (realtime.bundle.trading ?? null) : null;
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +39,8 @@ export function PublishSection({ network, positionKey }: { network: Network; pos
   const record = wallet.positions.find((p) => p.key === positionKey);
   const eligible = record?.state === "paid" && upDownOf(record.certificate) !== null;
   const boardNetwork = board.data?.network ?? null;
-  const here = boardNetwork === null || boardNetwork === network;
+  // The board's network must be known: a call is never sent toward a board that counts the other network.
+  const here = boardNetwork === network;
   const published = record?.published ?? null;
 
   const toggle = async (next: boolean) => {
@@ -42,14 +51,20 @@ export function PublishSection({ network, positionKey }: { network: Network; pos
     setBusy(true);
     setError(null);
     try {
-      if (next) await publishPosition(network, positionKey);
-      else await retractPosition(network, positionKey);
+      if (next) {
+        if (!trading) throw new Error("The signed trading info isn't loaded yet; try again in a moment.");
+        await publishPosition(network, trading, positionKey);
+      } else await retractPosition(network, positionKey);
       fire("toggle", { haptic: "tick" });
       void qc.invalidateQueries({ queryKey: ["arcade", "bets"] });
       void qc.invalidateQueries({ queryKey: betsKeys.profile(nickname) });
     } catch (cause) {
       fire("error");
-      setError(cause instanceof ArcadeError || cause instanceof Error ? cause.message : String(cause));
+      setError(
+        cause instanceof MintError || cause instanceof ArcadeError || cause instanceof Error
+          ? cause.message
+          : String(cause),
+      );
     } finally {
       setBusy(false);
     }
@@ -71,9 +86,16 @@ export function PublishSection({ network, positionKey }: { network: Network; pos
         />
       </div>
       <p className="text-meta text-muted-foreground">
-        {!eligible ? P.notEligible : !here && boardNetwork ? P.notThisNetwork(boardNetwork) : P.explain}
+        {!eligible
+          ? P.notEligible
+          : boardNetwork === null
+            ? P.loading
+            : !here
+              ? P.notThisNetwork(boardNetwork)
+              : P.explain}
       </p>
       {eligible && here ? <p className="text-meta text-muted-foreground">{P.rule}</p> : null}
+      {eligible && here && profile.data?.x ? <p className="text-meta text-foreground">{P.xName}</p> : null}
       {!nickname && eligible && here ? (
         <button
           type="button"

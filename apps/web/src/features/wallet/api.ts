@@ -38,6 +38,8 @@ export const MINT_CODES = {
   unknownPosition: 20_015,
   paid: 20_016,
   notSettled: 20_017,
+  /** Bets (services/operator/src/receipts.rs): not a call the board can count. */
+  notPublishable: 20_018,
 } as const;
 
 type Send = (gatewayKeys: string) => Promise<Response>;

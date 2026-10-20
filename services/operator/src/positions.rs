@@ -258,6 +258,12 @@ pub fn insert(tx: &Transaction<'_>, p: &Position) -> Result<()> {
         ],
     )?;
     add_to_ledger(tx, "staked", p.stake_zat)?;
+    if matches!(p.kind, Kind::Single) {
+        tx.execute(
+            "UPDATE rt_windows SET trades = trades + 1 WHERE id = ?1",
+            params![p.window],
+        )?;
+    }
     Ok(())
 }
 
@@ -673,6 +679,17 @@ mod tests {
         };
         insert(&tx, &position).unwrap();
         tx.commit().unwrap();
+    }
+
+    #[test]
+    fn a_window_counts_its_singles_for_the_receipt_gate() {
+        let conn = book();
+        window(&conn, "btc-5m-9", None, None);
+        single(&conn, "x", "btc-5m-9", 1_000_000);
+        single(&conn, "y", "btc-5m-9", 1_000_000);
+        band(&conn, "z", "btc-5m-9", ("100", "200"), 1_000_000, 2_000_000);
+        let row = rt_store::window(&conn, "btc-5m-9").unwrap().unwrap();
+        assert_eq!(row.trades, 2);
     }
 
     #[test]

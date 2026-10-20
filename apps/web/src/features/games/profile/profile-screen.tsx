@@ -44,6 +44,15 @@ function Figures({ profile }: { profile: Profile }) {
   );
 }
 
+/** The fragment as text; a malformed escape reads as no name, never a crash. */
+function decodeFragment(fragment: string): string {
+  try {
+    return decodeURIComponent(fragment.replace(/^#/, ""));
+  } catch {
+    return "";
+  }
+}
+
 /**
  * `/u#<nickname>` (plan §0 R7): a nickname's public play: the Duel's rating and record, its arcade bests and ranks, its
  * Bets record from five published calls, and the badges those earn. The name lives in the fragment, so the site's host
@@ -51,7 +60,7 @@ function Figures({ profile }: { profile: Profile }) {
  */
 export function ProfileScreen() {
   const fragment = useFragment();
-  const raw = fragment === null ? null : decodeURIComponent(fragment.replace(/^#/, ""));
+  const raw = fragment === null ? null : decodeFragment(fragment);
   const nickname = raw !== null && NICKNAME_PATTERN.test(raw) ? raw : null;
   const profile = useProfile(nickname);
   const missing = fragment !== null && (nickname === null || profile.isError);

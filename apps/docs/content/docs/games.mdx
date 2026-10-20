@@ -117,16 +117,21 @@ claim is signed and dated, so an old one can't be sent again to undo a rename.
 The Leaderboard's **Bets** tab counts calls their owners chose to publish. A paid position's Share sheet has the
 switch: **On the Bets board**.
 
-- **What can be published:** a single Up or Down call, once paid, on a Window that decided Up or Down and whose signed
-  figures show at least three trades, so it was one of a crowd.
-- **What's sent:** the operator's signed certificate for that position, under your nickname, signed by your arcade
-  key. The arcade service checks the operator's signature, the Window's signed outcome and its trade count (from the
-  bundle, or the hour's prints file once the bundle has dropped it), then keeps only a receipt id (a hash of the
-  position's lock), right or wrong, and the day. A position reduced along the way counts once.
-- **What the board shows:** right calls over calls for each nickname with five published calls or more, this week or
-  all time, counting calls published before today. Never a market, side, size or return.
-- **Who can match it:** Kakure's operator can map a published certificate to its trade. Nobody else sees it.
-- **Taking it back:** turn the switch off and the call leaves the board.
+- **What can be published:** a single Up or Down call, once paid, whose Window decided Up or Down and had at least
+  three trades opened on it, while the operator still holds the position (two days after it's paid).
+- **How it's checked:** your device asks the operator over the same sealed path as a trade, with the position's
+  secret and your arcade key. The operator checks the call against its own book and signs only a receipt: right or
+  wrong, for your key, with an id derived from the position. Only that receipt goes to the arcade, so no Window, side,
+  stake or time ever travels beside your IP, and the arcade never learns the trade.
+- **What the board shows:** right calls over calls for each nickname with five published calls or more, last week or
+  all time. It changes once a week (Monday 00:00 UTC), counting calls published before that week began. Never a
+  market, side, size or return.
+- **What it can still give away:** a nickname's weekly change, read against the Windows that settled that week, can
+  narrow down which Windows it called, more so while few people trade. Kakure's operator can tell which trade a
+  receipt was. Publish only calls you're content to have tied to your nickname.
+- **Taking it back:** turn the switch off and the call comes off at the next week's turn, so the moment you took it
+  back doesn't show either. Only the arcade key that published a call can take it down; **Forget this device** takes
+  this device's calls down before it deletes the key.
 
 A nickname's **profile** (`/u#name`, from any board) shows its Duel rating and record, its arcade bests and ranks, its
 Bets record from five calls, and the badges those earn. The name stays in the page's fragment and travels to the

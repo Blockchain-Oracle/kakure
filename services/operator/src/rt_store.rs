@@ -119,10 +119,13 @@ pub struct WindowRow {
     pub closing: Option<String>,
     pub outcome: Option<String>,
     pub settled_at: Option<i64>,
+    /// Singles ever opened on the Window, kept here so the count outlives pruned positions (the Bets board's gate,
+    /// `receipts.rs`). Never published.
+    pub trades: i64,
 }
 
 const WINDOW_COLUMNS: &str = "id, asset, start, expiry, opening, reference, closing, outcome, settled_at, opening_final, \
-     reference_venues";
+     reference_venues, trades";
 
 fn window_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<WindowRow> {
     Ok(WindowRow {
@@ -137,6 +140,7 @@ fn window_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<WindowRow> {
         settled_at: r.get(8)?,
         opening_final: r.get::<_, i64>(9)? != 0,
         reference_venues: r.get(10)?,
+        trades: r.get(11)?,
     })
 }
 
@@ -157,6 +161,23 @@ pub fn migrate(conn: &Connection) -> Result<()> {
         .exists([])?;
     if !has_venues {
         conn.execute_batch("ALTER TABLE rt_windows ADD COLUMN reference_venues TEXT;")?;
+    }
+    // R7: each Window counts the singles opened on it; older books take the count from the positions still kept.
+    let has_trades: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('rt_windows') WHERE name = 'trades'")?
+        .exists([])?;
+    if !has_trades {
+        conn.execute_batch("ALTER TABLE rt_windows ADD COLUMN trades INTEGER NOT NULL DEFAULT 0;")?;
+        let has_positions = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'positions'")?
+            .exists([])?;
+        if has_positions {
+            conn.execute_batch(
+                "UPDATE rt_windows SET trades = (
+                   SELECT COUNT(*) FROM positions p WHERE p.window = rt_windows.id AND p.kind = 'single'
+                 );",
+            )?;
+        }
     }
     Ok(())
 }

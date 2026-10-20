@@ -280,13 +280,13 @@ impl Realtime {
             }
             closes.insert(asset.ticker.to_string(), Value::Object(by_venue));
         }
-        // Each settled Window with its grouped activity, so the trade count a published receipt is gated on stays
-        // checkable once the minute bundle has dropped the Window (plan §0 R7 under v2).
+        // Each settled Window with its prints and outcome. Its activity stays out: the minute bundle shows it while
+        // the Window is recent, and a permanent copy would keep the n−1 case open for good (R7 privacy review).
         let windows: Vec<Value> = rt_store::expiring_between(conn, hour, hour + HOUR_SECS)?
             .iter()
             .filter(|w| w.outcome.is_some())
-            .map(|w| with_volume(conn, w))
-            .collect::<Result<_>>()?;
+            .map(window_json)
+            .collect();
         if !any && windows.is_empty() {
             return Ok(None);
         }

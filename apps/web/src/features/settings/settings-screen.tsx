@@ -420,7 +420,8 @@ function Forget({ network }: { network: "mainnet" | "testnet" }) {
         ) : null}
         <p className="text-body text-foreground">
           Chips and tickets can't be recovered after this unless you exported a backup. Payouts already scheduled still
-          arrive; only this browser's records are erased.
+          arrive; only this browser's records are erased. Calls you published to the Bets board are taken down first,
+          and come off at the week's turn.
         </p>
         <SlideToConfirm
           className="mt-6"

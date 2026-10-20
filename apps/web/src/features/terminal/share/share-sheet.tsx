@@ -10,7 +10,7 @@ import { PublishSection } from "@/features/games/bets/publish-section";
 import { PERCENT } from "../constants";
 import { sideWord } from "../format";
 import type { HistoryRow } from "../sheets/wallet-sheet";
-import { postText, renderShareCard, saveCard } from "./card";
+import { postText, renderShareCard, roiText, saveCard } from "./card";
 
 /**
  * Share a result (Owarine `PositionSheets.tsx` `ShareSheet`, made private): only once it's paid, ROI only (no stake,
@@ -72,11 +72,7 @@ export function ShareSheet({
       ) : (
         <div className="flex flex-col gap-4">
           {url ? (
-            <img
-              src={url}
-              alt={`${call}, ${roi >= 0 ? "+" : "−"}${Math.abs(roi).toFixed(1)}%`}
-              className="w-full rounded-group border border-border"
-            />
+            <img src={url} alt={`${call}, ${roiText(roi)}`} className="w-full rounded-group border border-border" />
           ) : (
             <div className="aspect-[16/10] w-full rounded-group bg-secondary motion-safe:animate-pulse" />
           )}

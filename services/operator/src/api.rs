@@ -205,6 +205,7 @@ fn route(api: &Api, inner: Inner) -> Reply {
         ("POST", "/v1/redeem") => body(&inner.body).and_then(|r| trading::redeem(api, r, key)),
         ("POST", "/v1/exit") => body(&inner.body).and_then(|r| trading::exit(api, r, key)),
         ("POST", "/v1/position") => body(&inner.body).and_then(|r| trading::position(api, r)),
+        ("POST", "/v1/receipt") => body(&inner.body).and_then(|r| crate::receipts::receipt(api, r)),
         _ => {
             return Reply {
                 status: 404,

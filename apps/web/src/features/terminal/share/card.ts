@@ -64,8 +64,12 @@ function qr(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, s
   }
 }
 
+/**
+ * A return to the whole percent: a tenth of a percent is enough to solve back to the price paid, and with the asset,
+ * side, Window length and day that narrows the trade (R7 privacy review).
+ */
 export function roiText(roi: number): string {
-  return `${roi >= 0 ? "+" : "−"}${Math.abs(roi).toFixed(1)}%`;
+  return `${roi >= 0 ? "+" : "−"}${Math.abs(Math.round(roi))}%`;
 }
 
 export async function renderShareCard(card: ShareCard): Promise<Blob> {

@@ -41,7 +41,7 @@ const KAKURE_NO_PRICE: u32 = 20_013;
 const KAKURE_OVER_CAP: u32 = 20_014;
 const KAKURE_UNKNOWN_POSITION: u32 = 20_015;
 const KAKURE_PAID: u32 = 20_016;
-const KAKURE_NOT_SETTLED: u32 = 20_017;
+pub(crate) const KAKURE_NOT_SETTLED: u32 = 20_017;
 
 /// A parlay leg needs this much entry time left (Owarine `LEG_MIN_LEFT_SEC`, rounded up).
 const PARLAY_LEG_MIN_LEFT_SECS: i64 = 30;
@@ -114,7 +114,7 @@ fn random_id() -> Result<String, Refusal> {
     Ok(hex::encode(bytes))
 }
 
-fn is_hex(s: &str, len: usize) -> bool {
+pub(crate) fn is_hex(s: &str, len: usize) -> bool {
     s.len() == len
         && s.bytes()
             .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
@@ -129,7 +129,7 @@ fn check_side(side: &str) -> Result<(), Refusal> {
 }
 
 /// The position and proof that the caller holds its secret.
-fn owned(api: &Api, id: &str, secret: &str) -> Result<Position, Refusal> {
+pub(crate) fn owned(api: &Api, id: &str, secret: &str) -> Result<Position, Refusal> {
     if !is_hex(secret, SECRET_HEX) {
         return Err(refuse(KAKURE_BAD_REQUEST, "bad secret"));
     }

@@ -130,10 +130,10 @@ export interface PositionRecord {
   how?: string;
   paidAt?: number;
   /**
-   * On the Bets board under this device's nickname (plan §0 R7): the receipt id the arcade keeps, whether the call
-   * was right, and when it was published. Kept here, in the vault, so the toggle shows its state and can retract.
+   * On the Bets board (plan §0 R7): the receipt id the arcade keeps, whether the call was right, when it was published
+   * and the arcade key it was published under (only that key can take it back). Kept here, in the vault.
    */
-  published?: { receipt: string; right: boolean; at: number };
+  published?: { receipt: string; right: boolean; at: number; player: string };
   /**
    * Partial closes (Reduce), oldest first: what each paid and the stake it took off (this device's history), and, so
    * Verify can replay the mint's rule from the first signed terms to the last, the share sold and the certificate it

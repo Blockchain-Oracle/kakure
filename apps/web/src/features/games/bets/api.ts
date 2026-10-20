@@ -1,15 +1,21 @@
 "use client";
 
-import { ARCADE_PATH, type BetsBoard, type BetsPeriod, type Profile, type ReceiptAccepted } from "@kakure/arcade";
-import type { PositionCertificate } from "@/features/wallet/records";
+import {
+  ARCADE_PATH,
+  type BetsBoard,
+  type BetsPeriod,
+  type Profile,
+  type ReceiptAccepted,
+  type ReceiptToken,
+} from "@kakure/arcade";
 import { ArcadeError } from "../player/api";
 import { MS_PER_SEC } from "../player/constants";
 import { playerKey, signAsPlayer } from "../player/device-key";
 
 /**
  * Bets and profiles from the browser (plan §0 R7 under v2), on the arcade's door like the rest: the site worker forwards
- * method, path and body only. Publishing sends one paid position's signed certificate under this device's nickname;
- * nothing else about the wallet ever goes with it.
+ * method, path and body only. Publishing carries only the operator's receipt token (right or wrong, for this key),
+ * which the device got over the sealed path: nothing about the trade comes this way.
  */
 const now = () => Math.floor(Date.now() / MS_PER_SEC);
 
@@ -32,11 +38,11 @@ export const readBetsBoard = (period: BetsPeriod): Promise<BetsBoard> => call("G
 /** A nickname's public play; the name goes in the body, never a URL. */
 export const readProfile = (nickname: string): Promise<Profile> => call("POST", "/profile", { nickname });
 
-export function publishCertificate(certificate: PositionCertificate): Promise<ReceiptAccepted> {
+export function publishToken(token: ReceiptToken): Promise<ReceiptAccepted> {
   return call(
     "POST",
     "/receipt",
-    signAsPlayer({ action: "publish", player: playerKey(), certificate: { ...certificate }, at: now() }),
+    signAsPlayer({ action: "publish", player: playerKey(), token: { ...token }, at: now() }),
   );
 }
 
