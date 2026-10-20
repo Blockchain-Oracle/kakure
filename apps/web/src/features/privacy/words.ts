@@ -1,69 +1,79 @@
-import { ADDRESS_LIST_SIZE, MIN_NEW_TICKETS_PER_RELEASE, MIN_TICKETS_PER_SIDE } from "@kakure/domain";
-
 /**
- * Who learns what, and what Kakure can't hide, in plain words. Shared by /privacy and the landing; the docs' privacy
- * page (apps/docs/content/docs/privacy.mdx) says the same. Sources: context/11-chosen-direction/privacy-design.md
- * ("Who learns what", "Residual risks"), plan §6, and the S08 privacy audit (context/16-privacy-audit/audit.md:
- * O1 grouped publication, PD28, O5/O18 servers, O11 address list).
+ * Who learns what, and what Kakure can't hide, in plain words (plan §00 "Who sees what" and "Residual risks"); the
+ * landing's four-column table (features/landing/words.ts) and the docs' privacy page say the same. Checked against the
+ * code: the site, its signed files and the Oblivious HTTP relay are one Cloudflare worker (`services/data-worker`,
+ * `relay.ts` builds a fresh request with only its content type); the price relay is another
+ * (`services/price-relay`) that sends every symbol to everyone, while a candle request names its interval and how far
+ * back it reaches (`packages/chart/src/live/candle-view.ts`); per-Window volume counts only whole groups of three
+ * trades (`bundle-v2.ts` `trades`, `volumeZat`); a withdrawal leaves as canonical notes, each at its own random time
+ * (`services/operator/src/payouts.rs`); the bundle states what the house owes each minute (`house`).
  */
-const GROUP = MIN_NEW_TICKETS_PER_RELEASE;
-/** Union bound on two of n bets in one batch picking the same address from the list: n(n−1)/2 ÷ list size. */
-const EXAMPLE_BETS = 10;
-const PAIRS = (EXAMPLE_BETS * (EXAMPLE_BETS - 1)) / 2;
-const PERCENT = 100;
-const COLLISION_PERCENT = Math.ceil((PAIRS * PERCENT) / ADDRESS_LIST_SIZE);
+export const PROMISE = {
+  lead: "The prices are public. You aren't.",
+  line: "One shielded deposit becomes private chips, blind-signed so the mint can't tell which deposit they came from. Every request travels through an Oblivious HTTP relay: the relay sees your IP but only encrypted bytes, and the operator sees the trade but never your IP. No account, no sign-in.",
+} as const;
 
 export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: string }> = [
   {
     party: "Anyone watching the chain",
-    learns: "That shielded transactions happened, with their timing, fee and shape.",
-    never: "Who paid whom, how much, the memo, or that a transaction is a bet.",
+    learns: "That shielded deposits and payouts happened, with their timing, fee and shape.",
+    never: "Amounts, memos, who sent them, or which trades they paid for.",
+  },
+  {
+    party: "This site and its relay",
+    learns:
+      "Your IP address, when you visit and make requests, and which pages you open. One Cloudflare worker serves the site, the signed files and the relay.",
+    never:
+      "What's inside a request: it's sealed to the operator's published key (RFC 9458). Nor the asset or Window you look at: it stays in the #fragment, and every visitor downloads the same signed files.",
   },
   {
     party: "The operator (us)",
-    learns: "Each bet's amount, side, arrival time and payout address.",
-    never: "Who you are or which wallet paid. Clients never contact the operator; it only publishes signed files.",
-  },
-  {
-    party: "Other bettors and the public",
-    learns: `Each market's ticket count and ticket hashes, published only in groups of at least ${GROUP} new tickets; each side's totals once both sides have ${MIN_TICKETS_PER_SIDE}; the final totals and the result.`,
-    never: "Any single bet: its side, its size or when it arrived.",
-  },
-  {
-    party: "This website's host",
-    learns: "Your IP address, when you visited and which pages you opened.",
+    learns: "Each deposit's amount; each trade's Window, side, stake and time; each withdrawal's address and amount.",
     never:
-      "Your bets, sides, payout address, network or the markets you look at. The QR is built in your browser, market ids stay in the #fragment, and every visitor downloads the same files for both networks.",
+      "Your IP; which deposit paid for which trade; that two trades are the same person's; who you are. Every trade spends fresh chips, each signed with a proof (DLEQ) against one published set of keys, so no chip can be marked.",
+  },
+  {
+    party: "Everyone else",
+    learns:
+      "The price formula, volatility, spread and caps; signed prices and outcomes; the chip keys; what the house owes each minute; volume per Window, counted only in whole groups of three trades.",
+    never: "Any single trade.",
   },
   {
     party: "Kakure's price relay",
-    learns: "Your IP, and when a tab showing prices is open.",
-    never: "Which prices you watch: it streams every symbol to everyone, and your browser sends it nothing.",
+    learns: "Your IP, when a tab showing prices is open, and which candle interval your chart shows and how far back.",
+    never: "Which asset you watch: it streams and serves every symbol to everyone.",
   },
   {
     party: "Your wallet's server",
     learns:
-      "Your IP, when your wallet syncs and broadcasts, and which transactions it fetches, bets and payouts included, unless your wallet uses Tor. With Zodl or Zingo that's your wallet's own server; the Kakure app syncs with zec.rocks and sends over Nym, so zec.rocks sees its IP when it syncs.",
+      "Your IP, when your wallet syncs and broadcasts, and which transactions it fetches, unless your wallet uses Tor.",
     never: "The memo or the amount.",
   },
   {
     party: "An exchange where you cash out",
-    learns: "The amount you deposit.",
-    never: "Which bet it came from: every same-size winning ticket pays the same.",
+    learns: "The amounts it receives.",
+    never:
+      "Which trades they came from: a withdrawal is split into standard 1, 2 and 5 notes, each sent at its own random time.",
   },
 ];
 
 export const RESIDUALS = [
-  "The operator sees every bet's amount, side and payout address, though not who placed it.",
-  "Odds are reports signed by the operator, not cryptographic proofs.",
-  "Custody and resolution are trusted: there are no smart contracts on Zcash.",
-  `Every published change, the final totals included, covers at least ${GROUP} new tickets. If all the tickets in a group took the same side, that group's side and total show (not whose tickets they are), and someone who places most of a group themselves can work out the rest (the n−1 attack).`,
-  `If fewer than ${GROUP} tickets are still waiting to be listed when a market's cutoff block is final, they're refunded in full and never published. A bet that arrives last, alone, doesn't play.`,
-  "Miners set block timestamps within consensus limits, so the cutoff block has some latitude.",
-  `Each signed list holds ${ADDRESS_LIST_SIZE.toLocaleString("en-US")} market addresses and your browser picks one at random, so two bets in the same batch can share one (under ${COLLISION_PERCENT}% for ${EXAMPLE_BETS} bets); only the operator can see that. Each batch, used addresses are replaced together with random unused ones, so a new list doesn't show which were paid.`,
+  "Timing. A trade placed right after a deposit, or a withdrawal right after a win, can be matched by time. Chips come in standard amounts and withdrawals leave at random times; spreading your own activity out does the rest.",
+  "Kakure runs both the relay and the operator. Oblivious HTTP is built for two separate parties (RFC 9458), so keeping your IP apart from your trades rests on Kakure not combining the two. Using Tor keeps your IP from both.",
+  "Custody and the house's solvency are trusted. Each minute the signed bundle states the chips outstanding and the most the open positions could pay.",
+  "Position certificates aren't blinded, so the operator links a position's open to its close or redemption. That's the same anonymous trade, so it reveals nothing new.",
+  "Volume per Window moves in steps of at least three trades. Someone who places two trades of a group can work out the third's stake.",
+  "Prices and outcomes are reports signed by the operator. Each print is an exchange's public 1-minute candle, so anyone can fetch them again and recompute.",
+  "The operator reads the chain from public light-wallet servers over Tor, so it relies on them to serve the chain honestly.",
+  "While few people use Kakure, the crowd you hide among is small.",
+  "Oblivious HTTP and Zcash's note encryption use elliptic-curve key exchange, so traffic and transactions recorded today could be read after a future break of that cryptography (harvest now, decrypt later).",
   "Your own funding history and your wallet's server are outside Kakure's control.",
-  "The operator reads the chain from public light-wallet servers (zec.rocks) over Tor, so it relies on them to serve the chain honestly.",
-  "While few people use Kakure, the set of bettors you hide among is small.",
-  "The published market addresses could be decrypted by a future break of today's cryptography (harvest now, decrypt later).",
-  "Stock markets settle on two keyed sources (Pyth and Alpaca) that you can't re-fetch yourself.",
 ];
+
+export const NETWORKS = {
+  title: "Testnet and mainnet",
+  lines: [
+    "Testnet uses TAZ, which has no value; it is where Kakure runs today. Mainnet uses real ZEC and needs a deliberate slide to switch to.",
+    "Each network keeps its own operator key, chips, positions and cached files on your device, and a backup from one network can't be imported into the other.",
+  ],
+} as const;
