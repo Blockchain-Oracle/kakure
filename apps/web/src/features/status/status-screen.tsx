@@ -5,12 +5,14 @@ import { Button, cx } from "@kakure/ui-web";
 import { RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { DATA_SOURCE, NETWORK_LABEL, PRICE_RELAY } from "@/constants";
-import { useMarkets } from "@/features/data/use-markets";
+import { useRealtime } from "@/features/data/use-realtime";
+import { LENGTHS, liveCount } from "@/features/markets/live-lanes";
 import { HEALTH_WORD, useRelayHealth } from "@/features/shell/health-chip";
+import { LANE_SYMBOLS } from "@/features/terminal/use-window";
 import { formatAge, formatClock, useNow } from "@/lib/time";
 
-/** The symbols the shell watches for its health chip, shown one by one here. */
-const WATCHED = ["BTC-USD", "ETH-USD", "SOL-USD", "ZEC-USD"] as const;
+const MS = 1000;
+const KEYSET_HEAD = 12;
 const PRICE_WORD = { live: "Live", stale: "Stale", connecting: "Waiting", closed: "Closed" } as const;
 
 function Tone({ tone, children }: { tone: "good" | "warn" | "muted"; children: ReactNode }) {
@@ -37,7 +39,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function SymbolRow({ symbol, now }: { symbol: (typeof WATCHED)[number]; now: number }) {
+function SymbolRow({ symbol, now }: { symbol: (typeof LANE_SYMBOLS)[number]; now: number }) {
   const price = usePrice(symbol);
   return (
     <Row label={symbol.replace("-USD", "")}>
@@ -59,13 +61,14 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * Status: what the health chip summarises, read live from this page — the price relay's connection and each watched
- * symbol's last tick, and the signed data for this network (the latest verified batch and when this device checked).
- * Nothing here is reported by a server about itself; it is what this browser sees.
+ * Status: what the health chip summarises, read live from this page: the price relay's connection and each lane
+ * symbol's last tick; the signed data for this network (the latest verified minute bundle and when this device
+ * checked); and trading as that bundle states it (Windows trading now, deposits, the mint's keyset). Nothing here is
+ * reported by a server about itself; it is what this browser sees.
  */
 export function StatusScreen() {
   const health = useRelayHealth();
-  const data = useMarkets();
+  const data = useRealtime();
   const now = useNow();
   const relayHost = new URL(PRICE_RELAY).host;
 
@@ -87,7 +90,7 @@ export function StatusScreen() {
         <Row label="Host">
           <span className="numbers text-row-change text-foreground">{relayHost}</span>
         </Row>
-        {WATCHED.map((symbol) => (
+        {LANE_SYMBOLS.map((symbol) => (
           <SymbolRow key={symbol} symbol={symbol} now={now} />
         ))}
       </Panel>
@@ -98,7 +101,7 @@ export function StatusScreen() {
         </Row>
         {data.status === "ready" ? (
           <>
-            <Row label="Latest batch">
+            <Row label="Latest bundle">
               <Tone tone={data.refreshError ? "warn" : "good"}>
                 <span className="numbers">
                   {data.bundle.seq} · {formatClock(data.latest.publishedAt)}
@@ -115,17 +118,46 @@ export function StatusScreen() {
             </Row>
           </>
         ) : (
-          <Row label="Latest batch">
+          <Row label="Latest bundle">
             <Tone tone={data.status === "loading" ? "muted" : "warn"}>
               {data.status === "loading"
                 ? "Loading"
                 : data.status === "unpublished"
                   ? "Nothing published yet"
-                  : "Can't verify the latest batch"}
+                  : "Can't verify the latest bundle"}
             </Tone>
           </Row>
         )}
       </Panel>
+
+      {data.status === "ready" ? (
+        <Panel title="Trading">
+          <Row label="Windows trading now">
+            <span className="numbers text-row-change text-foreground">
+              {LENGTHS.reduce((n, sec) => n + liveCount(sec, data.bundle, Math.floor(now / MS)), 0)}
+            </span>
+          </Row>
+          <Row label="Mint">
+            <Tone tone={data.bundle.trading ? "good" : "muted"}>
+              {data.bundle.trading ? "Open" : "Not published on this network"}
+            </Tone>
+          </Row>
+          {data.bundle.trading ? (
+            <>
+              <Row label="Deposits">
+                <span className="text-row-strong text-foreground">
+                  {data.bundle.trading.depositAddress ? "Open" : "Paused"}
+                </span>
+              </Row>
+              <Row label="Chip keyset">
+                <span className="numbers text-row-change text-foreground">
+                  {data.bundle.trading.keyset.id.slice(0, KEYSET_HEAD)}…
+                </span>
+              </Row>
+            </>
+          ) : null}
+        </Panel>
+      ) : null}
 
       {data.status !== "loading" ? (
         <div>

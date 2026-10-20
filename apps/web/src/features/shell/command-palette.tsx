@@ -1,13 +1,13 @@
 "use client";
 
+import { cadenceLabel, LANE_ASSETS, LANES } from "@kakure/domain";
 import { Mark, Modal } from "@kakure/ui-web";
 import { ArrowUpRight, CornerDownLeft, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
 import { DOCS_ORIGIN } from "@/constants";
-import { useMarkets } from "@/features/data/use-markets";
 import { assetFor } from "@/features/markets/assets";
-import { shortTitle, WINDOW_LABEL } from "@/features/markets/market-view";
+import { LENGTHS, tradeHref } from "@/features/markets/live-lanes";
 import { NAV_ICONS } from "./nav-icons";
 import { MORE_ITEMS, PLACES } from "./places";
 import { setOverlay } from "./shell-store";
@@ -46,33 +46,31 @@ function usePageHits(): Hit[] {
   );
 }
 
-function useMarketHits(): Hit[] {
-  const data = useMarkets();
-  return useMemo(() => {
-    if (data.status !== "ready") return [];
-    return data.bundle.markets.map((market) => {
-      const asset = assetFor(market);
-      return {
-        key: `market-${market.id}`,
-        group: "Markets" as const,
-        title: shortTitle(market, asset.symbol),
-        detail: `${asset.name} · ${WINDOW_LABEL[market.window]}`,
-        href: `/m#${data.network}/${market.id}`,
-        icon: <Mark mark={asset.mark} label={asset.symbol} size="inline" />,
-        words: `${asset.symbol} ${asset.name} ${market.window} ${shortTitle(market, asset.symbol)}`.toLowerCase(),
-      };
-    });
-  }, [data]);
-}
+/** Every asset on every Window length, shortest first: static, so the palette requests nothing. */
+const MARKET_HITS: Hit[] = LENGTHS.flatMap((cadenceSec) =>
+  LANE_ASSETS.filter((asset) => LANES.some((l) => l.asset === asset && l.cadenceSec === cadenceSec)).map((asset) => {
+    const info = assetFor({ kind: "close", subject: asset });
+    const length = cadenceLabel(cadenceSec);
+    return {
+      key: `market-${asset}-${length}`,
+      group: "Markets" as const,
+      title: `${asset} · ${length} Window`,
+      detail: `${info.name} · Up or Down over ${length}`,
+      href: tradeHref(asset, cadenceSec),
+      icon: <Mark mark={info.mark} label={asset} size="inline" />,
+      words: `${asset} ${info.name} ${length} window up down`.toLowerCase(),
+    };
+  }),
+);
 
 /**
  * The ⌘K / `/` palette over markets and pages (Mitoshi TopLine's command palette): type to narrow, arrows to move,
- * Enter to open. Markets come from the signed bundle every page already loads; nothing new is requested.
+ * Enter to open. Markets are every asset's Window lengths (static), each opening the terminal; nothing is requested.
  */
 export function CommandPalette({ open }: { open: boolean }) {
   const router = useRouter();
   const pages = usePageHits();
-  const markets = useMarketHits();
+  const markets = MARKET_HITS;
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
 

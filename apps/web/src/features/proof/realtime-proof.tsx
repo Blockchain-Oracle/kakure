@@ -3,17 +3,12 @@
 import {
   type BundleV2,
   cadenceLabel,
-  type LaneInfo,
   type LatestV2,
   type Network,
-  outcomeOf,
   PRICE_SCALE_E4,
   type Prints,
-  parseWindowId,
-  referenceOf,
   type VenueKey,
   vote,
-  type WindowState,
   zatToZec,
 } from "@kakure/domain";
 import { OPERATOR_PUBLIC_KEYS, printsQuery } from "@kakure/query";
@@ -25,6 +20,7 @@ import { DATA_SOURCE, NETWORK_LABEL } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
 import { useRealtime } from "@/features/data/use-realtime";
 import { formatClock, formatDateTime } from "@/lib/time";
+import { recompute } from "./recompute";
 
 /**
  * Proof (plan §00): what this browser checked itself. Every minute's bundle is signed by the operator key built into
@@ -163,17 +159,6 @@ function PricingInputs({ bundle }: { bundle: BundleV2 }) {
       </dl>
     </Card>
   );
-}
-
-/** Recomputes one settled Window from its own prints; `null` when its lane isn't listed. */
-function recompute(window: WindowState, lanes: ReadonlyMap<string, LaneInfo>) {
-  const parsed = parseWindowId(window.id);
-  const lane = parsed ? lanes.get(parsed.lane.id) : undefined;
-  if (!lane) return null;
-  // The reference comes from the venues that had committed when it was set (published with it).
-  const reference = referenceOf(window.referenceVenues ?? lane.venues, window.opening ?? {});
-  const outcome = reference === null ? "refund" : outcomeOf(lane.venues, window.opening ?? {}, window.closing ?? {});
-  return { lane, ok: outcome === window.outcome && (reference ?? undefined) === window.reference };
 }
 
 function Settled({ bundle }: { bundle: BundleV2 }) {

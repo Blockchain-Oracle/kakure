@@ -98,21 +98,20 @@ export function TerminalScreen() {
   const lanes = lanesFor(asset);
   // The first-visit length (the shortest trading now) is chosen once the bundle is in, then held: Owarine re-picks it
   // every second until a tap, which here would swap the Line under you each time a 1-minute Window stops trading.
-  // A link's length (`#BTC/5m`) wins; a picked one is written back so a reload keeps it.
+  // The fragment's length (`#BTC/5m`) is the source of truth whenever it names one: a pick writes it there, so a
+  // reload keeps it. Without one, a held pick, else the first-visit default, decided in this render (no effect race).
   const linked = lanes.find((l) => l.label === length)?.cadenceSec ?? null;
-  useEffect(() => {
-    if (linked !== null) setCadence(linked);
-  }, [linked]);
   const pickCadence = (sec: number) => {
     setCadence(sec);
     history.replaceState(null, "", `#${asset}/${cadenceLabel(sec)}`);
   };
   const picked = cadence !== null && lanes.some((l) => l.cadenceSec === cadence) ? cadence : null;
-  const fallback = picked === null && bundle && nowSec > 0 ? defaultCadence(asset, bundle, nowSec) : null;
+  const fallback =
+    linked === null && picked === null && bundle && nowSec > 0 ? defaultCadence(asset, bundle, nowSec) : null;
   useEffect(() => {
     if (fallback !== null) setCadence(fallback);
   }, [fallback]);
-  const cadenceSec = picked ?? fallback;
+  const cadenceSec = linked ?? picked ?? fallback;
   const screen = cadenceSec !== null && nowSec > 0 ? pickWindow(asset, cadenceSec, bundle, nowSec, held) : null;
   const sigmaText = bundle?.pricing.sigma[asset];
   const sigma = sigmaText ? Number(sigmaText) : null;

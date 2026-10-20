@@ -112,8 +112,18 @@ export interface PositionRecord {
   paidZat?: string;
   how?: string;
   paidAt?: number;
-  /** Partial closes (Reduce), oldest first: what each paid and the stake it took off (this device's history). */
-  reductions?: { at: number; paidZat: string; stakeZat: string }[];
+  /**
+   * Partial closes (Reduce), oldest first: what each paid and the stake it took off (this device's history), and, so
+   * Verify can replay the mint's rule from the first signed terms to the last, the share sold and the certificate it
+   * replaced (kept since Verify; older entries lack them).
+   */
+  reductions?: {
+    at: number;
+    paidZat: string;
+    stakeZat: string;
+    fractionBps?: number;
+    from?: PositionCertificate;
+  }[];
 }
 
 const TYPES = ["chip", "deposit", "spend", "position"] as const;

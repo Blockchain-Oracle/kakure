@@ -1,224 +1,272 @@
 "use client";
 
-import { type Bundle, fromBase64Url, MIN_NEW_TICKETS_PER_RELEASE, type Network, ticketHashHex } from "@kakure/domain";
-import { decodeReceipt, isFinal, OPERATOR_PUBLIC_KEYS, type Receipt, winningPayout } from "@kakure/query";
-import { EmptyState, Pill, SearchField, Skeleton } from "@kakure/ui-web";
-import { CheckCircle2, CircleDashed, ShieldCheck, XCircle } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import { NETWORK_COIN, NETWORK_LABEL } from "@/constants";
+import {
+  type BundleV2,
+  cadenceLabel,
+  type Network,
+  parlayPayoutZat,
+  parlayPriceE8,
+  parlaySettledZat,
+  parseWindowId,
+  reduceShare,
+  sidePayoutZat,
+  type WindowState,
+} from "@kakure/domain";
+import { operatorKey, printsQuery } from "@kakure/query";
+import { verifyDocument } from "@kakure/signing";
+import { EmptyState, Mark, Skeleton } from "@kakure/ui-web";
+import { useQuery } from "@tanstack/react-query";
+import { CheckCircle2, CircleDashed, Layers, ShieldCheck, XCircle } from "lucide-react";
+import Link from "next/link";
+import { type ReactNode, useMemo } from "react";
+import { DATA_SOURCE, NETWORK_COIN } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
-import { useMarkets } from "@/features/data/use-markets";
-import { useFragment } from "@/features/market/fragment";
-import { coinAmount, sideWord } from "@/features/markets/market-view";
+import { useRealtime } from "@/features/data/use-realtime";
+import { recompute } from "@/features/proof/recompute";
+import { centsOf, clockText, sideWord, zecText } from "@/features/terminal/format";
+import type { PositionRecord } from "@/features/wallet/records";
+import { useWallet } from "@/features/wallet/wallet-store";
 
 /**
- * The verify centre (C12): a receipt (from `/verify#<receipt>`, kept in the fragment so the host never sees it),
- * a ticket hash, the batch signature and the pinned operator keys, all checked on this device against the latest
- * signed bundle. Resolution re-verify needs the operator's resolution records (S03); until they exist this page
- * says so instead of pretending to check.
+ * Verify (plan §00 Verify / Proof): every position on this device carries the mint's signed certificate, and each is
+ * checked here again, on this device, from public files only: its signature against the operator key built into this
+ * site; its payout against the public formula (stake ÷ ask, or ÷ the parlay's combined price, floored to the chip
+ * grid); and, once its Window has settled, the outcome recomputed from the venues' signed prints and what was paid
+ * against it. Nothing is sent: the hourly prints files load all at once, never one hour at a time (O22).
  */
-const HASH = /^[0-9a-f]{64}$/;
+type Check = { ok: boolean | null; text: string };
+const MS = 1000;
+const HOUR_SEC = 3_600;
+/** A Window settles about a minute after it ends; its hour's signed prints file follows the hour's end. */
+const SETTLE_LAG_SEC = 60;
+
+/** When the prints file that recomputes a Window ending at `expirySec` is published. */
+const printsAt = (expirySec: number) => Math.ceil((expirySec + SETTLE_LAG_SEC) / HOUR_SEC) * HOUR_SEC;
+
+/**
+ * A single's price, through any partial closes: the first signed terms against the formula, then each share sold
+ * replayed with the mint's rule (`reduceShare`), which must land on the terms signed last.
+ */
+function priceCheck(record: PositionRecord, coin: string): Check {
+  const cert = record.certificate;
+  if (!cert) return { ok: false, text: "No certificate" };
+  const chain = record.reductions ?? [];
+  const askE4 = cert.askE4 ?? 0;
+  if (chain.length === 0) {
+    return {
+      ok: sidePayoutZat(Number(cert.stakeZat), askE4) === Number(cert.payoutZat),
+      text: `Pays ${zecText(Number(cert.payoutZat))} ${coin}: the stake over its ask, ${centsOf(askE4)}`,
+    };
+  }
+  const first = chain[0]?.from;
+  if (!first || chain.some((r) => !r.from || r.fractionBps === undefined)) {
+    return {
+      ok: null,
+      text: "Partly sold back before this device kept the earlier terms; what's left is signed as shown",
+    };
+  }
+  let stake = Number(first.stakeZat);
+  let payout = Number(first.payoutZat);
+  const firstOk = sidePayoutZat(stake, first.askE4 ?? 0) === payout && first.askE4 === askE4;
+  for (const r of chain) {
+    const share = reduceShare(stake, payout, r.fractionBps ?? 0);
+    stake -= share.soldStakeZat;
+    payout -= share.soldPayoutZat;
+  }
+  return {
+    ok: firstOk && stake === Number(cert.stakeZat) && payout === Number(cert.payoutZat),
+    text: `Bought to pay ${zecText(Number(first.payoutZat))} ${coin} at ${centsOf(askE4)}; ${chain.length} partial close${chain.length === 1 ? "" : "s"} replayed with the mint's rule leave ${zecText(payout)} ${coin}`,
+  };
+}
 
 export function VerifyScreen() {
-  const fragment = useFragment();
-  const data = useMarkets();
-  const [input, setInput] = useState("");
-  const value = (fragment ?? "").replace(/^#/, "");
+  const data = useRealtime();
+  const network = data.network;
+  const bundle = data.status === "ready" ? data.bundle : null;
+  const wallet = useWallet(network);
+  const held = wallet.positions.filter((p) => p.certificate);
+  const prints = useQuery({
+    ...printsQuery(DATA_SOURCE, network, bundle ?? undefined),
+    enabled: bundle !== null && held.length > 0,
+  });
+  const states = useMemo(() => {
+    const map = new Map<string, WindowState>();
+    for (const file of prints.data ?? []) for (const w of file.windows) map.set(w.id, w);
+    for (const w of bundle?.windows ?? []) if (w.outcome) map.set(w.id, w);
+    return map;
+  }, [prints.data, bundle]);
 
-  useEffect(() => {
-    if (value) setInput(value);
-  }, [value]);
-
-  const submit = (text: string) => {
-    setInput(text);
-    const clean = text.trim().replace(/^.*#/, "");
-    history.replaceState(history.state, "", clean ? `#${clean}` : window.location.pathname);
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-  };
-
-  const receipt = value && !HASH.test(value) ? decodeReceipt(value) : null;
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-      <h1 className="font-display text-page-title text-foreground">Verify</h1>
-      <SearchField
-        label="Receipt link or ticket hash"
-        placeholder="Paste a receipt link or a ticket hash"
-        value={input}
-        onChange={submit}
-      />
-      {fragment === null || data.status === "loading" ? (
-        <Skeleton className="h-48 rounded-group" />
-      ) : data.status === "error" ? (
-        <DataErrorState error={data.error} network={data.network} onRetry={data.refetch} />
-      ) : data.status === "unpublished" ? (
-        <EmptyState
-          title="Nothing published to verify against"
-          reason={`No signed batch exists on ${NETWORK_LABEL[data.network]} yet.`}
-        />
-      ) : (
-        <>
-          <BatchCard bundle={data.bundle} network={data.network} />
-          {value === "" ? (
-            <p className="rounded-group border border-border bg-card p-5 text-row-detail text-muted-foreground">
-              Open a receipt's verify link, or paste one above. A ticket hash (64 hex characters) is searched in every
-              market's signed list. Everything is checked here; nothing is sent.
-            </p>
-          ) : HASH.test(value) ? (
-            <HashCard hash={value} bundle={data.bundle} />
-          ) : receipt ? (
-            <ReceiptCard receipt={receipt} bundle={data.bundle} network={data.network} />
-          ) : (
-            <EmptyState
-              icon={<XCircle />}
-              tone="warn"
-              title="That isn't a Kakure receipt"
-              reason="Receipt links end in /verify# followed by the receipt. Copy it again from the ticket's Receipt section."
-            />
-          )}
-        </>
-      )}
-      <KeysCard />
+    <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
+      <header className="flex flex-col gap-2">
+        <h1 className="font-display text-page-title text-foreground">Verify</h1>
+        <p className="text-body text-muted-foreground">
+          Every position on this device, checked again here from public files: the mint's signature, the price, and how
+          it settled. Nothing is sent.
+        </p>
+      </header>
+      {data.status === "loading" || wallet.status === "loading" ? <Skeleton className="h-48 rounded-group" /> : null}
+      {data.status === "error" ? <DataErrorState error={data.error} network={network} onRetry={data.refetch} /> : null}
+      {bundle && wallet.status === "ready" ? (
+        held.length === 0 ? (
+          <EmptyState
+            icon={<ShieldCheck />}
+            title="No positions on this device yet"
+            reason="Each trade's certificate lands here, signed by the mint. Settlements for everyone are recomputed on Proof."
+            action={
+              <Link href="/proof" className="text-row-strong text-link underline underline-offset-2">
+                See Proof
+              </Link>
+            }
+          />
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {held.map((record) => (
+              <PositionChecks
+                key={record.key}
+                record={record}
+                network={network}
+                bundle={bundle}
+                states={states}
+                printsLoading={prints.isFetching}
+              />
+            ))}
+          </ul>
+        )
+      ) : null}
     </div>
   );
 }
 
-function Check({ ok, children }: { ok: boolean | null; children: ReactNode }) {
-  const icon =
-    ok === null ? (
-      <CircleDashed aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-    ) : ok ? (
-      <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0 text-up" />
-    ) : (
-      <XCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-down" />
-    );
-  return (
-    <li className="flex gap-2.5 text-row-detail text-foreground">
-      {icon}
-      <span>
-        <span className="sr-only">{ok === null ? "Not checked: " : ok ? "Passed: " : "Failed: "}</span>
-        {children}
+function PositionChecks({
+  record,
+  network,
+  bundle,
+  states,
+  printsLoading,
+}: {
+  record: PositionRecord;
+  network: Network;
+  bundle: BundleV2;
+  states: ReadonlyMap<string, WindowState>;
+  printsLoading: boolean;
+}) {
+  const cert = record.certificate;
+  if (!cert) return null;
+  const coin = NETWORK_COIN[network];
+  const lanes = new Map(bundle.lanes.map((lane) => [lane.id, lane]));
+  const key = operatorKey(DATA_SOURCE, network);
+  const signed = key !== null && verifyDocument(cert as unknown as Record<string, unknown>, key);
+  const stake = Number(cert.stakeZat);
+  const payout = Number(cert.payoutZat);
+  const checks: Check[] = [{ ok: signed, text: "Signed by the mint, checked against the operator key built in" }];
+  let title: ReactNode;
+
+  if (cert.kind === "parlay") {
+    const legs = cert.legs ?? [];
+    const priced = parlayPriceE8(legs.map((l) => ({ askE4: l.askE4, expirySec: l.expiry })));
+    const priceOk = priced.ok && priced.priceE8 === cert.priceE8 && parlayPayoutZat(stake, priced.priceE8) === payout;
+    checks.push({ ok: priceOk, text: `Pays ${zecText(payout)} ${coin}: the stake over the legs' asks multiplied` });
+    const outcomes = legs.map((l) => {
+      const state = states.get(l.window);
+      const r = state ? recompute(state, lanes) : null;
+      return { leg: l, state, r };
+    });
+    const decided = outcomes.every((o) => o.state?.outcome);
+    if (decided) {
+      const allOk = outcomes.every((o) => o.r?.ok);
+      checks.push({ ok: allOk, text: "Every leg's outcome recomputed from the venues' signed prints" });
+      const expected = parlaySettledZat(
+        stake,
+        outcomes.map(({ leg, state }) => ({
+          askE4: leg.askE4,
+          expirySec: leg.expiry,
+          outcome: state?.outcome === "refund" ? "refund" : state?.outcome === leg.side ? "won" : "lost",
+        })),
+      );
+      checks.push(paidCheck(record, expected, coin));
+    } else {
+      checks.push(pendingCheck(Math.max(0, ...legs.map((l) => l.expiry)), printsLoading));
+    }
+    title = (
+      <span className="flex items-center gap-2">
+        <span className="grid size-6 place-items-center rounded-full bg-secondary">
+          <Layers aria-hidden className="size-3.5" />
+        </span>
+        Parlay · {legs.length} legs
       </span>
+    );
+  } else {
+    const parsed = cert.window ? parseWindowId(cert.window) : null;
+    checks.push(priceCheck(record, coin));
+    const state = cert.window ? states.get(cert.window) : undefined;
+    if (record.state === "paid" && record.how && record.how !== "redeem" && record.how !== "settled") {
+      checks.push({
+        ok: true,
+        text: `Sold back before the close at the house's bid: ${zecText(Number(record.paidZat ?? 0))} ${coin}`,
+      });
+    } else if (state?.outcome) {
+      const r = recompute(state, lanes);
+      checks.push({
+        ok: r?.ok ?? false,
+        text: `${state.outcome === "refund" ? "Refunded" : `${state.outcome === "U" ? "UP" : "DOWN"} won`}, recomputed from the venues' signed prints`,
+      });
+      const expected = state.outcome === "refund" ? stake : state.outcome === cert.side ? payout : 0;
+      checks.push(paidCheck(record, expected, coin));
+    } else {
+      checks.push(pendingCheck(parsed?.window.expirySec ?? 0, printsLoading));
+    }
+    const asset = parsed?.lane.asset ?? "";
+    title = (
+      <span className="flex items-center gap-2">
+        <Mark mark={`mark-${asset.toLowerCase()}`} label={asset} size="inline" />
+        {asset} {cert.side ? sideWord(cert.side) : ""} · {parsed ? cadenceLabel(parsed.lane.cadenceSec) : ""}
+      </span>
+    );
+  }
+
+  return (
+    <li className="flex flex-col gap-3 rounded-group border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-row-strong text-foreground">
+        {title}
+        <span className="numbers text-meta text-muted-foreground">
+          {zecText(stake)} {coin} · {new Date(cert.openedAt * MS).toLocaleString()}
+        </span>
+      </div>
+      <ul className="flex flex-col gap-1.5">
+        {checks.map((c) => (
+          <li key={c.text} className="flex gap-2 text-row-detail text-foreground">
+            {c.ok === null ? (
+              <CircleDashed aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            ) : c.ok ? (
+              <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0 text-up" />
+            ) : (
+              <XCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-down" />
+            )}
+            <span>
+              <span className="sr-only">{c.ok === null ? "Pending: " : c.ok ? "Passed: " : "Failed: "}</span>
+              {c.text}
+            </span>
+          </li>
+        ))}
+      </ul>
     </li>
   );
 }
 
-function BatchCard({ bundle, network }: { bundle: Bundle; network: Network }) {
-  return (
-    <section className="rounded-group border border-border bg-card p-5" aria-label="Signed batch">
-      <ul className="flex flex-col gap-2">
-        <Check ok>
-          Batch {bundle.seq} ({NETWORK_LABEL[network]}) is signed by the operator key pinned in this build, and its
-          bytes hash to the value in latest.json.
-        </Check>
-        <Check ok>The signed address list it names matches the hash in its file name.</Check>
-      </ul>
-    </section>
-  );
+/** A settlement not recomputable yet: still open, or settled and waiting for its hour's signed prints file. */
+function pendingCheck(expirySec: number, loading: boolean): Check {
+  if (loading) return { ok: null, text: "Loading the signed prints…" };
+  if (Date.now() / MS < expirySec) return { ok: null, text: "Its Window hasn't settled yet" };
+  return {
+    ok: null,
+    text: `Settled; recomputed here once its hour's signed prints file is out, after ${clockText(printsAt(expirySec))}`,
+  };
 }
 
-function HashCard({ hash, bundle }: { hash: string; bundle: Bundle }) {
-  const market = bundle.markets.find((candidate) => candidate.leaves.includes(hash));
-  return (
-    <section className="rounded-group border border-border bg-card p-5" aria-label="Ticket hash">
-      <ul className="flex flex-col gap-2">
-        <Check ok={Boolean(market)}>
-          {market
-            ? `Listed in batch ${bundle.seq} for ${market.id}: this ticket is counted.`
-            : `Not in any market's list in batch ${bundle.seq}. Tickets are listed in groups of at least ${MIN_NEW_TICKETS_PER_RELEASE} new ones, so a paid ticket may still be waiting for its batch (refunded in full if its market closes first); it may also be unpaid, late, or in an archived market.`}
-        </Check>
-      </ul>
-    </section>
-  );
-}
-
-function ReceiptCard({ receipt, bundle, network }: { receipt: Receipt; bundle: Bundle; network: Network }) {
-  const market = bundle.markets.find((candidate) => candidate.id === receipt.marketId);
-  const coin = NETWORK_COIN[receipt.network];
-  const size = BigInt(receipt.sizeZat);
-  const leaf = receipt.nonce
-    ? ticketHashHex({
-        network: receipt.network,
-        marketId: receipt.marketId,
-        side: receipt.side,
-        sizeZat: size,
-        nonce: fromBase64Url(receipt.nonce),
-      })
-    : null;
-  const payout = market?.outcome === receipt.side ? winningPayout(market, receipt.side, size) : null;
-  return (
-    <section className="flex flex-col gap-4 rounded-group border border-border bg-card p-5" aria-label="Receipt">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-title text-foreground">
-          {sideWord(receipt.side)} · {coinAmount(size, coin)}
-        </h2>
-        <Pill tone={receipt.nonce ? "accent" : "neutral"}>{receipt.nonce ? "Provable receipt" : "Outcome slip"}</Pill>
-      </div>
-      <p className="text-row-detail text-muted-foreground">{market?.rules.question ?? receipt.marketId}</p>
-      <ul className="flex flex-col gap-2">
-        {receipt.network !== network ? (
-          <Check ok={false}>This receipt is for {NETWORK_LABEL[receipt.network]}. Switch networks to check it.</Check>
-        ) : !market ? (
-          <Check ok={null}>
-            {receipt.marketId} isn't in batch {bundle.seq}. This page reads only the latest signed batch; checking an
-            archived market needs the operator's archived batches, which aren't published yet.
-          </Check>
-        ) : (
-          <>
-            {leaf ? (
-              <Check ok={market.leaves.includes(leaf)}>
-                {market.leaves.includes(leaf)
-                  ? `Its hash, recomputed here from the receipt's nonce, is in batch ${bundle.seq}'s signed list.`
-                  : isFinal(market)
-                    ? `Its recomputed hash isn't in this market's final list (batch ${bundle.seq}, ${market.leaves.length} tickets). If it was paid, it was refunded in full.`
-                    : `Its recomputed hash isn't listed yet in batch ${bundle.seq} (${market.leaves.length} tickets listed). Waiting for its batch: counted once ${MIN_NEW_TICKETS_PER_RELEASE} new tickets arrive; refunded in full if the market closes first.`}
-              </Check>
-            ) : (
-              <Check ok={null}>An outcome slip carries no nonce, so it can't be matched to the signed list.</Check>
-            )}
-            <Check ok={market.outcome ? true : null}>
-              {market.outcome
-                ? market.outcome === "refund"
-                  ? "The market refunded every ticket."
-                  : `Resolved ${sideWord(market.outcome)}: this ticket ${market.outcome === receipt.side ? "won" : "lost"}.${payout === null ? "" : ` A winning ${coinAmount(size, coin)} ticket is paid ${coinAmount(payout, coin)}.`}`
-                : "Not resolved yet."}
-            </Check>
-            <Check ok={null}>
-              {market.resolution
-                ? "Its signed resolution evidence (each source's vote and raw response) is on the Proof page."
-                : "Its resolution evidence is published when it resolves."}
-            </Check>
-          </>
-        )}
-      </ul>
-    </section>
-  );
-}
-
-const KEY_HEAD = 8;
-const KEY_TAIL = 8;
-
-function KeysCard() {
-  return (
-    <section className="rounded-group border border-border bg-card p-5" aria-labelledby="keys-title">
-      <h2 id="keys-title" className="flex items-center gap-2 font-display text-title text-foreground">
-        <ShieldCheck aria-hidden className="size-5" /> Operator keys in this build
-      </h2>
-      <dl className="mt-3 flex flex-col gap-2">
-        {(Object.keys(OPERATOR_PUBLIC_KEYS) as Network[]).map((network) => {
-          const key = OPERATOR_PUBLIC_KEYS[network];
-          return (
-            <div key={network} className="flex flex-wrap items-baseline justify-between gap-2">
-              <dt className="text-row-detail text-muted-foreground">{NETWORK_LABEL[network]}</dt>
-              <dd className="text-row-strong break-all text-foreground tabular-nums" title={key ?? undefined}>
-                {key ? `${key.slice(0, KEY_HEAD)}…${key.slice(-KEY_TAIL)}` : "Not pinned yet"}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-      <p className="mt-3 text-meta text-muted-foreground">
-        Keys are built into the app, never fetched. Files signed by any other key are refused.
-      </p>
-    </section>
-  );
+/** What a settled position should have paid, against what this device received. */
+function paidCheck(record: PositionRecord, expected: number, coin: string): Check {
+  if (record.state !== "paid") return { ok: null, text: `Due ${zecText(expected)} ${coin}; paying out as chips` };
+  const paid = Number(record.paidZat ?? 0);
+  return { ok: paid === expected, text: `Paid ${zecText(paid)} ${coin} as chips, as the outcome says` };
 }

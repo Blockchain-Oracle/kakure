@@ -175,13 +175,20 @@ async function settle(network: Network, trading: Trading, record: PositionRecord
       // Reduce: the same position on what's left, signed again; the share sold is history.
       const certificate = verified(network, answer.position);
       const before = Number(record.certificate?.stakeZat ?? 0);
+      const asked = (JSON.parse(pending.request) as { fractionBps?: number }).fractionBps;
       const next: PositionRecord = {
         ...rest,
         state: record.exitBlank ? "armed" : "open",
         certificate,
         reductions: [
           ...(rest.reductions ?? []),
-          { at: Date.now(), paidZat: valueZat, stakeZat: String(before - Number(certificate.stakeZat)) },
+          {
+            at: Date.now(),
+            paidZat: valueZat,
+            stakeZat: String(before - Number(certificate.stakeZat)),
+            ...(asked === undefined ? {} : { fractionBps: asked }),
+            ...(record.certificate ? { from: record.certificate } : {}),
+          },
         ],
       };
       await apply(network, [...chipRecords(network, chips), next]);
