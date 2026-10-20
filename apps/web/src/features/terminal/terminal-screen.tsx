@@ -20,7 +20,9 @@ import { TradeToasts, toast } from "./toasts";
 import { ChartControls } from "./ui/chart-controls";
 import { AssetChip, EquityPill, SettingsStack, SheetRow, ViewPositionPill, WindowChip } from "./ui/chrome";
 import { PositionsList, UnrealizedCard } from "./ui/positions-panel";
+import { ReactionOverlay } from "./ui/reaction-overlay";
 import { TradeButtons } from "./ui/trade-buttons";
+import { useTradeFeedback } from "./use-feedback";
 import { useChartOverlay } from "./use-overlay";
 import { useTerminalTrade } from "./use-trade";
 import { useUpkeep } from "./use-upkeep";
@@ -124,6 +126,14 @@ export function TerminalScreen() {
     sigma,
     nowSec,
     trailPct: settings.trailPct,
+  });
+
+  const { overlayHandle, onFrame } = useTradeFeedback({
+    active,
+    spot,
+    symbol,
+    line: reference,
+    reactionsEnabled: settings.reactionsEnabled,
   });
 
   const openSheet = useCallback((name: SheetName, p: LivePosition | null = null) => {
@@ -242,15 +252,20 @@ export function TerminalScreen() {
     />
   );
 
+  // The reactions overlay sits exactly over the chart: it places callouts in the canvas's own coordinates.
   const chart = (
-    <LiveChart
-      symbol={symbol}
-      overlay={overlay}
-      view={settings.chartView}
-      interval={settings.chartInterval}
-      handle={chartHandle}
-      label={`${info.name} live price`}
-    />
+    <>
+      <LiveChart
+        symbol={symbol}
+        overlay={overlay}
+        onFrame={onFrame}
+        view={settings.chartView}
+        interval={settings.chartInterval}
+        handle={chartHandle}
+        label={`${info.name} live price`}
+      />
+      <ReactionOverlay handle={overlayHandle} />
+    </>
   );
   const stack = (
     <SettingsStack

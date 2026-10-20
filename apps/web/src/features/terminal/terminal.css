@@ -70,6 +70,71 @@
   font-size: 0.875rem;
 }
 
+/* The edge flash: opacity 0 → 1 → 0.6 → 0 over 0.9 s (Owarine's keyframes, times 0 / 0.15 / 0.5 / 1). */
+@keyframes kk-flash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.kk-flash {
+  animation: kk-flash 900ms linear both;
+}
+
+/* Callouts spring in from below (scale 0.4, y 14 px; epic tilted −8°, bouncier) and lift out (y −18 px, scale 0.9). */
+@keyframes kk-callout-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.875rem) scale(0.4);
+  }
+}
+@keyframes kk-callout-epic-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.875rem) scale(0.4) rotate(-8deg);
+  }
+  60% {
+    transform: translateY(-0.125rem) scale(1.08) rotate(2deg);
+  }
+}
+@keyframes kk-callout-out {
+  to {
+    opacity: 0;
+    transform: translateY(-1.125rem) scale(0.9);
+  }
+}
+.kk-callout-in {
+  animation: kk-callout-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.kk-callout-in[data-tone="epic"] {
+  animation: kk-callout-epic-in 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.kk-callout-out {
+  animation: kk-callout-out 220ms ease-in both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kk-callout-in,
+  .kk-callout-in[data-tone="epic"] {
+    animation: kk-fade-in 150ms both;
+  }
+  .kk-callout-out {
+    animation: kk-fade-out 150ms both;
+  }
+}
+@keyframes kk-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 /* Toasts slide in from above (Owarine's spring as a curve); reduced motion just fades. */
 @keyframes kk-toast-in {
   from {

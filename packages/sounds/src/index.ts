@@ -10,6 +10,7 @@ export {
 } from "./constants";
 export { audioOutput, playCue, setVolume, unlockAudio } from "./engine";
 export {
+  buzz,
   clearLegacyCueMemory,
   type FeedbackPreferences,
   fire,
@@ -18,4 +19,14 @@ export {
 } from "./feedback";
 export { hapticsAvailable, vibrate } from "./haptics";
 export { setMusic, setMusicTense } from "./music";
-export { createReactionEngine, createThrottle, type Reaction, type ReactionEngine } from "./reactions";
+export {
+  CALLOUT_LIFETIME_MS,
+  CALLOUTS,
+  type CalloutTone,
+  createThrottle,
+  cueFor,
+  type Reaction,
+  type ReactionCue,
+  ReactionEngine,
+  type ReactionPosition,
+} from "./reactions";

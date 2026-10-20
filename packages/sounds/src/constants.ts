@@ -185,23 +185,47 @@ export const VIBRATION: Record<HapticWord, number | number[]> = {
 };
 
 /**
- * The reaction engine's thresholds (senryo.md §6.4, from Tradash's spec): a step is a move of at least
- * max(2.5 × noise, 0.005 % of price), capped at 0.08 %; a surge is ≥ 0.025 % (mega 0.06 %) inside 1.5 s.
+ * The reaction engine's thresholds (Owarine `feedback/reactions.ts`, Tradash's combo / surge / slump / callouts). A step
+ * is a move of max(2.5 × noise, 0.005 % of price), capped at 0.08 %. A surge is a move inside 1.5 s that is z ≥ 3 times
+ * the noise and ≥ 0.025 % of price (mega: z ≥ 4.5 and ≥ 0.06 %), once there's a noise level to measure against.
  */
 export const REACTION = {
   emaAlpha: 0.03,
   stepNoiseFactor: 2.5,
   stepMinFraction: 0.00005,
   stepMaxFraction: 0.0008,
-  surgeFraction: 0.00025,
-  megaFraction: 0.0006,
   surgeWindowMs: 1500,
-  cooldownMs: 3000,
-  /** Steps share 160 ms buckets; the strongest wins (film-sound throttling). */
-  bucketMs: 160,
+  surgeCooldownMs: 3000,
+  surgeMinSamples: 12,
+  surgeMinPoints: 4,
+  surgeMinSpanMs: 900,
+  surgeZ: 3,
+  surgeFraction: 0.00025,
+  megaZ: 4.5,
+  megaFraction: 0.0006,
+  /** Callouts: none in a position's first 1.2 s; then one per 2.2 s (0.9 s for the top tones). */
+  calloutQuietMs: 1200,
+  calloutCooldownMs: 2200,
+  calloutCooldownTopMs: 900,
+  comboGood: 3,
+  comboGreat: 6,
+  comboEpicFrom: 10,
+  comboEpicEvery: 5,
+  adverseCallout: 3,
+  /** A new high counts after a drawdown to 70 % of the peak, once ROI is past 3 %. */
+  newHighDrawdown: 0.7,
+  newHighMinRoi: 0.03,
+  /** A comeback: back in profit after −3 % ROI. */
+  comebackFromRoi: -0.03,
+  /** Near the line: within a quarter of the entry-to-line distance (at least 0.025 % of price); re-arms past 40 %. */
+  nearLineRoom: 0.25,
+  nearLineRearm: 0.4,
+  nearLineMinSpanFraction: 0.00025,
+  /** The profit ladder's top step; the adverse blip plays from the second adverse step on. */
   maxLadderStep: 10,
-  /** The adverse blip plays from the second adverse step on. */
   adverseFrom: 2,
+  /** Across several positions (the portfolio), one cue per 160 ms: the strongest wins. */
+  bucketMs: 160,
 } as const;
 
 /* ── The terminal's music (Owarine `lib/sound/music.ts`, sequenced in code on the Web Audio clock) ─────────────── */

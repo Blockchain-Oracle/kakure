@@ -2,16 +2,18 @@
   "name": "@kakure/sounds",
   "private": true,
   "type": "module",
-  "description": "Kakure's sound and haptics: cue definitions (shared with the native WAV render later), a Web Audio synth, haptic words, and the position reaction engine (pentatonic profit ladder, adverse blip).",
+  "description": "Kakure's sound and haptics: cue definitions (shared with the native WAV render later), a Web Audio synth, haptic words, the terminal's music, and the trade reaction engine (combo ladder, surges, callouts).",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./cues": "./src/constants.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts"
   },
   "devDependencies": {
+    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }

@@ -47,6 +47,11 @@ export function fire(cue: CueName, options: { identity?: string; step?: number; 
   if (preferences.haptics && haptic) vibrate(haptic);
 }
 
+/** A haptic with no sound (a "Near the line" callout), on the haptics switch like every other one. */
+export function buzz(word: HapticWord): void {
+  if (preferences.haptics) vibrate(word);
+}
+
 /** Wire once at the app root: the first gesture unlocks audio (browsers refuse sound before one). */
 export function installAudioUnlock(): () => void {
   const unlock = () => unlockAudio();
