@@ -44,12 +44,16 @@ export function DepositSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // `resume` is read only as the sheet opens: callers derive it from the unfinished deposits, so it turns null the
+  // moment this one is minted, and following it then would swap "Deposited" for the amount picker.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setKey(resume ?? null);
       setError(null);
     }
-  }, [open, resume]);
+  }
 
   const record = key ? wallet.deposits.find((deposit) => deposit.key === key) : undefined;
 
