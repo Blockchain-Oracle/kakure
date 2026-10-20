@@ -168,8 +168,8 @@ otherwise.
 | **Mobile** | An Expo app exists for the earlier design and is paused; the web app installs to a phone's home screen. |
 
 No mainnet trading, independent audit or production-money readiness is claimed. Mainnet's operator wallet and signing
-key exist; NU7's mainnet activation height isn't published yet, and payouts must move to librustzcash's release that
-carries it before mainnet opens.
+key exist. NU7's mainnet activation height isn't published yet; the operator takes it from configuration when it is
+([params.rs](services/operator/src/params.rs)) and pauses payouts near an announced height its build doesn't know.
 
 ## Run it locally
 
