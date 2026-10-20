@@ -21,7 +21,7 @@ const COPY: Record<DataErrorKind, Copy> = {
   offline: {
     icon: <WifiOff />,
     title: "You're offline",
-    reason: () => "Reconnect and this page loads the latest signed batch on its own.",
+    reason: () => "Reconnect and this page loads the latest signed bundle on its own.",
     tone: "neutral",
   },
   unreachable: {
@@ -53,7 +53,7 @@ const COPY: Record<DataErrorKind, Copy> = {
     icon: <ShieldAlert />,
     title: "Not signed by the Kakure operator",
     reason: () =>
-      "This app only shows files signed with the operator key built into it, so nothing is shown rather than unverified odds.",
+      "This app only shows files signed with the operator key built into it, so nothing is shown rather than unverified prices.",
     tone: "destructive",
   },
   "key-not-pinned": {
@@ -67,7 +67,7 @@ const COPY: Record<DataErrorKind, Copy> = {
     icon: <Unplug />,
     title: "The published files don't line up",
     reason: (_, file) =>
-      `${file} belongs to another batch or network. The next batch fixes this; try again in a minute.`,
+      `${file} belongs to another bundle or network. The next bundle fixes this; try again in a minute.`,
     tone: "warn",
   },
 };
@@ -123,9 +123,9 @@ export function FreshnessStrip({
   if (!online) {
     message = `Offline · showing what this device saved at ${formatClock(checkedAt)}`;
   } else if (refreshError) {
-    message = `Can't refresh · showing batch data from ${formatAge(now - Date.parse(publishedAt))} ago`;
+    message = `Can't refresh · showing bundle data from ${formatAge(now - Date.parse(publishedAt))} ago`;
   } else if (late > 0) {
-    message = `The next batch is ${formatAge(late)} late · showing the last one, published ${formatClock(publishedAt)}`;
+    message = `The next bundle is ${formatAge(late)} late · showing the last one, published ${formatClock(publishedAt)}`;
   }
   if (!message) return null;
   return (

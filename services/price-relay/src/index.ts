@@ -10,8 +10,10 @@ interface Env {
 const ORIGINS = new Set<string>(ALLOWED_ORIGINS);
 
 /**
- * Kakure price relay. Observability is off in wrangler.jsonc; it reads no cookies or query strings
- * and never sees which market a visitor is looking at, because everyone receives every symbol.
+ * Kakure price relay. Observability is off in wrangler.jsonc and it reads no cookies. It never sees which market a
+ * visitor is looking at, because everyone receives every symbol, live and as candles. The candle route alone reads
+ * its query (`interval`, `count`, `end`), so it does learn which interval a chart shows and how far back it scrolls
+ * (stated on /privacy).
  */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

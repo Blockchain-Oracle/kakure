@@ -72,7 +72,7 @@ export const WORDS = {
       line: "ZEC's own price, on every Window length.",
     },
     range: { title: "Range", line: "Call where it closes: inside a band, or outside it." },
-    parlay: { title: "Parlays", line: "Two or three Windows on one ticket. The odds multiply." },
+    parlay: { title: "Parlays", line: "Two or three Windows in one position. The payouts multiply." },
     games: { title: "Arcade", line: "Line Rider and Candle Hop on real price tapes." },
     duel: { title: "Duel", line: "Three calls, head to head. Picks stay sealed till lock." },
     private: {

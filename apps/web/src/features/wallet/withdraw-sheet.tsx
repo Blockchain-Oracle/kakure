@@ -5,10 +5,10 @@ import { Button, Chip, ChipGroup, Sheet, SlideToConfirm } from "@kakure/ui-web";
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NETWORK_COIN } from "@/constants";
-import { PayoutAddressField, usePayoutAddress } from "@/features/bet/payout-address";
 import { MINT_CODES, MintError } from "./api";
 import { withdraw, withdrawable } from "./spending";
 import { useWallet } from "./wallet-store";
+import { useWithdrawAddress, WithdrawAddressField } from "./withdraw-address";
 
 /**
  * Withdraw (plan §00): chips back to a fresh shielded address. The mint marks the chips spent and schedules the
@@ -32,7 +32,7 @@ export function WithdrawSheet({
 }) {
   const coin = NETWORK_COIN[network];
   const wallet = useWallet(network);
-  const address = usePayoutAddress(network, "withdraw");
+  const address = useWithdrawAddress(network);
   const [amount, setAmount] = useState<Amount>({ kind: "all" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +127,7 @@ export function WithdrawSheet({
                 </Chip>
               ))}
             </ChipGroup>
-            <PayoutAddressField state={address} network={network} purpose="withdraw" />
+            <WithdrawAddressField state={address} network={network} />
             {error ? (
               <p role="alert" className="text-row-detail text-destructive">
                 {error}

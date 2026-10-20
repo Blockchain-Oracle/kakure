@@ -22,9 +22,9 @@ export const PARTIES: ReadonlyArray<{ party: string; learns: string; never: stri
   {
     party: "This site and its relay",
     learns:
-      "Your IP address, when you visit and make requests, and which pages you open. One Cloudflare worker serves the site, the signed files and the relay.",
+      "Your IP address, when you visit and trade, which pages you open, and which network you trade on. One Cloudflare worker serves the site, the signed files and the relay.",
     never:
-      "What's inside a request: it's sealed to the operator's published key (RFC 9458). Nor the asset or Window you look at: it stays in the #fragment, and every visitor downloads the same signed files.",
+      "What's inside a request: it's sealed to the operator's published key (RFC 9458). Nor the asset or Window you look at: it stays in the #fragment, and every visitor downloads the same signed files, for both networks.",
   },
   {
     party: "The operator (us)",

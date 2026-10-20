@@ -6,20 +6,15 @@ import type { CheckPayoutAddress, PayoutAddressVerdict } from "@kakure/zaddr-was
 import { Check, ClipboardPaste } from "lucide-react";
 import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { NETWORK_LABEL } from "@/constants";
-import { useTickets } from "@/features/tickets/use-tickets";
 
 /**
- * The payout address, checked live in the browser with zcash_address compiled to WebAssembly (PD18): a Unified
- * Address for this network with an Orchard receiver and no transparent receiver. The module loads only here.
- * For a bet it must also be fresh (O21, D8): an address another saved ticket already uses, on either network, would
- * let the operator link the two bets, so the bet stops, as in the app (apps/mobile/src/bet/place-bet.ts). A chip
- * withdrawal (`purpose: "withdraw"`) is checked for format only.
+ * Where a withdrawal goes, checked live in the browser with zcash_address compiled to WebAssembly (PD18): a Unified
+ * Address for this network with an Orchard receiver and no transparent receiver, the rules the operator applies. The
+ * module loads only here.
  */
-export type AddressPurpose = "bet" | "withdraw";
+export type FieldVerdict = "empty" | "checking" | "unavailable" | PayoutAddressVerdict;
 
-export type FieldVerdict = "empty" | "checking" | "unavailable" | "reused" | "locked" | PayoutAddressVerdict;
-
-export interface PayoutAddressState {
+export interface WithdrawAddressState {
   value: string;
   setValue: (value: string) => void;
   verdict: FieldVerdict;
@@ -28,7 +23,7 @@ export interface PayoutAddressState {
   input: RefObject<HTMLTextAreaElement | null>;
 }
 
-export function usePayoutAddress(network: Network, purpose: AddressPurpose = "bet"): PayoutAddressState {
+export function useWithdrawAddress(network: Network): WithdrawAddressState {
   const [value, setValue] = useState("");
   const [check, setCheck] = useState<CheckPayoutAddress | null | "failed">(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -44,10 +39,8 @@ export function usePayoutAddress(network: Network, purpose: AddressPurpose = "be
     };
   }, []);
 
-  const testnet = useTickets("testnet");
-  const mainnet = useTickets("mainnet");
   const trimmed = value.trim();
-  const format: FieldVerdict =
+  const verdict: FieldVerdict =
     trimmed === ""
       ? "empty"
       : check === null
@@ -55,7 +48,6 @@ export function usePayoutAddress(network: Network, purpose: AddressPurpose = "be
         : check === "failed"
           ? "unavailable"
           : check(trimmed, network);
-  const verdict: FieldVerdict = format === "ok" && purpose === "bet" ? freshness(trimmed, [testnet, mainnet]) : format;
 
   return {
     value,
@@ -73,29 +65,12 @@ export function usePayoutAddress(network: Network, purpose: AddressPurpose = "be
   };
 }
 
-/** "ok" only when no saved ticket on either network pays out to this address. */
-function freshness(address: string, stores: ReadonlyArray<ReturnType<typeof useTickets>>): FieldVerdict {
-  if (stores.some((store) => store === "locked")) return "locked";
-  if (stores.some((store) => store === null)) return "checking";
-  const used = stores.some(
-    (store) => Array.isArray(store) && store.some((ticket) => ticket.payoutAddress.trim() === address),
-  );
-  return used ? "reused" : "ok";
-}
-
-function message(
-  verdict: FieldVerdict,
-  network: Network,
-  purpose: AddressPurpose,
-): { text: string; tone: "ok" | "bad" | "quiet" } {
+function message(verdict: FieldVerdict, network: Network): { text: string; tone: "ok" | "bad" | "quiet" } {
   const other = NETWORK_LABEL[network === "mainnet" ? "testnet" : "mainnet"];
   switch (verdict) {
     case "empty":
       return {
-        text:
-          purpose === "bet"
-            ? "A fresh shielded address from your wallet's Receive screen. We pay here."
-            : "A fresh shielded address from your wallet's Receive screen. Your chips are paid out here.",
+        text: "A fresh shielded address from your wallet's Receive screen. Your chips are paid out here.",
         tone: "quiet",
       };
     case "checking":
@@ -104,7 +79,7 @@ function message(
       return { text: "The address checker didn't load. Reload the page to try again.", tone: "bad" };
     case "ok":
       return {
-        text: `Shielded, with an Orchard receiver, for ${NETWORK_LABEL[network]}. ${purpose === "bet" ? "Payouts and refunds go here." : "The withdrawal goes here."}`,
+        text: `Shielded, with an Orchard receiver, for ${NETWORK_LABEL[network]}. The withdrawal goes here.`,
         tone: "ok",
       };
     case "not-unified":
@@ -124,37 +99,19 @@ function message(
         text: "That address includes a transparent receiver, which would make your payout public. Use a shielded-only address.",
         tone: "bad",
       };
-    case "reused":
-      return {
-        text: "Another of your tickets already pays out to this address, so this bet is stopped: two bets paid to one address let the operator link them. Copy a fresh address from your wallet's Receive screen.",
-        tone: "bad",
-      };
-    case "locked":
-      return {
-        text: "Your tickets are locked, so this address can't be checked against them. Unlock them in Settings first.",
-        tone: "bad",
-      };
     case "unknown-network":
       return { text: "Unknown network.", tone: "bad" };
   }
 }
 
-export function PayoutAddressField({
-  state,
-  network,
-  purpose = "bet",
-}: {
-  state: PayoutAddressState;
-  network: Network;
-  purpose?: AddressPurpose;
-}) {
+export function WithdrawAddressField({ state, network }: { state: WithdrawAddressState; network: Network }) {
   const id = useId();
-  const help = message(state.verdict, network, purpose);
+  const help = message(state.verdict, network);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor={id} className="text-label text-muted-foreground">
-          {purpose === "bet" ? "Payout address" : "Withdraw to"}
+          Withdraw to
         </label>
         <button
           type="button"

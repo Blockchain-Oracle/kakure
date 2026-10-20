@@ -149,7 +149,7 @@ export function ParlaySlip({
 
           <p className={cx("text-meta", estimate.ok ? "text-muted-foreground" : "text-down")}>
             {quote
-              ? `${chancePct === null ? "" : `${fixedText(chancePct, chancePct < SMALL_CHANCE_PCT ? 1 : 0)}% chance all land`}${quote.correlated ? " · legs close together, so the odds are trimmed" : ""}`
+              ? `${chancePct === null ? "" : `${fixedText(chancePct, chancePct < SMALL_CHANCE_PCT ? 1 : 0)}% chance all land`}${quote.correlated ? " · legs settle together, so the price is lifted" : ""}`
               : estimate.ok
                 ? ""
                 : estimate.why}

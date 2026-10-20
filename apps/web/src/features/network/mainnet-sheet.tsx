@@ -19,8 +19,8 @@ export function MainnetSheet({
     <Sheet open={open} onClose={onClose} title="Switch to Mainnet">
       <p className="text-body text-foreground">Real ZEC from here.</p>
       <ul className="mt-4 flex flex-col gap-2 rounded-group bg-raised-2 p-4 text-row-detail text-muted-foreground">
-        <li>Bets on Mainnet are paid with real ZEC from your own wallet, and payouts return real ZEC.</li>
-        <li>Testnet markets, tickets and cached data stay separate on this device.</li>
+        <li>On Mainnet you deposit real ZEC from your own wallet, and withdrawals pay out real ZEC.</li>
+        <li>Testnet chips, positions and cached data stay separate on this device.</li>
         <li>You can switch back to Testnet with one tap.</li>
       </ul>
       <SlideToConfirm

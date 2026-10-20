@@ -42,7 +42,7 @@ export function SettingsScreen() {
       <Group title="Sound and haptics">
         <Row
           label="Sounds"
-          detail="Money moments only: a bet built, odds released, a result. No sound for taps or navigation."
+          detail="Buys, closes, results and deposits landing, the live calls while you hold a position, and a soft tick on terminal taps."
         >
           <Switch label="Sounds" checked={prefs.sound} onChange={(sound) => setPrefs({ sound })} />
         </Row>
@@ -232,9 +232,9 @@ function Backup({ network }: { network: "mainnet" | "testnet" }) {
     <Group title="Backup" id="backup">
       <div className="flex flex-col gap-3 p-4">
         <p className="text-row-detail text-muted-foreground">
-          Your chips and tickets live only in this browser. Export them to an encrypted file to move them or keep a
+          Your chips and positions live only in this browser. Export them to an encrypted file to move them or keep a
           copy: it holds this network's chips (they're money: whoever has the file and its passphrase can spend them),
-          deposits in flight and tickets with their payout addresses.
+          open positions, deposits and withdrawals in flight, and any tickets from the earlier pool markets.
         </p>
         <label className="flex flex-col gap-1.5">
           <span className="text-label text-muted-foreground">Passphrase (at least {MIN_PASSPHRASE} characters)</span>
@@ -320,7 +320,7 @@ function VaultLock() {
       <div className="flex flex-col gap-3 p-4">
         <p className="text-row-detail text-muted-foreground">
           {state === "off"
-            ? "Your chips and tickets are encrypted in this browser, but the key sits next to them. Add a passphrase and the key is kept only wrapped by it: you'll enter it once per tab to trade or see your tickets. Forget it and only an exported backup brings them back."
+            ? "Your chips and positions are encrypted in this browser, but the key sits next to them. Add a passphrase and the key is kept only wrapped by it: you'll enter it once per tab to trade or see your positions. Forget it and only an exported backup brings them back."
             : state === "locked"
               ? "Your vault is locked. Enter the passphrase to open it in this tab."
               : "Your vault is open in this tab and locks again when it closes."}
@@ -404,7 +404,7 @@ function Forget({ network }: { network: "mainnet" | "testnet" }) {
     <Group title="This device">
       <Row
         label="Forget this device"
-        detail="Deletes every chip, ticket, key, cached file and setting Kakure stored in this browser."
+        detail="Deletes every chip, position, key, cached file and setting Kakure stored in this browser."
       >
         <Button variant="secondary" size="sm" className="text-destructive" onClick={() => setOpen(true)}>
           Forget

@@ -8,7 +8,8 @@ import { IV_BYTES, KDF_ITERATIONS, passphraseKey, SALT_BYTES } from "./passphras
 import { commit, type Entry, type EntryType, loadEntries, vaultReset } from "./vault-db";
 
 /**
- * Encrypted backup (R6, plan §00): one network's whole vault (tickets, chips, deposits and spends in flight) sealed
+ * Encrypted backup (R6, plan §00): one network's whole vault (chips, positions, deposits and spends in flight, pool-era
+ * tickets; never replay episodes) sealed
  * with a passphrase (PBKDF2-SHA-256 → AES-GCM-256). The file is the only copy outside this device; nothing is uploaded.
  * Chips are bearer money, so the file is too: whoever has it and the passphrase can spend them.
  *
