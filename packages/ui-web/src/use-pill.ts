@@ -65,11 +65,23 @@ export function useMeasuredPill(
     const frame = requestAnimationFrame(() => {
       settled.current = true;
     });
-    const observer = new ResizeObserver(() => measure(false));
-    observer.observe(root);
+    // The items can change size while the container doesn't (a scrolling tab row whose counts arrive with the data,
+    // a web font swapping in), so each item is watched too, and items added later join the watch.
+    const resizes = new ResizeObserver(() => measure(false));
+    const watchItems = () => {
+      resizes.observe(root);
+      for (const item of root.querySelectorAll<HTMLElement>("[data-pill-key]")) resizes.observe(item);
+    };
+    watchItems();
+    const mutations = new MutationObserver(() => {
+      watchItems();
+      measure(false);
+    });
+    mutations.observe(root, { childList: true, subtree: true, characterData: true });
     return () => {
       cancelAnimationFrame(frame);
-      observer.disconnect();
+      resizes.disconnect();
+      mutations.disconnect();
     };
   }, [container, activeKey]);
 
