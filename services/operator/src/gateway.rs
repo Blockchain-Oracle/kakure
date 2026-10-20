@@ -124,8 +124,36 @@ impl Gateway {
         answer
             .write_bhttp(Mode::KnownLength, &mut bytes)
             .map_err(|e| anyhow!("binary HTTP: {e}"))?;
+        // RFC 9292 §3.8: zero padding after a known-length message, so a response's size says nothing about which
+        // call it answers or how many chips it signs (privacy re-audit V4); the client pads its requests the same way.
+        bytes.resize(padded_len(bytes.len()), 0);
         response
             .encapsulate(&bytes)
             .map_err(|e| anyhow!("encapsulating: {e}"))
+    }
+}
+
+/// Response sizes, in Binary HTTP bytes: the smallest bucket that fits, then whole multiples of the last.
+const RESPONSE_BUCKETS: [usize; 3] = [4 * 1024, 16 * 1024, 64 * 1024];
+
+pub fn padded_len(len: usize) -> usize {
+    if let Some(bucket) = RESPONSE_BUCKETS.iter().find(|&&b| b >= len) {
+        return *bucket;
+    }
+    let step = RESPONSE_BUCKETS[RESPONSE_BUCKETS.len() - 1];
+    len.div_ceil(step) * step
+}
+
+#[cfg(test)]
+mod tests {
+    use super::padded_len;
+
+    #[test]
+    fn responses_pad_to_buckets() {
+        assert_eq!(padded_len(1), 4_096);
+        assert_eq!(padded_len(4_096), 4_096);
+        assert_eq!(padded_len(4_097), 16_384);
+        assert_eq!(padded_len(20_000), 65_536);
+        assert_eq!(padded_len(65_537), 131_072);
     }
 }

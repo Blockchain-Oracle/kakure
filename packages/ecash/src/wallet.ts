@@ -155,6 +155,14 @@ export function blankCount(keyset: Keyset, max: number): number {
 }
 
 /**
+ * Blank outputs for any value the keyset can sign: the same count on every close, redeem and exit, so the request
+ * never says what the position is worth (privacy re-audit V4). The mint signs only the ones the value needs.
+ */
+export function ladderBlankCount(keyset: Keyset): number {
+  return blankCount(keyset, Math.max(...Object.keys(keyset.keys).map(Number)));
+}
+
+/**
  * The mint's signatures on blank outputs → chips. It signs the first outputs in order, any amount of the keyset; each
  * must carry a DLEQ proof against the published key for its amount, and together they must make `value`.
  */

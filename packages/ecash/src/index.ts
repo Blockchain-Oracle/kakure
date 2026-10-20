@@ -10,6 +10,7 @@ export {
   finishOutputs,
   type Keyset,
   keysetIdV2,
+  ladderBlankCount,
   newSecret,
   type PendingOutputs,
   type Proof,

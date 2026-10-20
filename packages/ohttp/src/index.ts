@@ -13,6 +13,18 @@ import { KeyConfig, OHTTPClient } from "ohttp-ts";
 const SUITE = new CipherSuite(KEM_DHKEM_X25519_HKDF_SHA256, KDF_HKDF_SHA256, AEAD_AES_128_GCM);
 const ORIGIN = "https://gateway.kakure";
 
+/**
+ * Request sizes, in Binary HTTP bytes (RFC 9292 §3.8 zero padding): every request lands in one of a few fixed sizes, so
+ * its length says nothing about the call or how many chips it carries (privacy re-audit V4). The largest stays under
+ * the relay's and gateway's 64 KiB limit with room for the OHTTP header, the HPKE key and the AEAD tag. The gateway
+ * pads its responses the same way.
+ */
+const REQUEST_BUCKETS = [4 * 1024, 16 * 1024, 60 * 1024] as const;
+
+export function paddedRequestLength(size: number): number {
+  return REQUEST_BUCKETS.find((bucket) => bucket >= size) ?? size;
+}
+
 export interface Oblivious {
   /** The relay endpoint (`/ohttp` on the site's own origin). */
   relay: string;
@@ -41,7 +53,7 @@ export async function obliviousFetch(
   fetcher: typeof fetch = fetch,
 ): Promise<Response> {
   const config = KeyConfig.select(SUITE, KeyConfig.parseMultiple(oblivious.keyConfig));
-  const client = new OHTTPClient(SUITE, config);
+  const client = new OHTTPClient(SUITE, config, { padding: paddedRequestLength });
   const inner = new Request(`${ORIGIN}${path}`, {
     method,
     ...(body === undefined ? {} : { body, headers: { "content-type": "application/json" } }),

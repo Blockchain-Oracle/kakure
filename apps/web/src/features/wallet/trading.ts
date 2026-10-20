@@ -3,9 +3,9 @@
 import { type Network, parseWindowId, type Trading, toHex } from "@kakure/domain";
 import {
   type BlindSignature,
-  blankCount,
   finishBlank,
   finishOutputs,
+  ladderBlankCount,
   newSecret,
   prepareBlank,
   prepareOutputs,
@@ -54,11 +54,6 @@ async function find(network: Network, key: string): Promise<PositionRecord> {
   const record = (await current(network)).positions.find((p) => p.key === key);
   if (!record) throw new Error("This position isn't on this device.");
   return record;
-}
-
-/** The largest value a position can pay: the most its blank outputs must hold. */
-function maxValue(certificate: PositionCertificate): number {
-  return Math.max(Number(certificate.payoutZat), Number(certificate.stakeZat));
 }
 
 /* ── Buying ──────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -254,7 +249,7 @@ async function withBlank(
   if (!record.certificate || (record.state !== "open" && record.state !== "armed")) {
     throw new Error("This position isn't open.");
   }
-  const blank = prepareBlank(keysetOf(trading), blankCount(trading.keyset, maxValue(record.certificate)));
+  const blank = prepareBlank(keysetOf(trading), ladderBlankCount(trading.keyset));
   const next: PositionRecord = {
     ...record,
     pending: {
