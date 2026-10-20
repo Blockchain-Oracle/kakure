@@ -204,6 +204,7 @@ export function WalletSheet({
   onDeposit,
   onWithdraw,
   onTour,
+  onInstall,
   onShare,
   onReplay,
   canReplay,
@@ -220,6 +221,7 @@ export function WalletSheet({
   onDeposit: () => void;
   onWithdraw: () => void;
   onTour: () => void;
+  onInstall: () => void;
   onShare: (row: HistoryRow) => void;
   onReplay?: (row: HistoryRow) => void;
   canReplay?: (row: HistoryRow) => boolean;
@@ -316,7 +318,7 @@ export function WalletSheet({
           </Group>
           <Group title="APP">
             <Item icon={CircleHelp} label="How it works" onClick={onTour} />
-            <Item icon={Download} label="Install app" href="/download" />
+            <Item icon={Download} label="Install app" onClick={onInstall} />
           </Group>
         </div>
       ) : view === "settings" ? (

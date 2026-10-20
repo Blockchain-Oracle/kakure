@@ -1,0 +1,288 @@
+/* /download (Mitoshi `styles/download.css` on Kakure's tokens): the band on the black plate in both themes, three real
+ * screens fanned beside it, then one card per way in (21st.dev 18105 shadcnspace/download-01's card as Mitoshi reskins
+ * it) with a status chip and, from 768 px, a QR on the paper plate. The web app leads: the wide cell, two rows tall on
+ * a desk, with the two platforms that aren't open stacked beside it. Imported by the page only. */
+
+.get {
+  display: flex;
+  width: 100%;
+  max-width: var(--layout-content-max);
+  margin-inline: auto;
+  flex-direction: column;
+  gap: 24px;
+  padding-block: 8px 24px;
+}
+@media (min-width: 1024px) {
+  .get {
+    gap: 40px;
+    padding-block: 16px 48px;
+  }
+}
+
+.get-hero {
+  position: relative;
+  display: grid;
+  gap: 24px;
+  overflow: hidden;
+  padding: 28px 20px 0;
+  border-radius: var(--radius-stage);
+  background:
+    radial-gradient(60% 70% at 78% 100%, color-mix(in srgb, var(--color-vermilion) 30%, transparent), transparent 70%),
+    var(--color-plate);
+  color: var(--color-plate-ink);
+  box-shadow: inset 0 0 0 1px var(--color-plate-rule);
+}
+@media (min-width: 1024px) {
+  .get-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    padding: 48px 48px 0;
+  }
+}
+.get-hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+@media (min-width: 1024px) {
+  .get-hero-copy {
+    padding-bottom: 48px;
+  }
+}
+.get-title {
+  font: 800 clamp(2.2rem, 6vw, 4rem) / 1 var(--font-display);
+  letter-spacing: -0.04em;
+  color: var(--color-plate-ink);
+}
+.get-title em {
+  font-style: normal;
+  color: var(--color-vermilion);
+}
+.get-line {
+  max-width: 30rem;
+  font: 500 17px / 1.45 var(--font-sans);
+  color: var(--color-plate-ink-soft);
+}
+.get-hero-qr {
+  display: none;
+  margin: 4px 0 0;
+}
+@media (min-width: 1024px) {
+  .get-hero-qr {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font: 600 13px / 1.3 var(--font-sans);
+    color: var(--color-plate-ink-soft);
+  }
+}
+
+/* The cards: one column on phones; from 768 the web app spans the row and the other two share the next; from 1024 the
+ * web app is the left cell, two rows tall, with the two others stacked beside it (Amie's and Skiff's download pages,
+ * via Mitoshi: the one way in that works, large, with its QR; the rest quiet). */
+.get-grid {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .get-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .get-grid > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (min-width: 1024px) {
+  .get-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+  .get-grid > :first-child {
+    grid-column: auto;
+    grid-row: span 2;
+  }
+  .get-grid > :first-child .get-card-name {
+    font-size: 30px;
+  }
+}
+
+.get-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  border-radius: var(--radius-xl);
+  background: var(--color-card);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  scroll-margin-top: 96px;
+}
+@media (min-width: 768px) {
+  .get-card {
+    gap: 24px;
+    padding: 28px;
+  }
+}
+.get-card:target {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+.get-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.get-card-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: var(--color-secondary);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-foreground);
+}
+.get-card-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* The status chip: live (up), not open (quiet, the dot muted). */
+.get-chip {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-secondary);
+  color: var(--color-muted-foreground);
+  font: 600 12px / 1 var(--font-sans);
+  white-space: nowrap;
+}
+.get-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+.get-chip[data-tone="live"] {
+  background: var(--color-up-surface);
+  color: var(--color-up);
+}
+.get-chip[data-tone="soon"]::before {
+  background: var(--color-ink-muted);
+}
+
+.get-card-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+.get-card-name {
+  font: 700 22px / 1.15 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+.get-card-line {
+  max-width: 34rem;
+  font: 400 15px / 1.45 var(--font-sans);
+  color: var(--color-muted-foreground);
+}
+
+/* The foot: the action, and beside it the QR for a desktop reader. */
+.get-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.get-card-action {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .get-card-action {
+    flex: 1 1 12rem;
+    align-items: flex-start;
+  }
+}
+
+/* The QR: black on the paper plate in both themes (any camera reads it), from 768 px only; on a phone the phone is the
+ * device. */
+.get-qr {
+  display: none;
+  margin: 0;
+}
+@media (min-width: 768px) {
+  .get-qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+}
+.get-qr-plate {
+  display: block;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+}
+.get-qr-plate svg {
+  display: block;
+}
+.get-qr-caption {
+  max-width: 8rem;
+  font: 500 12px / 1.3 var(--font-sans);
+  color: var(--color-muted-foreground);
+  text-align: center;
+}
+
+/* Three real captures on the landing's phone frame (features/landing/phone.tsx), fanned from the band's foot. */
+.get-phones {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  height: clamp(18rem, 64vw, 30rem);
+}
+.get-phone {
+  position: absolute;
+  bottom: -18%;
+  --phone-w: clamp(9.5rem, 26vw, 15rem);
+}
+.get-phone .lp-phone {
+  position: relative;
+  width: var(--phone-w);
+  filter: drop-shadow(0 30px 40px color-mix(in srgb, var(--color-plate) 80%, transparent));
+}
+.get-phone .lp-phone svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.get-phone[data-side="c"] {
+  z-index: 2;
+  bottom: -10%;
+  --phone-w: clamp(11rem, 30vw, 17rem);
+}
+.get-phone[data-side="l"] {
+  right: 50%;
+  translate: 18% 0;
+  rotate: -9deg;
+}
+.get-phone[data-side="r"] {
+  left: 50%;
+  translate: -18% 0;
+  rotate: 9deg;
+}

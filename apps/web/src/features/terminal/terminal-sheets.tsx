@@ -13,6 +13,7 @@ import { setTradeSettings } from "./settings";
 import { ShareSheet } from "./share/share-sheet";
 import { AdjustSheet } from "./sheets/adjust-sheet";
 import { ExitSheet } from "./sheets/exit-sheet";
+import { InstallSheet } from "./sheets/install-sheet";
 import { MarketsSheet } from "./sheets/markets-sheet";
 import { ReplaySheet } from "./sheets/replay-sheet";
 import { SettingsSheet } from "./sheets/settings-sheet";
@@ -39,7 +40,8 @@ export type SheetName =
   | "deposit"
   | "withdraw"
   | "parlay"
-  | "replay";
+  | "replay"
+  | "install";
 
 export interface SheetsProps {
   open: SheetName | null;
@@ -128,6 +130,7 @@ export function TerminalSheets(props: SheetsProps) {
           onDeposit={() => onOpen("deposit")}
           onWithdraw={() => onOpen("withdraw")}
           onTour={() => onOpen("tutorial")}
+          onInstall={() => onOpen("install")}
           onShare={(row) => {
             setShareRow(row);
             onOpen("share");
@@ -199,6 +202,7 @@ export function TerminalSheets(props: SheetsProps) {
           }}
         />
       ) : null}
+      {was("install") ? <InstallSheet open={open === "install"} onClose={onClose} /> : null}
       {was("tutorial") ? (
         <Tutorial
           open={open === "tutorial"}

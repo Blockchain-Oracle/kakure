@@ -4,6 +4,7 @@ import { Inter, JetBrains_Mono, Sora } from "next/font/google";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import { DataProvider } from "@/features/data/data-provider";
+import { InstallWatch } from "@/features/install/install-store";
 import { MarkSprite } from "@/features/markets/mark-sprite";
 import { INIT_SCRIPT } from "@/features/shell/init-script";
 import "./globals.css";
@@ -39,7 +40,7 @@ const stamp = localFont({
 export const metadata: Metadata = {
   title: { default: "Kakure · private prediction markets on Zcash", template: "%s · Kakure" },
   description:
-    "Call the close on crypto, US stocks and Zcash itself with shielded ZEC. The odds are public; the bettors stay private.",
+    "Call Bitcoin, Ether, Solana and Zcash up or down, from one minute to a day, with private chips from a shielded Zcash deposit. The prices are public; you aren't.",
   referrer: "no-referrer",
 };
 
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <MarkSprite />
+        <InstallWatch />
         <DataProvider>{children}</DataProvider>
       </body>
     </html>

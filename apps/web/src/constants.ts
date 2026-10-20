@@ -54,9 +54,6 @@ export const DOCS_ORIGIN = process.env.NEXT_PUBLIC_DOCS_ORIGIN ?? "https://docs.
 /** The public source repository. */
 export const REPO_URL = "https://github.com/Blockchain-Oracle/kakure";
 
-/** Android builds: GitHub Releases of the public repo, tags `android-*` (read at build time). */
-export const RELEASES = { repo: "Blockchain-Oracle/kakure", tagPrefix: "android-" } as const;
-
 /** Persisted public data older than this is dropped (it is re-fetched and re-verified anyway). */
 export const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60_000;
 
