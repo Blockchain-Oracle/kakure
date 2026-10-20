@@ -77,6 +77,14 @@ export const MS_PER_SECOND = 1_000;
 
 /** Reconnect backoff for the upstream socket. */
 export const RECONNECT_MIN_MS = 1_000;
+/**
+ * A feed socket that delivers nothing for this long is dead even if it never closed (a dropped connection, a sleeping
+ * host, an exchange stall): it's dropped and reopened. Kraken sends a heartbeat every second and Coinbase's ticker
+ * moves many times a second, so a live feed is never this quiet.
+ */
+export const FEED_SILENT_MS = 15_000;
+/** How often the watchdog listens for silent feeds while anyone is connected. */
+export const FEED_WATCHDOG_MS = 5_000;
 export const RECONNECT_MAX_MS = 30_000;
 export const RECONNECT_BACKOFF_FACTOR = 2;
 

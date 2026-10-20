@@ -21,6 +21,8 @@ import {
   CANDLES_LIVE_CACHE_SECONDS,
   CANDLES_OLDER_CACHE_SECONDS,
   COINBASE_WS,
+  FEED_SILENT_MS,
+  FEED_WATCHDOG_MS,
   HTTP_BAD_REQUEST,
   HTTP_SWITCHING_PROTOCOLS,
   IDLE_UPSTREAM_GRACE_MS,
@@ -42,6 +44,8 @@ type SocketFeed = Exclude<UpstreamFeed, "pyth">;
 interface FeedState {
   socket: WebSocket | null;
   since: number | null;
+  /** When the socket last delivered anything; the watchdog drops it once it's silent for `FEED_SILENT_MS`. */
+  lastAt: number | null;
   backoffMs: number;
   messages: number;
 }
@@ -63,13 +67,14 @@ export class PriceHub extends DurableObject<HubEnv> {
   /** When each symbol last ticked on Coinbase (arrival time), for the per-symbol fallback. */
   private readonly coinbaseSeen = new Map<StreamSymbol, number>();
   private readonly feeds: Record<SocketFeed, FeedState> = {
-    coinbase: { socket: null, since: null, backoffMs: RECONNECT_MIN_MS, messages: 0 },
-    kraken: { socket: null, since: null, backoffMs: RECONNECT_MIN_MS, messages: 0 },
+    coinbase: { socket: null, since: null, lastAt: null, backoffMs: RECONNECT_MIN_MS, messages: 0 },
+    kraken: { socket: null, since: null, lastAt: null, backoffMs: RECONNECT_MIN_MS, messages: 0 },
   };
   private readonly bars = new BarStore();
   private readonly candles = new CandleStore();
   private readonly notes: string[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
   private stocks: AbortController | null = null;
   private stocksSince: number | null = null;
   private stockMessages = 0;
@@ -131,7 +136,10 @@ export class PriceHub extends DurableObject<HubEnv> {
       feed.socket?.close(WS_CLOSE_GOING_AWAY, "idle");
       feed.socket = null;
       feed.since = null;
+      feed.lastAt = null;
     }
+    if (this.watchdog) clearInterval(this.watchdog);
+    this.watchdog = null;
     this.stocks?.abort();
     this.stocks = null;
     this.stocksSince = null;
@@ -139,6 +147,7 @@ export class PriceHub extends DurableObject<HubEnv> {
 
   private ensureUpstream(): void {
     this.ensureStocks();
+    this.watchdog ??= setInterval(() => this.dropSilentFeeds(), FEED_WATCHDOG_MS);
     for (const source of Object.keys(this.feeds) as SocketFeed[]) {
       if (!this.feeds[source].socket) {
         this.openFeed(source).catch((error: unknown) => {
@@ -191,6 +200,7 @@ export class PriceHub extends DurableObject<HubEnv> {
     socket.accept();
     feed.socket = socket;
     feed.since = Date.now();
+    feed.lastAt = feed.since;
     socket.send(JSON.stringify(subscribeMessage(source)));
     socket.addEventListener("message", (event) => this.onFeedMessage(source, event.data));
     socket.addEventListener("close", (event) =>
@@ -206,6 +216,7 @@ export class PriceHub extends DurableObject<HubEnv> {
   private onFeedMessage(source: SocketFeed, data: string | ArrayBuffer): void {
     const text = typeof data === "string" ? data : new TextDecoder().decode(data);
     this.feeds[source].messages += 1;
+    this.feeds[source].lastAt = Date.now();
     let quotes: Array<[StreamSymbol, Quote]>;
     try {
       quotes = source === "coinbase" ? parseCoinbase(text) : parseKraken(text);
@@ -251,6 +262,25 @@ export class PriceHub extends DurableObject<HubEnv> {
     this.pending.clear();
   }
 
+  /**
+   * The watchdog: a feed socket that has been open but silent for `FEED_SILENT_MS` is treated as lost (its close may
+   * never arrive) and reopened, so prices can't freeze behind a connection that only looks alive.
+   */
+  private dropSilentFeeds(): void {
+    const now = Date.now();
+    for (const source of Object.keys(this.feeds) as SocketFeed[]) {
+      const feed = this.feeds[source];
+      const socket = feed.socket;
+      if (!socket || feed.lastAt === null || now - feed.lastAt < FEED_SILENT_MS) continue;
+      this.onFeedLost(source, socket, `silent for ${now - feed.lastAt} ms`);
+      try {
+        socket.close(WS_CLOSE_GOING_AWAY, "silent");
+      } catch {
+        // Already gone.
+      }
+    }
+  }
+
   private onFeedLost(source: SocketFeed, socket: WebSocket, why: string): void {
     const feed = this.feeds[source];
     if (feed.socket !== socket) {
@@ -258,6 +288,7 @@ export class PriceHub extends DurableObject<HubEnv> {
     }
     feed.socket = null;
     feed.since = null;
+    feed.lastAt = null;
     this.note(`${source} lost: ${why}`);
     if (source === "coinbase") {
       this.broadcast({ t: "status", upstream: "reconnecting" });
