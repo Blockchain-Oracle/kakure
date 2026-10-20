@@ -41,8 +41,8 @@ P(Down) = 1 − P(Up)
 - A payout is stake ÷ ask, rounded down to the smallest chip (0.00001); a close pays payout × bid, rounded down the
   same way.
 
-The house refuses to quote when its price stream has been silent for more than 3 seconds, or an asset's last tick is
-older than 15 seconds, or a price stamped in the future.
+The house refuses to quote when its price stream has been silent for more than 3 seconds or an asset's last tick is
+older than 15 seconds, and it ignores any tick stamped in the future.
 
 **Slippage.** Your order carries the most you'll pay: the quote plus your tolerance (2 % by default; 0.5, 1, 2 or
 5 %) plus a cushion of 1 point. A worse ask is refused as **Price moved**.

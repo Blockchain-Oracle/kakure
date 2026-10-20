@@ -4,6 +4,7 @@ import {
   type BundleV2,
   bandOutcomeOf,
   cadenceLabel,
+  type LaneInfo,
   type Network,
   PRINTS_DELAY_SEC,
   parlayPayoutZat,
@@ -23,7 +24,7 @@ import { type ReactNode, useMemo } from "react";
 import { DATA_SOURCE, NETWORK_COIN } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
 import { useRealtime } from "@/features/data/use-realtime";
-import { recompute } from "@/features/proof/recompute";
+import { minuteCloses, printsMatch, recompute } from "@/features/proof/recompute";
 import { bandText, centsOf, clockText, sideWord, zecText } from "@/features/terminal/format";
 import { bandSideOf, type PositionRecord, upDownOf } from "@/features/wallet/records";
 import { useWallet } from "@/features/wallet/wallet-store";
@@ -81,6 +82,46 @@ function priceCheck(record: PositionRecord, coin: string): Check {
   };
 }
 
+/** A parlay's price is in 1/10^8; as a percent, over 10^6. */
+const PRICE_SCALE_E6 = 1_000_000;
+const PERCENT_PLACES = 2;
+
+/** The signed price against the most this device accepted when it bought (Codex review K7). */
+function limitCheck(record: PositionRecord): Check | null {
+  const cert = record.certificate;
+  const limit = record.limit;
+  if (!cert || !limit) return null;
+  if (cert.kind === "parlay") {
+    if (limit.priceE8 === undefined || cert.priceE8 === undefined) return null;
+    return {
+      ok: cert.priceE8 <= limit.priceE8,
+      text: `Priced at ${(cert.priceE8 / PRICE_SCALE_E6).toFixed(PERCENT_PLACES)}%, within the ${(limit.priceE8 / PRICE_SCALE_E6).toFixed(PERCENT_PLACES)}% you accepted`,
+    };
+  }
+  if (limit.askE4 === undefined || cert.askE4 === undefined) return null;
+  return {
+    ok: cert.askE4 <= limit.askE4,
+    text: `Bought at ${centsOf(cert.askE4)}, within the ${centsOf(limit.askE4)} you accepted`,
+  };
+}
+
+/** A settlement's prints against the hourly files' own 1-minute closes (Codex review K8); null when not loaded. */
+function crossCheck(
+  state: WindowState,
+  lane: LaneInfo | undefined,
+  closes: ReadonlyMap<string, string | null>,
+): Check | null {
+  if (!lane) return null;
+  const match = printsMatch(state, lane, closes);
+  if (match === null) return null;
+  return {
+    ok: match,
+    text: match
+      ? "Its prints are the 1-minute closes signed in the hourly files"
+      : "Its prints differ from the 1-minute closes signed in the hourly files",
+  };
+}
+
 export function VerifyScreen() {
   const data = useRealtime();
   const network = data.network;
@@ -94,14 +135,16 @@ export function VerifyScreen() {
     for (const w of bundle?.windows ?? []) if (w.outcome) map.set(w.id, w);
     return map;
   }, [prints.data, bundle]);
+  const closes = useMemo(() => minuteCloses(prints.data ?? []), [prints.data]);
 
   return (
     <div className="mx-auto flex w-full max-w-(--layout-content-max) flex-col gap-5">
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-page-title text-foreground">Verify</h1>
         <p className="text-body text-muted-foreground">
-          Every position on this device, checked again here from public files: the mint's signature, the price, and how
-          it settled. Nothing is sent.
+          Every position on this device, checked again here from public files: the mint's signature, the price against
+          the most you accepted, the payout's arithmetic, and how it settled, from prints cross-checked against the
+          hourly files' 1-minute closes. Nothing is sent.
         </p>
       </header>
       {data.status === "loading" || wallet.status === "loading" ? <Skeleton className="h-48 rounded-group" /> : null}
@@ -127,6 +170,7 @@ export function VerifyScreen() {
                 network={network}
                 bundle={bundle}
                 states={states}
+                closes={closes}
                 printsLoading={prints.isFetching}
               />
             ))}
@@ -142,12 +186,14 @@ function PositionChecks({
   network,
   bundle,
   states,
+  closes,
   printsLoading,
 }: {
   record: PositionRecord;
   network: Network;
   bundle: BundleV2;
   states: ReadonlyMap<string, WindowState>;
+  closes: ReadonlyMap<string, string | null>;
   printsLoading: boolean;
 }) {
   const cert = record.certificate;
@@ -166,6 +212,8 @@ function PositionChecks({
     const priced = parlayPriceE8(legs.map((l) => ({ askE4: l.askE4, expirySec: l.expiry })));
     const priceOk = priced.ok && priced.priceE8 === cert.priceE8 && parlayPayoutZat(stake, priced.priceE8) === payout;
     checks.push({ ok: priceOk, text: `Pays ${zecText(payout)} ${coin}: the stake over the legs' asks multiplied` });
+    const limited = limitCheck(record);
+    if (limited) checks.push(limited);
     const outcomes = legs.map((l) => {
       const state = states.get(l.window);
       const r = state ? recompute(state, lanes) : null;
@@ -175,6 +223,16 @@ function PositionChecks({
     if (decided) {
       const allOk = outcomes.every((o) => o.r?.ok);
       checks.push({ ok: allOk, text: "Every leg's outcome recomputed from the venues' signed prints" });
+      const crossed = outcomes.map((o) => (o.state && o.r ? printsMatch(o.state, o.r.lane, closes) : null));
+      if (crossed.every((m) => m !== null)) {
+        const legsOk = crossed.every((m) => m === true);
+        checks.push({
+          ok: legsOk,
+          text: legsOk
+            ? "Every leg's prints are the 1-minute closes signed in the hourly files"
+            : "A leg's prints differ from the 1-minute closes signed in the hourly files",
+        });
+      }
       const expected = parlaySettledZat(
         stake,
         outcomes.map(({ leg, state }) => ({
@@ -199,7 +257,12 @@ function PositionChecks({
     const parsed = cert.window ? parseWindowId(cert.window) : null;
     const bandSide = bandSideOf(cert);
     checks.push(priceCheck(record, coin));
+    const limited = limitCheck(record);
+    if (limited) checks.push(limited);
     const state = cert.window ? states.get(cert.window) : undefined;
+    const lane = parsed ? lanes.get(parsed.lane.id) : undefined;
+    const crossed = state?.outcome ? crossCheck(state, lane, closes) : null;
+    if (crossed) checks.push(crossed);
     if (record.state === "paid" && record.how && record.how !== "redeem" && record.how !== "settled") {
       checks.push({
         ok: true,
@@ -207,7 +270,6 @@ function PositionChecks({
       });
     } else if (state?.outcome && bandSide) {
       // A band settles on the venues' closing prints against its edges, two of three (no reference needed).
-      const lane = parsed ? lanes.get(parsed.lane.id) : undefined;
       const outcome = lane ? bandOutcomeOf(lane.venues, state.closing ?? {}, cert.lo ?? null, cert.hi ?? null) : null;
       checks.push({
         ok: outcome !== null,

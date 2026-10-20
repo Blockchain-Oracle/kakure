@@ -40,6 +40,8 @@ pub struct Chain {
     pub sync: SyncOpts,
     /// The scanned tip, shared with the mint.
     pub tip: Arc<AtomicU32>,
+    /// How many deposits were last reported short, so the warning is printed when it changes, not every round.
+    pub short_reported: usize,
 }
 
 impl Chain {
@@ -72,7 +74,8 @@ impl Chain {
                 synced.dropped
             );
         }
-        if !synced.short.is_empty() {
+        if synced.short.len() != self.short_reported {
+            self.short_reported = synced.short.len();
             // Never the ids: a deposit id is a bearer claim on chips.
             eprintln!(
                 "chain: {} deposit(s) have more minted than they now hold; they can't mint again",

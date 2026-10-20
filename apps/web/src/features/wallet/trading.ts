@@ -119,6 +119,13 @@ async function place(
   const change = total(inputs) > stakeZat ? prepareOutputs(keyset, total(inputs) - stakeZat) : null;
   const secret = newSecret();
   const key = await lockOf(secret);
+  const sent = body as { maxAskE4?: number; maxPriceE8?: number };
+  const limit =
+    sent.maxAskE4 !== undefined
+      ? { askE4: sent.maxAskE4 }
+      : sent.maxPriceE8 !== undefined
+        ? { priceE8: sent.maxPriceE8 }
+        : undefined;
   const record: PositionRecord = {
     kind: "position",
     network,
@@ -127,6 +134,7 @@ async function place(
     createdAt: Date.now(),
     state: "buying",
     ...(entrySpot === undefined ? {} : { entrySpot }),
+    ...(limit ? { limit } : {}),
     pending: {
       path,
       request: JSON.stringify({ ...body, inputs, change: change?.outputs ?? [], lock: key }),

@@ -21,11 +21,16 @@ description: What the app checks on every load, what Verify recomputes for your 
 The **Verify** page checks every position on this device and sends nothing anywhere:
 
 - **The certificate's signature** against the operator key.
-- **Its price:** stake ÷ ask gives the signed payout. A position you partly closed is replayed from its first signed
-  terms through each reduce, which must land on the terms signed last.
+- **Its price against what you accepted:** the signed ask (or a parlay's price) is no more than the limit your order
+  carried.
+- **The payout's arithmetic:** stake ÷ ask gives the signed payout. A position you partly closed is replayed from its
+  first signed terms through each reduce, which must land on the terms signed last.
 - **Parlays:** the combined price from the legs' asks, and the payout.
 - **Its result,** recomputed from the signed prints: the Line from the opening prints, then two of three closing
   votes, for Up/Down; two of three closing prints inside or outside the edges, for bands; each leg, for parlays.
+- **Its prints against the minute closes:** each print must be the exchange's 1-minute close signed in the hourly
+  files for the minute ending at the open or the close. The operator never revises a minute once recorded, so they
+  agree exactly.
 - **What was paid** against what was due.
 
 A Window that settled more than 10 minutes ago has left the minute bundle; Verify recomputes it from its hour's
@@ -39,7 +44,7 @@ The **Proof** page shows the signed record anyone can check:
   signature checked, and its SHA-256 compared with this bundle's `previous`, so a dropped or swapped minute shows;
 - the pricing inputs and each asset's σ;
 - the last settled Windows, each recomputed from its prints, and a button that recomputes every settlement in the
-  last day's prints files.
+  last day's prints files, checking each print against the same files' 1-minute closes.
 
 ## By hand
 

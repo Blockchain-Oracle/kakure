@@ -109,6 +109,11 @@ export interface PositionRecord {
   certificate?: PositionCertificate;
   /** The asset price this device saw when it bought (display only: the chart's Entry line and PnL band). */
   entrySpot?: number;
+  /**
+   * The most this device agreed to pay when it bought (the limit it sent: an ask, or a parlay's price), so Verify can
+   * check the signed price against what the buyer accepted (Codex review K7).
+   */
+  limit?: { askE4?: number; priceE8?: number };
   exit?: ExitPlan;
   /** Blank outputs left with the mint for an armed exit's proceeds. */
   exitBlank?: StoredPending;

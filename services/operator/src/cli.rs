@@ -841,6 +841,7 @@ async fn start_trading(
             tor,
             sync,
             tip: tip.clone(),
+            short_reported: 0,
         });
     } else {
         eprintln!(

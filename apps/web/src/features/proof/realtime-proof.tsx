@@ -20,7 +20,7 @@ import { DATA_SOURCE, NETWORK_COIN, NETWORK_LABEL } from "@/constants";
 import { DataErrorState } from "@/features/data/data-states";
 import { useRealtime } from "@/features/data/use-realtime";
 import { formatClock, formatDateTime } from "@/lib/time";
-import { recompute } from "./recompute";
+import { minuteCloses, printsMatch, recompute } from "./recompute";
 
 /**
  * Proof (plan §00): what this browser checked itself. Every minute's bundle is signed by the operator key built into
@@ -287,16 +287,22 @@ function Hourly({ bundle, network }: { bundle: BundleV2; network: Network }) {
   const [wanted, setWanted] = useState(false);
   const prints = useUniformPrints(DATA_SOURCE, network, wanted);
   const lanes = new Map(bundle.lanes.map((lane) => [lane.id, lane]));
+  const closes = minuteCloses(prints.data ?? []);
   const results = (prints.data ?? []).map((file: Prints) => {
-    const checks = file.windows.map((w) => recompute(w, lanes));
+    const checks = file.windows.map((w) => {
+      const check = recompute(w, lanes);
+      return { check, match: check ? printsMatch(w, check.lane, closes) : null };
+    });
     return {
       hour: file.hour,
       windows: file.windows.length,
-      failed: checks.filter((c) => c && !c.ok).length,
+      failed: checks.filter(({ check, match }) => (check && !check.ok) || match === false).length,
+      unchecked: checks.filter(({ match }) => match === null).length,
     };
   });
   const total = results.reduce((sum, r) => sum + r.windows, 0);
   const failed = results.reduce((sum, r) => sum + r.failed, 0);
+  const unchecked = results.reduce((sum, r) => sum + r.unchecked, 0);
   return (
     <Card id="hourly-title" title="The last 24 hours">
       <p className="text-row-detail text-muted-foreground">
@@ -321,8 +327,11 @@ function Hourly({ bundle, network }: { bundle: BundleV2; network: Network }) {
         <>
           <ul className="flex flex-col gap-2">
             <Ok ok={failed === 0}>
-              {total} settlements recomputed from signed prints;{" "}
-              {failed === 0 ? "every one matches" : `${failed} differ`}.
+              {total} settlements recomputed from signed prints, each print checked against the same files' 1-minute
+              closes; {failed === 0 ? "every one matches" : `${failed} differ`}.
+              {unchecked > 0
+                ? ` ${unchecked} opened before the oldest file here, so their opening prints weren't cross-checked.`
+                : ""}
             </Ok>
           </ul>
           <ul className="flex flex-col gap-1 font-mono text-num-sm text-muted-foreground">
