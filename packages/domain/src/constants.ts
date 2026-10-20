@@ -195,7 +195,7 @@ export const SLIPPAGE_CUSHION_E4 = 100;
 export const BPS_SCALE = 10_000;
 /** The operator won't quote when its price stream has been silent this long, or the asset's price is this old. */
 export const QUOTE_MAX_SILENCE_MS = 3_000;
-export const QUOTE_MAX_PRICE_AGE_MS = 30_000;
+export const QUOTE_MAX_PRICE_AGE_MS = 15_000;
 
 /** Parlays (Owarine `core/parlay/pricing.ts`): 2–3 legs, prices multiply, all or nothing. Prices in 1/10^8 ("E8"). */
 export const PARLAY_MIN_LEGS = 2;

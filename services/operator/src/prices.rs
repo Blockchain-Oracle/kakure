@@ -21,7 +21,11 @@ use tokio_tungstenite::tungstenite::Message;
 pub const DEFAULT_STREAM_URL: &str = "wss://kakure-prices.kakure-price-relay.workers.dev/v1/stream";
 /// Mirrors `QUOTE_MAX_SILENCE_MS` and `QUOTE_MAX_PRICE_AGE_MS` in `@kakure/domain`.
 pub const MAX_SILENCE: Duration = Duration::from_secs(3);
-pub const MAX_PRICE_AGE_MS: i64 = 30_000;
+/// Just past the relay's 12 s switch from a silent Coinbase symbol to Kraken: an asset stalled
+/// upstream stops being quoted instead of being sold on an old price (Codex review K5).
+pub const MAX_PRICE_AGE_MS: i64 = 15_000;
+/// A tick stamped further ahead than this is refused: venue clocks drift, not by seconds.
+const MAX_FUTURE_MS: i64 = 2_000;
 const RECONNECT_MIN: Duration = Duration::from_secs(1);
 const RECONNECT_MAX: Duration = Duration::from_secs(30);
 
@@ -136,8 +140,16 @@ async fn follow(url: &str, state: &Mutex<State>, bump: &watch::Sender<u64>) -> a
             state.last_message = Some(Instant::now());
             if wire.t == "snap" || wire.t == "ticks" {
                 for (symbol, quote) in wire.prices {
+                    let now_ms = chrono::Utc::now().timestamp_millis();
+                    // A tick from the future, or older than the one held, never moves the price.
+                    let newer = state
+                        .ticks
+                        .get(&symbol)
+                        .is_none_or(|held| quote.ts >= held.ts_ms);
                     if let Ok(price) = quote.p.parse::<f64>()
                         && price > 0.0
+                        && newer
+                        && quote.ts <= now_ms + MAX_FUTURE_MS
                     {
                         state.ticks.insert(
                             symbol,
