@@ -66,7 +66,7 @@ export const PLACES: readonly NavEntry[] = [
     name: "Games",
     tile: "Games",
     href: "/games",
-    description: "Practice, Line Rider, Candle Hop, Range and Moonshot.",
+    description: "Practice, Line Rider, Candle Hop, Lucky, Range and Moonshot.",
     keywords: "practice line rider candle hop lucky duel range moonshot arcade",
   },
   {

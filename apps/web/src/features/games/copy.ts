@@ -20,10 +20,8 @@ export const GAMES = {
     noRuns: "No runs yet",
     boardOffline: "Board offline · play on",
     goTo: (n: number, total: number) => `${n} of ${total}`,
-    soonLine: {
-      lucky: "Opens next: one real trade, drawn on your device",
-      duel: "Opens next: three calls, head to head",
-    },
+    soonLine: { duel: "Opens next: three calls, head to head" },
+    luckyLine: "Drawn on your device · one real trade",
   },
 
   hall: {
@@ -83,7 +81,11 @@ export const GAMES = {
       "Priced by the public formula, paid from your chips.",
     ],
     moonshot: ["Pick a side and a reach.", "Further pays more.", "Range's pricing, one edge open."],
-    lucky: ["Reels draw a live Window, a side and a stake on your device.", "You see the real quote first."],
+    lucky: [
+      "Reels draw a live asset, a side and a reach; you pick the stake.",
+      "You see the live quote first; slide to place it as one ordinary trade.",
+      "Drawn on this device from the signed bundle and your seed · nothing is sent until you place it.",
+    ],
     duel: ["Three calls against another player.", "Picks stay sealed until lock."],
   } satisfies Record<GameId, readonly string[]>,
 

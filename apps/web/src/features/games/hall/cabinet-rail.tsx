@@ -4,6 +4,8 @@ import { type ArcadeGame, BOARD_LIMIT } from "@kakure/arcade";
 import type { BundleV2 } from "@kakure/domain";
 import Link from "next/link";
 import { type KeyboardEvent, type ReactNode, useCallback, useRef, useState } from "react";
+import { useNetwork } from "@/features/network/network-store";
+import { useWallet } from "@/features/wallet/wallet-store";
 import { AttractCanvas } from "../arcade/attract-canvas";
 import { ARCADE } from "../arcade/copy";
 import { GameScene } from "../art/scenes";
@@ -12,6 +14,8 @@ import { GAMES } from "../copy";
 import { useGames } from "../games-provider";
 import { ECON_TONE } from "../games-rail";
 import { Sticker } from "../kit/sticker";
+import { LUCKY } from "../lucky/copy";
+import { useLuckyRecord } from "../lucky/lucky-floor";
 import { useNickname } from "../player/player-store";
 import { useAttractTape, useBoard, useStanding } from "../player/queries";
 import { practiceCandidates, windowsLive } from "../practice/candidates";
@@ -29,6 +33,18 @@ function ArcadeFact({ game }: { game: ArcadeGame }) {
   if (!top) return <span className="cab-fact">{GAMES.card.noRuns}</span>;
   const mine = nickname && standing.data?.best != null ? ARCADE.fmt(standing.data.best) : null;
   return <span className="cab-fact">{GAMES.card.top(ARCADE.fmt(top.score), mine)}</span>;
+}
+
+/** Lucky's fact is this device's own: its streak once a draw has settled, else where the draw happens. */
+function LuckyFact() {
+  const network = useNetwork();
+  const wallet = useWallet(network);
+  const record = useLuckyRecord(network, wallet.positions);
+  return (
+    <span className="cab-fact">
+      {record.best > 0 ? LUCKY.streak(record.streak, record.best) : GAMES.card.luckyLine}
+    </span>
+  );
 }
 
 function Cabinet({ id, fact }: { id: GameId; fact: ReactNode }) {
@@ -101,7 +117,8 @@ export function CabinetRail({ bundle, nowMs }: { bundle: BundleV2 | null; nowMs:
 
   const factOf = (id: GameId): ReactNode => {
     if (isArcade(id)) return <ArcadeFact game={id} />;
-    if (id === "lucky" || id === "duel") return <span className="cab-fact">{GAMES.card.soonLine[id]}</span>;
+    if (id === "lucky") return <LuckyFact />;
+    if (id === "duel") return <span className="cab-fact">{GAMES.card.soonLine.duel}</span>;
     return windowsFact;
   };
 

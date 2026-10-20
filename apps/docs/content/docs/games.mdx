@@ -3,8 +3,8 @@ title: Games
 description: Practice, Line Rider and Candle Hop, how a score is checked, and what a nickname is.
 ---
 
-{/* Sources: apps/web/src/features/games (catalog.ts, practice/, arcade/, player/, hall/device-facts.ts);
-   packages/arcade/src (practice.ts, tape.ts, replay.ts, trace.ts, wire.ts, field.ts); services/arcade/src (handlers.ts,
+{/* Sources: apps/web/src/features/games (catalog.ts, practice/, arcade/, lucky/, player/, hall/device-facts.ts);
+   packages/arcade/src (practice.ts, lucky.ts, tape.ts, replay.ts, trace.ts, wire.ts, field.ts); services/arcade/src (handlers.ts,
    store.ts, tapes.ts, constants.ts); services/data-worker/src/arcade.ts. Every number is a constant in that code. */}
 
 The games hall is at **/games**. Range and Moonshot are trades priced by the house (see
@@ -15,6 +15,7 @@ The games hall is at **/games**. Range and Moonshot are trades priced by the hou
 | Practice: Beat the coin | Free | The live price, 30 seconds after each swipe |
 | Line Rider | Free | The arcade service's replay of your run |
 | Candle Hop | Free | The arcade service's replay of your run |
+| Lucky | Your stake | One ordinary trade, settled like any other |
 
 ## Practice: Beat the coin
 
@@ -28,6 +29,20 @@ round's seed and the card, so it's a coin flip and nothing more.
 
 Practice runs entirely in your browser. Nothing about a round is sent anywhere; the tally of rounds you've played and
 won stays on your device for the hall's achievements.
+
+## Lucky
+
+Three reels draw a live **asset**, a **side** (Up or Down) and a **reach** (×2, ×3, ×5, ×10 or ×25); you pick the
+stake from four chips. The machine then deals the drawn asset's Window whose drawn side pays closest to the reach, at
+the live price from the public formula, and shows that quote. Slide the lever to place it: one ordinary trade from your
+chips, through the same sealed path as the terminal, settled at the Window's close.
+
+- **Drawn on your device.** The draw is HMAC-SHA256, keyed by the hash of the latest signed bundle (the operator's
+  `latest.json` names it; nobody knows it before that minute is published), over the policy, a hash of the candidate
+  Windows and a seed your browser makes at the spin. **Proof** shows each input and recomputes the draw.
+- **Nothing is sent until you place it.** A server-dealt draw would learn your bet before it's a bet, so there is no
+  draw server. Your draws, placed or not, are listed on your device only, each with what its Window decided.
+- A Window needs a minute and a half left to be drawn, so there's time to slide before entry closes 30 seconds out.
 
 ## The arcade: Line Rider and Candle Hop
 
@@ -65,7 +80,7 @@ makes for the arcade; claiming one takes a small proof of work instead of a capt
 | | Kept by |
 | --- | --- |
 | Nicknames, device public keys, runs (game, score, inputs' hash, day) | The arcade service |
-| Your arcade key, your runs list, Practice's tally, your streaks and achievements | This browser |
+| Your arcade key, your runs list, Practice's tally, Lucky's draws, your streaks and achievements | This browser |
 | Your IP | Nobody on the arcade's side: the site forwards only the request's method, path and body |
 
 The arcade's calls aren't sealed like trades: the site sees them with your IP, though it keeps no logs. See

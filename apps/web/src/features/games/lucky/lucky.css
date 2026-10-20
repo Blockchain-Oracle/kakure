@@ -1,0 +1,398 @@
+/* Lucky, the machine (Mitoshi `lucky/lucky.css`, the cabinet and SPIN from Owarine): the reels (slot-reel.tsx), the
+ * stake chips, the deal card and the proof, on Kakure's tokens; your draws list is this device's own. */
+
+.lk-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  margin-inline: auto;
+  width: 100%;
+}
+.lk-cabinet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 12px 12px;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--vermilion) 35%, var(--border));
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    color-mix(in srgb, var(--vermilion) 12%, var(--card)),
+    var(--card) 70%
+  );
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.3);
+}
+.lk-lights {
+  position: absolute;
+  top: 2px;
+  left: 16px;
+  right: 16px;
+  height: 6px;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--vermilion) 1.5px, transparent 2px);
+  background-size: 12px 6px;
+  background-repeat: repeat-x;
+  animation: lk-chase 1.2s steps(2) infinite;
+}
+@keyframes lk-chase {
+  50% {
+    opacity: 0.35;
+    background-position: 6px 0;
+  }
+}
+
+.lk-reels {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+/* The reels: one continuous strip each behind a deep window, a payline across the middle row, the landed row lit in
+ * its tone (components/ui/slot-reel.tsx). */
+.slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.slot-label {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  text-align: center;
+}
+.slot-window {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    180deg,
+    var(--canvas),
+    color-mix(in srgb, var(--foreground) 5%, var(--canvas)) 50%,
+    var(--canvas)
+  );
+  box-shadow:
+    inset 0 10px 14px -10px rgba(0, 0, 0, 0.7),
+    inset 0 -10px 14px -10px rgba(0, 0, 0, 0.7);
+}
+.slot-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.slot-row {
+  display: grid;
+  place-items: center;
+  height: 40px;
+  width: 100%;
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-muted);
+  transition:
+    color 200ms var(--ease-default),
+    text-shadow 200ms var(--ease-default);
+}
+.slot-probe {
+  position: absolute;
+  visibility: hidden;
+}
+.slot-payline {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 50%;
+  height: 2px;
+  translate: 0 -1px;
+  background: color-mix(in srgb, var(--vermilion) 55%, transparent);
+  pointer-events: none;
+}
+.slot-row[data-pay] {
+  color: var(--foreground);
+  text-shadow: 0 0 14px currentColor;
+}
+.slot[data-tone="asset"] .slot-row[data-pay],
+.slot[data-tone="reach"] .slot-row[data-pay] {
+  color: var(--vermilion);
+}
+.slot[data-tone="up"] .slot-row[data-pay] {
+  color: var(--up);
+}
+.slot[data-tone="down"] .slot-row[data-pay] {
+  color: var(--down);
+}
+.slot[data-landed] .slot-window {
+  animation: lk-lock 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes lk-lock {
+  0% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: none;
+  }
+}
+.lk-slot-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.lk-slot-disc {
+  width: 22px;
+  height: 22px;
+}
+.lk-slot-face--reach {
+  font-size: 28px;
+}
+/* The asset face: the ticker over its last half hour (a static line, toned by its move). */
+.lk-slot-face--asset {
+  flex-direction: column;
+  gap: 3px;
+}
+.lk-slot-line {
+  display: block;
+  width: 56px;
+  height: 10px;
+  overflow: visible;
+}
+.slot-row:not([data-pay]) .lk-slot-line {
+  opacity: 0.5;
+}
+@media (max-width: 360px) {
+  .slot-row {
+    font-size: 18px;
+  }
+  .lk-slot-face--reach {
+    font-size: 22px;
+  }
+  .lk-slot-disc {
+    display: none;
+  }
+  .lk-slot-line {
+    width: 44px;
+    height: 8px;
+  }
+}
+
+/* ── The stake chips and the SPIN ── */
+.lk-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.lk-chip {
+  min-height: 44px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.lk-chip[aria-checked="true"] {
+  border-color: var(--vermilion);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--vermilion) 14%, var(--card));
+}
+.lk-chip:not(:disabled):not([aria-checked="true"]):hover {
+  border-color: color-mix(in srgb, var(--vermilion) 45%, transparent);
+  color: var(--foreground);
+}
+.lk-chip:disabled {
+  opacity: 0.45;
+}
+.lk-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 56px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--vermilion) 60%, transparent);
+  background: var(--vermilion);
+  color: var(--accent-foreground);
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.32),
+    0 2px 0 rgba(0, 0, 0, 0.55);
+}
+.lk-cta:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+.lk-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.lk-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+/* ── The deal card ── */
+.lk-deal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.lk-deal[data-side="up"] {
+  border-color: color-mix(in srgb, var(--up) 45%, var(--border));
+}
+.lk-deal[data-side="down"] {
+  border-color: color-mix(in srgb, var(--down) 45%, var(--border));
+}
+.lk-deal-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lk-deal-title {
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--foreground);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lk-deal-side {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  text-transform: uppercase;
+  color: var(--canvas);
+}
+.lk-deal-side[data-side="up"] {
+  background: var(--up);
+}
+.lk-deal-side[data-side="down"] {
+  background: var(--down);
+}
+.lk-deal-quote {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.lk-deal-done {
+  font-size: 14px;
+  color: var(--foreground);
+}
+.lk-deal-fail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--down);
+}
+
+/* ── The proof, behind ⓘ ── */
+.lk-proof {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  padding: 0 12px;
+}
+.lk-proof summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.lk-proof summary::-webkit-details-marker {
+  display: none;
+}
+.lk-proof-icon {
+  width: 16px;
+  height: 16px;
+}
+.lk-proof-verdict {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--down);
+}
+.lk-proof-verdict[data-ok] {
+  color: var(--up);
+}
+.lk-kv {
+  display: grid;
+  grid-template-columns: minmax(0, 88px) minmax(0, 1fr);
+  gap: 4px 10px;
+  padding-bottom: 12px;
+}
+.lk-kv dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.lk-kv dd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-lights,
+  .slot[data-landed] .slot-window {
+    animation: none;
+  }
+}
+
+/* The lucky cta keeps the games' commit button but takes Owarine's machine shape. */
+.lk-cta.gm-cta {
+  min-height: 56px;
+  border-radius: 16px;
+  font: 400 22px / 1 var(--font-pixel);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.lk-deal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.lk-deal-busy {
+  font: 400 12px / 1.6 var(--font-mono);
+  color: var(--muted-foreground);
+  text-align: center;
+}
+.lk-proof-rule {
+  padding-bottom: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}

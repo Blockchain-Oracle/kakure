@@ -5,6 +5,7 @@
  */
 export * from "./field";
 export * from "./hop";
+export * from "./lucky";
 export * from "./practice";
 export * from "./replay";
 export * from "./rng";

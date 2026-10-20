@@ -1,8 +1,8 @@
 /**
  * What each mode is to a player standing in the hall (Mitoshi `features/games/catalog.ts` and core `games/types.ts`):
  * its route, name, whose money is at risk and whether it's open in this build. The economic kind is a fact of the mode,
- * not the screen: a mode whose kind is `none` never touches the wallet. Lucky and Duel open with R5, so they read
- * "Soon" and have no Play until then.
+ * not the screen: a mode whose kind is `none` never touches the wallet. A mode not built yet reads "Soon" and has no
+ * Play until it is.
  */
 export type GameId = "practice" | "line-rider" | "candle-hop" | "range" | "moonshot" | "lucky" | "duel";
 
@@ -67,7 +67,7 @@ const ENTRIES: Readonly<Record<GameId, GameEntry>> = {
     href: "/games/lucky",
     economicKind: "stake",
     economicLabel: "One real trade from your chips",
-    open: false,
+    open: true,
   },
   duel: {
     id: "duel",

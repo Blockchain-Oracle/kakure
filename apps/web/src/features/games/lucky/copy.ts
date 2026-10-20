@@ -1,0 +1,56 @@
+/**
+ * Everything Lucky says (Mitoshi `lucky/copy.ts`), at its word count or fewer. The machine says what was drawn, the
+ * live quote and the one action; the proof (the bundle it was keyed by, your seed, the candidates) sits behind Proof.
+ */
+export const LUCKY = {
+  title: "Lucky",
+  reels: {
+    asset: "Asset",
+    side: "Side",
+    reach: "Reach",
+    multiple: (m: number) => `×${m}`,
+    announce: (asset: string, side: string, m: number) => `${asset}, ${side}, ×${m}`,
+  },
+  side: { up: "Up", down: "Down" },
+  stake: "Stake",
+  spin: "Spin",
+  spinning: "Spinning…",
+  again: "Spin again",
+  noWindows: "No Window has a minute and a half left right now. Spin again in a moment.",
+  noTrading: "Trading isn't published on this network yet.",
+  locked: "Unlock the vault to place it.",
+  deal: {
+    window: (asset: string, cadence: string) => `${asset} · ${cadence} Window`,
+    pays: (multiple: string) => `pays ${multiple}`,
+    dealt: (multiple: string) => `dealt at ${multiple}`,
+    drifted: "The price moved since the deal",
+    noQuote: "No live quote on this side now",
+    gone: "That Window stopped taking entries",
+    closes: (clock: string) => `closes in ${clock}`,
+    target: (m: number) => `aiming for ×${m}`,
+  },
+  lever: (stake: string) => `Slide to place · ${stake}`,
+  placing: "Placing…",
+  placed: (stake: string) => `Your ${stake} call is in. It settles at the Window's close.`,
+  failed: (why: string) => `Not placed · ${why}`,
+  proof: {
+    open: "Proof",
+    bundle: "Bundle",
+    bundleOf: (seq: number, hash: string) => `#${seq} · ${hash}`,
+    seed: "Your seed",
+    set: "Candidates",
+    candidates: (n: number, hash: string) => `${n} Windows · ${hash}`,
+    rule: "HMAC-SHA256, keyed by the bundle's hash, over the policy, the candidates' hash and your seed.",
+    verified: "Recomputed here · the draw matches",
+    mismatch: "Recomputed here · the draw does NOT match",
+  },
+  privacy: "Drawn on this device. Nothing is sent until you place it, and then it's one ordinary trade.",
+  streak: (n: number, best: number) => `Streak ${n} · best ${best}`,
+  floor: {
+    title: "Your draws",
+    scope: "Kept on this device",
+    empty: "No draws yet. The first spin starts the list.",
+    result: { riding: "In play", won: "Won", lost: "Lost", refund: "Refunded", closed: "Closed early" },
+    notPlaced: "Not placed",
+  },
+} as const;

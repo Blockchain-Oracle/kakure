@@ -1,0 +1,73 @@
+/* Your draws: this device's own, newest first, each with what its Window decided. */
+.lk-floor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.lk-floor-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lk-floor-title {
+  margin: 0;
+  font: 400 22px / 1 var(--font-pixel);
+  color: var(--foreground);
+}
+.lk-floor-scope {
+  font: 400 11px / 1.4 var(--font-mono);
+  color: var(--ink-muted);
+}
+.lk-floor-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  list-style: none;
+}
+.lk-floor-row {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.lk-floor-row:last-child {
+  border-bottom: 0;
+}
+.lk-floor-what {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.lk-floor-call {
+  font: 600 14px / 1.2 var(--font-mono);
+  color: var(--foreground);
+}
+.lk-floor-sub {
+  font: 400 11px / 1.4 var(--font-mono);
+  color: var(--ink-muted);
+}
+.lk-floor-verdict {
+  font: 400 16px / 1 var(--font-pixel);
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+}
+.lk-floor-row[data-result="won"] .lk-floor-verdict {
+  color: var(--up);
+}
+.lk-floor-row[data-result="lost"] .lk-floor-verdict {
+  color: var(--down);
+}
+.lk-floor-row[data-result="riding"] .lk-floor-verdict {
+  color: var(--vermilion);
+}
