@@ -65,7 +65,7 @@ export function WithdrawSheet({
       setError(
         e instanceof MintError
           ? e.code === MINT_CODES.badAddress
-            ? "The mint refused that address. Use a fresh shielded (Orchard) address."
+            ? `The mint refused that address: ${e.message}.`
             : e.code === MINT_CODES.tooSmall
               ? `Withdrawals start at ${minText}.`
               : e.code === MINT_CODES.alreadySpent

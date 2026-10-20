@@ -381,6 +381,18 @@ fn withdraw(api: &Api, request: MeltRequest, cache: Option<&str>) -> Answer {
         "withinSecs": WITHDRAW_WINDOW.max,
     });
     spend_and(api, &ys, cache.map(|k| (k, &answer)), |tx| {
+        // A fresh address every time: two withdrawals to one address are linked for good (privacy re-audit V6). Checked
+        // in the spend's transaction, so a refusal costs nothing.
+        let used: bool = tx
+            .prepare("SELECT 1 FROM payouts WHERE recipient = ?1 LIMIT 1")
+            .and_then(|mut stmt| stmt.exists([&request.address]))
+            .map_err(internal)?;
+        if used {
+            return Err(refuse(
+                KAKURE_BAD_ADDRESS,
+                "this address has been paid before; use a fresh one from your wallet's Receive screen",
+            ));
+        }
         let id = rt_store::new_withdrawal(tx, zat, now).map_err(internal)?;
         payouts::schedule_withdrawal(tx, id, &request.address, zat, now, WITHDRAW_WINDOW)
             .map_err(internal)?;

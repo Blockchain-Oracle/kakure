@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS prints_files (
 
 /// Cached responses are kept this long (a client resends within seconds or minutes).
 const RESPONSES_KEEP_SECS: i64 = 2 * 86_400;
+/// A withdrawal's records stay this long after its notes are mined, then go.
+const WITHDRAWALS_KEEP_SECS: i64 = 7 * 86_400;
 /// Minute closes are kept this long (the hourly prints files keep them for good).
 const MINUTES_KEEP_SECS: i64 = 48 * 3_600;
 /// Window rows are kept this long (positions refer to them until they settle and redeem).
@@ -334,6 +336,17 @@ pub fn prune(conn: &Connection, now: i64) -> Result<()> {
     conn.execute(
         "DELETE FROM responses WHERE created_at < ?1",
         [now - RESPONSES_KEEP_SECS],
+    )?;
+    // A withdrawal's address and amount leave once its notes are mined and a week has passed (privacy re-audit V7).
+    // Deposits and spent-chip fingerprints stay: they are what stops a deposit minting twice or a chip spending twice.
+    conn.execute(
+        "DELETE FROM payouts WHERE kind = 'withdraw' AND status = 'mined' AND built_at < ?1",
+        [now - WITHDRAWALS_KEEP_SECS],
+    )?;
+    conn.execute(
+        "DELETE FROM withdrawals WHERE created_at < ?1
+           AND NOT EXISTS (SELECT 1 FROM payouts WHERE receipt_txid = 'withdraw:' || withdrawals.id)",
+        [now - WITHDRAWALS_KEEP_SECS],
     )?;
     Ok(())
 }
