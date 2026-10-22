@@ -107,6 +107,8 @@
   gap: 12px;
   padding: 8px 8px 8px 16px;
   border-radius: var(--radius-full);
+  /* Labels never break inside their pills; below the links' breakpoint the menu carries them. */
+  white-space: nowrap;
   background: color-mix(in srgb, var(--background) 62%, transparent);
   box-shadow:
     inset 0 0 0 1px var(--lp-line),
@@ -160,7 +162,8 @@
     display: inline-flex;
   }
 }
-@media (min-width: 960px) {
+/* The seven links, the brand and both actions need about 1,000 px; below that the menu holds the links. */
+@media (min-width: 1120px) {
   .lp-nav-links {
     display: flex;
   }
