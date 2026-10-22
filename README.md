@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://kakure-web.kakure-price-relay.workers.dev">
+  <a href="https://getkakure.xyz">
     <img src=".github/assets/banner.png" width="960" alt="Kakure 隠れ. Trade every minute. Stay hidden. Call Bitcoin, Ether, Solana and Zcash up or down with private chips from a shielded deposit, beside two real screens of the Kakure terminal: a live BTC chart with Up and Down, and the open positions sheet." />
   </a>
 </p>
@@ -8,17 +8,17 @@
 <p align="center">Trade every minute. Stay hidden.<br/>A private, real-time prediction market on Zcash: the prices are public, the traders aren't.</p>
 
 <p align="center">
-  <a href="https://kakure-web.kakure-price-relay.workers.dev"><b>Open Kakure</b></a>
+  <a href="https://getkakure.xyz"><b>Open Kakure</b></a>
   &nbsp;·&nbsp;
-  <a href="https://kakure-web.kakure-price-relay.workers.dev/demo"><b>Demo</b></a>
+  <a href="https://getkakure.xyz/demo"><b>Demo</b></a>
   &nbsp;·&nbsp;
-  <a href="https://kakure-web.kakure-price-relay.workers.dev/privacy"><b>Who sees what</b></a>
+  <a href="https://getkakure.xyz/privacy"><b>Who sees what</b></a>
   &nbsp;·&nbsp;
-  <a href="https://kakure-web.kakure-price-relay.workers.dev/proof"><b>Settlement proof</b></a>
+  <a href="https://getkakure.xyz/proof"><b>Settlement proof</b></a>
   &nbsp;·&nbsp;
-  <a href="https://kakure-web.kakure-price-relay.workers.dev/status"><b>Status</b></a>
+  <a href="https://getkakure.xyz/status"><b>Status</b></a>
   &nbsp;·&nbsp;
-  <a href="apps/docs/content/docs/index.mdx"><b>Docs</b></a>
+  <a href="https://docs.getkakure.xyz"><b>Docs</b></a>
 </p>
 
 **Kakure is a prediction market where nobody, including us, can tell who placed a trade.** You deposit shielded ZEC once
@@ -50,10 +50,10 @@ position certificate. Close early at the live bid, or let it settle; winnings co
 
 | Way in | What you do | Start here |
 | --- | --- | --- |
-| **Trade** | Up or Down on 1m, 2m, 5m, 15m, 1h, 4h and 1d Windows; close early, trail, take-profit and stop; parlays of 2–3 Windows; Range and Moonshot bands. | [Trade](https://kakure-web.kakure-price-relay.workers.dev/trade) · [first trade](apps/docs/content/docs/first-trade.mdx) · [rules](apps/docs/content/docs/rules.mdx) |
-| **Play** | Practice against a coin, Line Rider and Candle Hop on real price tapes, Lucky (one real trade drawn on your device), and a free Duel with sealed picks and Elo. | [Games](https://kakure-web.kakure-price-relay.workers.dev/games) · [games guide](apps/docs/content/docs/games.mdx) |
-| **Rank** | Nickname boards for the arcade and the Duel, and an opt-in Bets board of published calls (right calls only, never a market, side or size). | [Leaderboard](https://kakure-web.kakure-price-relay.workers.dev/leaderboard) |
-| **Check it** | Recompute any settlement from the signed prints; check your own positions against the signed record. | [Proof](https://kakure-web.kakure-price-relay.workers.dev/proof) · [Verify](https://kakure-web.kakure-price-relay.workers.dev/verify) · [how](apps/docs/content/docs/verify.mdx) |
+| **Trade** | Up or Down on 1m, 2m, 5m, 15m, 1h, 4h and 1d Windows; close early, trail, take-profit and stop; parlays of 2–3 Windows; Range and Moonshot bands. | [Trade](https://getkakure.xyz/trade) · [first trade](apps/docs/content/docs/first-trade.mdx) · [rules](apps/docs/content/docs/rules.mdx) |
+| **Play** | Practice against a coin, Line Rider and Candle Hop on real price tapes, Lucky (one real trade drawn on your device), and a free Duel with sealed picks and Elo. | [Games](https://getkakure.xyz/games) · [games guide](apps/docs/content/docs/games.mdx) |
+| **Rank** | Nickname boards for the arcade and the Duel, and an opt-in Bets board of published calls (right calls only, never a market, side or size). | [Leaderboard](https://getkakure.xyz/leaderboard) |
+| **Check it** | Recompute any settlement from the signed prints; check your own positions against the signed record. | [Proof](https://getkakure.xyz/proof) · [Verify](https://getkakure.xyz/verify) · [how](apps/docs/content/docs/verify.mdx) |
 
 There is no account, no sign-in and no cookie. Everything you own lives in an encrypted vault on your device, with an
 optional passphrase lock and an encrypted backup file.
@@ -61,19 +61,19 @@ optional passphrase lock and an encrypted backup file.
 ## Demo
 
 <p align="center">
-  <a href="https://kakure-web.kakure-price-relay.workers.dev/demo">
+  <a href="https://getkakure.xyz/demo">
     <img src=".github/assets/demo-cover.png" width="960" alt="Watch the Kakure demo: Deposit. Trade. Nobody watching. Three real Kakure screens (Markets, the BTC terminal, open positions) behind a vermilion play button." />
   </a>
 </p>
 
-The play button opens the site's [demo page](https://kakure-web.kakure-price-relay.workers.dev/demo), where the
+The play button opens the site's [demo page](https://getkakure.xyz/demo), where the
 recorded walkthrough plays once it's published; until then that page says so and links the app and a step-by-step
 guide. The cover is artwork composed from unchanged screens of the app ([provenance](.github/assets/provenance.json));
 it is not a recording and shows no transaction.
 
 ## Who sees what
 
-<sub>The full model, with every residual, is on [/privacy](https://kakure-web.kakure-price-relay.workers.dev/privacy) and in [privacy.mdx](apps/docs/content/docs/privacy.mdx).</sub>
+<sub>The full model, with every residual, is on [/privacy](https://getkakure.xyz/privacy) and in [privacy.mdx](apps/docs/content/docs/privacy.mdx).</sub>
 
 | Who | Learns | Never learns |
 | --- | --- | --- |
@@ -102,7 +102,7 @@ How that holds:
 
 Kakure runs both the relay and the operator, so keeping your IP apart from your trades rests on Kakure not combining
 the two; Tor removes that trust. That and the other residuals (timing, a small crowd, harvest-now-decrypt-later) are
-written out on [/privacy](https://kakure-web.kakure-price-relay.workers.dev/privacy).
+written out on [/privacy](https://getkakure.xyz/privacy).
 
 ## Architecture
 
@@ -166,7 +166,7 @@ otherwise.
 | **Chips** | BDHKE and DLEQ against the NUT vectors on both sides; double spends refused; NUT-19 cached answers for retried calls. |
 | **A real shielded deposit and withdrawal on this design** | **Not yet run.** The deposit and payout code paths exist and scan Orchard and Ironwood, but no real testnet deposit has yet reached the current operator; the local wallet has synced to block 4,522,560 with no notes received. The earlier pool-based design took real shielded testnet bets and paid them on 18 October; that design is retired. |
 | **Games** | Line Rider and Candle Hop runs replayed server-side to rank; Duels played against a scripted second player, sealed picks revealed only after both locked in, Elo applied once; a Lucky draw made on the device and placed as one trade; a call published to the Bets board with the operator's blind receipt. |
-| **Hosting** | The live site at kakure-web.kakure-price-relay.workers.dev still serves the previous design until the cut-over in the runbook; the operator, arcade and relay deploys are prepared, not yet rolled out. |
+| **Hosting** | Live since 22 October: [getkakure.xyz](https://getkakure.xyz) and its relay on Cloudflare Workers, the testnet operator (real-time market and OHTTP gateway) and the arcade on Coolify, the docs at [docs.getkakure.xyz](https://docs.getkakure.xyz). The site's relay to the operator's gateway was checked live end to end. |
 | **Mobile** | An Expo app exists for the earlier design and is paused; the web app installs to a phone's home screen. |
 
 No mainnet trading, independent audit or production-money readiness is claimed. Mainnet's operator wallet and signing
