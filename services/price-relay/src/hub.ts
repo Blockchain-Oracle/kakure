@@ -27,7 +27,6 @@ import {
   HTTP_SWITCHING_PROTOCOLS,
   IDLE_UPSTREAM_GRACE_MS,
   KRAKEN_WS,
-  LANE_STREAM_SYMBOLS,
   MINUTE_BACKFILL_SYMBOLS,
   NOTE_CHARS,
   NOTES_KEPT,
@@ -38,8 +37,7 @@ import {
   WS_CLOSE_GOING_AWAY,
 } from "./constants";
 import { SessionCalendar, streamStocks } from "./pyth";
-
-type SocketFeed = Exclude<UpstreamFeed, "pyth">;
+import { isRoutine, parseCoinbase, parseKraken, type SocketFeed, subscribeMessages } from "./venues";
 
 interface FeedState {
   socket: WebSocket | null;
@@ -201,7 +199,7 @@ export class PriceHub extends DurableObject<HubEnv> {
     feed.socket = socket;
     feed.since = Date.now();
     feed.lastAt = feed.since;
-    socket.send(JSON.stringify(subscribeMessage(source)));
+    for (const message of subscribeMessages(source)) socket.send(JSON.stringify(message));
     socket.addEventListener("message", (event) => this.onFeedMessage(source, event.data));
     socket.addEventListener("close", (event) =>
       this.onFeedLost(source, socket, `closed ${event.code} ${event.reason}`),
@@ -343,57 +341,4 @@ export class PriceHub extends DurableObject<HubEnv> {
       notes: [...this.notes],
     };
   }
-}
-
-const SYMBOLS = new Set<string>(CRYPTO_STREAM_SYMBOLS);
-
-const LANE = new Set<string>(LANE_STREAM_SYMBOLS);
-
-function subscribeMessage(source: SocketFeed): unknown {
-  if (source === "coinbase") {
-    return {
-      type: "subscribe",
-      channels: [
-        { name: "ticker", product_ids: LANE_STREAM_SYMBOLS },
-        { name: "ticker_batch", product_ids: CRYPTO_STREAM_SYMBOLS.filter((symbol) => !LANE.has(symbol)) },
-      ],
-    };
-  }
-  const symbols = CRYPTO_STREAM_SYMBOLS.map((symbol) => symbol.replace("-", "/"));
-  return { method: "subscribe", params: { channel: "ticker", symbol: symbols } };
-}
-
-/** Heartbeats and ticker snapshots are routine; anything else (errors, subscription replies) is worth a note. */
-function isRoutine(source: SocketFeed, text: string): boolean {
-  return source === "coinbase"
-    ? text.includes('"type":"heartbeat"') || text.includes('"type":"ticker"')
-    : text.includes('"channel":"heartbeat"') ||
-        text.includes('"channel":"ticker"') ||
-        text.includes('"channel":"status"');
-}
-
-/** Coinbase `ticker` / `ticker_batch` messages: `{ type: "ticker", product_id, price, time }`. */
-function parseCoinbase(data: string): Array<[StreamSymbol, Quote]> {
-  const message = JSON.parse(data) as { type?: string; product_id?: string; price?: string; time?: string };
-  if (message.type !== "ticker" || !message.product_id || !message.price || !SYMBOLS.has(message.product_id)) {
-    return [];
-  }
-  const ts = message.time ? Date.parse(message.time) : Date.now();
-  return [[message.product_id as StreamSymbol, { p: message.price, ts, src: "coinbase" }]];
-}
-
-/** Kraken v2 `ticker` messages: `{ channel: "ticker", data: [{ symbol: "BTC/USD", last }] }`. */
-function parseKraken(data: string): Array<[StreamSymbol, Quote]> {
-  const message = JSON.parse(data) as { channel?: string; data?: Array<{ symbol?: string; last?: number | string }> };
-  if (message.channel !== "ticker" || !Array.isArray(message.data)) {
-    return [];
-  }
-  const now = Date.now();
-  return message.data.flatMap((entry) => {
-    const symbol = entry.symbol?.replace("/", "-");
-    if (!symbol || entry.last === undefined || !SYMBOLS.has(symbol)) {
-      return [];
-    }
-    return [[symbol as StreamSymbol, { p: String(entry.last), ts: now, src: "kraken" }]];
-  });
 }

@@ -1,11 +1,15 @@
 import { LANE_ASSETS } from "@kakure/domain";
 import type { StreamSymbol } from "@kakure/feeds/protocol";
 /**
- * Coinbase Exchange public feed. The traded assets (every lane asset) take `ticker`: one message per trade, as Owarine's
- * ops (`prices/crypto-spot.ts`), so the chart and the house's quotes move with the market. The rest (sparklines only)
- * take `ticker_batch`: each product's latest price every 5 s.
+ * Coinbase's public market-data socket (Advanced Trade; no key). The traded assets (every lane asset) take `ticker`: an
+ * update on every match, as Owarine's ops (`prices/crypto-spot.ts`), so the chart and the house's quotes move with the
+ * market. The rest (sparklines only) take `ticker_batch`: each product's latest price every 5 s. `heartbeats` keeps
+ * quiet channels open. The Exchange feed (`ws-feed.exchange.coinbase.com`) caps `ticker` subscribers per product per
+ * address and refuses busy products from a Worker's shared egress, so it isn't used.
  */
-export const COINBASE_WS = "https://ws-feed.exchange.coinbase.com";
+export const COINBASE_WS = "https://advanced-trade-ws.coinbase.com";
+/** Coinbase's `heartbeats` channel takes a product list; one product keeps the whole socket open. */
+export const COINBASE_HEARTBEAT_PRODUCT = "BTC-USD";
 /** Coinbase Exchange public REST, for history backfill (candles). */
 export const COINBASE_REST = "https://api.exchange.coinbase.com";
 /** Coinbase's REST refuses a request without a User-Agent; this one names the relay, nothing about any visitor. */
