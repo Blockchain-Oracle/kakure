@@ -43,8 +43,8 @@ book are public and signed. Who traded, how much and when stays with the trader:
 Chaumian e-cash (Cashu BDHKE with DLEQ proofs) for the balance, and Oblivious HTTP (RFC 9458) for every call.
 
 **One call.** Open the terminal on BTC and pick the 5-minute Window. The opening print from three exchanges sets the
-Line. Up pays if two of three venues close at or above it; Down if two close below; otherwise everyone is refunded at
-cost. The button shows what Up pays right now (say **2.36×**), priced as Φ(ln(S/L) / σ√τ) plus a spread. Tap it: your
+Line. Up pays if two of three venues close above it; Down if two close below; an equal close is Flat and doesn't vote, and
+with no two-venue majority everyone is refunded at cost. The button shows what Up pays right now (say **2.36×**), priced as Φ(ln(S/L) / σ√τ) plus a spread. Tap it: your
 browser spends chips the mint has never seen unblinded, sealed to the operator's gateway key, and gets back a signed
 position certificate. Close early at the live bid, or let it settle; winnings come back as fresh chips.
 
